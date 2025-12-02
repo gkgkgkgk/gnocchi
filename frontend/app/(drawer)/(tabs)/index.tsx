@@ -8,11 +8,12 @@ import { FloatingActionButton } from '@/components/floating-action-button';
 import { AddRecipeModal } from '@/components/add-recipe-modal';
 import { ProfileQuestionnaireModal } from '@/components/profile-questionnaire-modal';
 import { fetchRecipes, deleteRecipe, Recipe } from '@/services/recipe-service';
-import { checkUserProfile, createUserProfile } from '@/services/profile-service';
+import { checkUserProfile, createUserProfile, getUserTags, RecipeTag } from '@/services/profile-service';
 
 export default function HomeScreen() {
   const router = useRouter();
   const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [userTags, setUserTags] = useState<RecipeTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -25,8 +26,18 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadRecipes();
+    loadTags();
     checkProfile();
   }, []);
+
+  const loadTags = async () => {
+    try {
+      const tags = await getUserTags();
+      setUserTags(tags);
+    } catch (error) {
+      console.error('Failed to load tags:', error);
+    }
+  };
 
   const checkProfile = async () => {
     const hasProfile = await checkUserProfile();
@@ -127,9 +138,19 @@ export default function HomeScreen() {
           <View style={[styles.cardWrapper, { width: `${100 / numColumns}%` }]}>
             <RecipeCard
               {...item}
+              tags={item.metadata?.tags || []}
+              userTags={userTags}
               onPress={() => handleRecipePress(item.id)}
               onEdit={() => handleEditRecipe(item.id)}
               onDelete={() => handleDeleteRecipe(item.id)}
+              onTagsChange={(tagIds) => {
+                // Update local state to reflect tag changes
+                setRecipes(recipes.map(r => 
+                  r.id === item.id 
+                    ? { ...r, metadata: { ...r.metadata, tags: tagIds } }
+                    : r
+                ));
+              }}
             />
           </View>
         )}

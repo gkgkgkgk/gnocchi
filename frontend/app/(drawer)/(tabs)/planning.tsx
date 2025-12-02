@@ -57,6 +57,7 @@ export default function PlanningScreen() {
   const tintColor = useThemeColor({}, 'tint');
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const menuBackgroundColor = useThemeColor({}, 'background');
   
   const [weekPlan, setWeekPlan] = useState<DayPlan[]>(initializeEmptyWeek());
   const [showAddRecipeModal, setShowAddRecipeModal] = useState(false);

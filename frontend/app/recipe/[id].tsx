@@ -7,7 +7,8 @@ import { ThemedText } from '@/components/themed-text';
 import { AIInsightsBanner } from '@/components/ai-insights-banner';
 import { ToolExecutionModal } from '@/components/tool-execution-modal';
 import { RecipePhotoGallery } from '@/components/recipe-photo-gallery';
-import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe } from '@/services/recipe-service';
+import { EditRecipeTagsModal } from '@/components/edit-recipe-tags-modal';
+import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags } from '@/services/recipe-service';
 import { executeAITool, AITool } from '@/services/ai-tools-service';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -27,6 +28,8 @@ export default function RecipeDetailScreen() {
   const [modifiedRecipe, setModifiedRecipe] = useState<any>(null);
   const [savedRecipeId, setSavedRecipeId] = useState<string | null>(null);
   const [multiplier, setMultiplier] = useState(1);
+  const [showEditTags, setShowEditTags] = useState(false);
+  const [recipeTags, setRecipeTags] = useState<string[]>([]);
   
   const menuBackgroundColor = useThemeColor({}, 'background');
   const cardBackgroundColor = useThemeColor({}, 'background');
@@ -110,6 +113,10 @@ export default function RecipeDetailScreen() {
       const data = await fetchRecipeById(id as string);
       console.log(data);
       setRecipe(data);
+      // Load tags from metadata
+      if (data?.metadata?.tags) {
+        setRecipeTags(data.metadata.tags);
+      }
     } catch (error) {
       console.error('Failed to load recipe:', error);
     } finally {
@@ -334,6 +341,15 @@ export default function RecipeDetailScreen() {
               onPress={handleEdit}
             >
               <ThemedText style={styles.menuItemText}>✏️ Edit</ThemedText>
+            </Pressable>
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setShowMenu(false);
+                setShowEditTags(true);
+              }}
+            >
+              <ThemedText style={styles.menuItemText}>🏷️ Edit Tags</ThemedText>
             </Pressable>
             <Pressable
               style={[styles.menuItem, styles.menuItemLast]}
@@ -643,6 +659,33 @@ export default function RecipeDetailScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Edit Recipe Tags Modal */}
+      <EditRecipeTagsModal
+        visible={showEditTags}
+        onClose={() => setShowEditTags(false)}
+        currentTags={recipeTags}
+        onSave={async (tagIds) => {
+          try {
+            await updateRecipeTags(id as string, tagIds);
+            setRecipeTags(tagIds);
+            // Update the recipe object with new tags
+            if (recipe) {
+              setRecipe({
+                ...recipe,
+                metadata: {
+                  ...recipe.metadata,
+                  tags: tagIds,
+                },
+              });
+            }
+          } catch (error) {
+            console.error('Failed to update recipe tags:', error);
+            // TODO: Show error toast to user
+          }
+        }}
+        recipeName={recipe?.title}
+      />
     </ThemedView>
   );
 }

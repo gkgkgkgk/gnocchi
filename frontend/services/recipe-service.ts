@@ -51,6 +51,7 @@ export interface Recipe {
     prepTime?: number;
     cookTime?: number;
     servings?: number;
+    tags?: string[]; // Array of tag IDs
   };
 }
 
@@ -524,6 +525,48 @@ export async function saveModifiedRecipe(modifiedRecipe: any, originalRecipe?: R
   };
 
   return createRecipe(recipeInput);
+}
+
+/**
+ * Updates recipe tags in the metadata field
+ */
+export async function updateRecipeTags(recipeId: string, tagIds: string[]): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+
+  // First, get the current recipe to preserve existing metadata
+  const { data: recipe, error: fetchError } = await supabase
+    .from('recipes')
+    .select('metadata')
+    .eq('id', recipeId)
+    .eq('user_id', user.id)
+    .single();
+
+  if (fetchError) {
+    console.error('Error fetching recipe metadata:', fetchError);
+    throw fetchError;
+  }
+
+  // Merge tags into existing metadata
+  const updatedMetadata = {
+    ...(recipe?.metadata || {}),
+    tags: tagIds,
+  };
+
+  // Update the recipe with new metadata
+  const { error: updateError } = await supabase
+    .from('recipes')
+    .update({ metadata: updatedMetadata })
+    .eq('id', recipeId)
+    .eq('user_id', user.id);
+
+  if (updateError) {
+    console.error('Error updating recipe tags:', updateError);
+    throw updateError;
+  }
 }
 
 /**

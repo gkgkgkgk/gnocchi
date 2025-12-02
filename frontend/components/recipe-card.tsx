@@ -1,8 +1,12 @@
 import { useState } from 'react';
-import { View, StyleSheet, Pressable, Image, Modal } from 'react-native';
+import { View, StyleSheet, Pressable, Image, Modal, useWindowDimensions } from 'react-native';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
+import { Ionicons } from '@expo/vector-icons';
 import { ThemedView } from './themed-view';
 import { ThemedText } from './themed-text';
+import { EditRecipeTagsModal } from './edit-recipe-tags-modal';
+import { updateRecipeTags } from '@/services/recipe-service';
+import { RecipeTag } from '@/services/profile-service';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 interface RecipeCardProps {
@@ -17,9 +21,12 @@ interface RecipeCardProps {
   cook_time?: number;
   servings?: number;
   ingredients?: any[];
+  tags?: string[]; // Array of tag IDs
+  userTags?: RecipeTag[]; // All user tags for lookup
   onPress?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onTagsChange?: (tagIds: string[]) => void;
 }
 
 export function RecipeCard(props: RecipeCardProps) {
@@ -29,9 +36,12 @@ export function RecipeCard(props: RecipeCardProps) {
     image_url,
     metadata,
     ingredients,
+    tags = [],
+    userTags = [],
     onPress,
     onEdit,
     onDelete,
+    onTagsChange,
   } = props;
   console.log(props);
 
@@ -50,8 +60,17 @@ export function RecipeCard(props: RecipeCardProps) {
   // Get theme colors
   const menuBackgroundColor = useThemeColor({}, 'background');
   const menuTextColor = useThemeColor({}, 'text');
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768; // Consider mobile if width < 768px
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showEditTags, setShowEditTags] = useState(false);
+
+  // Get tag details for the recipe's tags from the provided userTags
+  const tagDetails = tags
+    .map(tagId => userTags.find(t => t.id === tagId))
+    .filter((tag): tag is RecipeTag => tag !== undefined)
+    .slice(0, 3); // Max 3 tags
 
   return (
     <>
@@ -102,6 +121,14 @@ export function RecipeCard(props: RecipeCardProps) {
                     <ThemedText style={styles.menuItemText}>✏️ Edit</ThemedText>
                   </MenuOption>
                 )}
+                <MenuOption
+                  onSelect={() => setShowEditTags(true)}
+                  customStyles={{
+                    optionWrapper: styles.menuItem,
+                  }}
+                >
+                  <ThemedText style={styles.menuItemText}>🏷️ Edit Tags</ThemedText>
+                </MenuOption>
                 {onDelete && (
                   <MenuOption
                     onSelect={() => setShowDeleteConfirm(true)}
@@ -130,6 +157,28 @@ export function RecipeCard(props: RecipeCardProps) {
               </ThemedText>
             )}
           </View>
+
+          {/* Tag Chips */}
+          {tagDetails.length > 0 && (
+            <View style={[styles.tagsContainer, isMobile && styles.tagsContainerMobile]}>
+              {tagDetails.map((tag) => (
+                <View 
+                  key={tag.id} 
+                  style={[
+                    styles.tagChip,
+                    isMobile && styles.tagChipMobile,
+                    { 
+                      backgroundColor: `${tag.color}15`, // 15 = ~8% opacity in hex
+                      borderColor: tag.color,
+                    }
+                  ]}
+                >
+                  <Ionicons name={tag.icon as any} size={12} color={tag.color} />
+                  <ThemedText style={[styles.tagChipText, { color: tag.color }]}>{tag.name}</ThemedText>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </ThemedView>
     </Pressable>
@@ -177,6 +226,25 @@ export function RecipeCard(props: RecipeCardProps) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Edit Tags Modal */}
+      <EditRecipeTagsModal
+        visible={showEditTags}
+        onClose={() => setShowEditTags(false)}
+        currentTags={tags}
+        onSave={async (tagIds) => {
+          try {
+            await updateRecipeTags(props.id, tagIds);
+            if (onTagsChange) {
+              onTagsChange(tagIds);
+            }
+          } catch (error) {
+            console.error('Failed to update recipe tags:', error);
+            // TODO: Show error toast to user
+          }
+        }}
+        recipeName={title}
+      />
     </>
   );
 }
@@ -252,6 +320,33 @@ const styles = StyleSheet.create({
   metadataText: {
     fontSize: 12,
     opacity: 0.7,
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+  },
+  tagsContainerMobile: {
+    flexDirection: 'column',
+    gap: 4,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    width: '31.33%', // ~1/3 of width accounting for gaps
+  },
+  tagChipMobile: {
+    width: '100%', // Full width on mobile when stacked
+  },
+  tagChipText: {
+    fontSize: 10,
+    fontWeight: '600',
+    flexShrink: 1,
   },
   menuItem: {
     padding: 16,
