@@ -72,11 +72,19 @@ An iPad-in-the-kitchen recipe app, private to our house, running entirely on
   photo, type manually.
 - Cookbooks (a recipe collection with ordering).
 - Tags (default set of 6, user-customizable, stored in `profile_config`).
-- AI "tools" — canned recipe transformations (dietary substitutions,
-  presumably others). Stored per-user in DB, fired on demand.
+- AI "tools" — canned recipe transformations (`suggest_substitutions`,
+  `scale_recipe`, `simplify_instructions`, `cooking_tips` per tests).
+  Stored per-user in DB, fired on demand.
 - AI insight banner: dietary-restriction analysis on view.
-- Shopping list generation from a list of recipes.
-- Meal planning tab (exists as a screen; extent of implementation TBD).
+- Shopping list generation from a list of recipes (LLM-aggregated).
+- **Meal planning is real** — full weekly grid with drag-and-drop between
+  days, a "Recipe Ideas" short list, a checkbox shopping list that
+  persists into the meal plan row. Not a stub.
+- **Recipe view has a serving multiplier** — 0.5×–4× slider that rescales
+  ingredient quantities live via `fraction-formatter.ts` (0.5 → ½).
+  Nice UX; preserve through the rewrite.
+- Recipe photo gallery component (multi-image, though not sure if wired
+  up end-to-end).
 
 ### Bugs / rot found in the audit
 
@@ -114,6 +122,25 @@ rewrite, they'll get killed naturally in Phase 1.
   cleanly.
 - `Recipe` pydantic model requires `notes: str` (not Optional) — if the
   model omits it, the response fails validation.
+- `.expo/` directory is checked into git; its own README says explicitly
+  "you should not share the `.expo` folder." Gitignore + untrack.
+- `frontend/components/hello-wave.tsx` — leftover from the Expo starter
+  template, nothing uses it. Delete.
+- Dark mode is stubbed — `hooks/use-color-scheme.ts` doesn't actually
+  toggle; both platforms return the OS scheme but there's no in-app
+  toggle and it's untested. `Colors.dark` in `constants/theme.ts` exists
+  but the app hasn't been designed against it.
+- `recipe/[id].tsx` polls the DB every N seconds while
+  `ai_insight.text === '__GENERATING__'` or `annotated_steps === null`.
+  Racy and wastes DB reads. SSE streaming in Phase 2 fixes this.
+- `services/*.ts` are all direct `supabase.from(...)` calls — 88 sites
+  across the frontend need to be replaced by `apiClient` calls in P1.
+- Meal-plan screen calls `supabase.auth.getUser()` directly rather than
+  going through a service. Leaky boundary that becomes moot once auth
+  is gone.
+- `models.py` `Recipe` model doesn't include an `id` or timestamps —
+  it's only used as an LLM response schema. Fine, but worth naming so
+  we don't confuse it with the DB row model in the new backend.
 
 ---
 
@@ -137,6 +164,10 @@ Small, low-risk. Gets the repo into a state where the bigger changes are safe.
       requests.)
 - [ ] `README.md` at the repo root — currently one line "# gnocchi". Give
       it a real description and dev quickstart.
+- [ ] Gitignore `.expo/` and untrack it (its README literally says don't
+      commit).
+- [ ] Delete `frontend/components/hello-wave.tsx` (Expo starter leftover,
+      unused).
 
 **Exit state:** app works exactly as before, but the codebase isn't
 embarrassing to open in an editor.
@@ -282,6 +313,15 @@ CREATE TABLE tags (
 Full-text search index on `title` + ingredient text via a generated tsvector
 column. `pg_trgm` extension for fuzzy search.
 
+**Tradeoff acknowledged:** collapsing `ingredients`/`units` tables into a
+JSON blob loses the current ingredient-picker autocomplete UX where you
+select a canonical row from a shared list. In exchange we get: (a) no
+join gymnastics on read, (b) LLM-extracted recipes save cleanly without
+first canonicalizing every ingredient string, (c) the annotate step no
+longer needs a stable ingredient ID — spans just index into the array.
+If we ever want autocomplete back, it's a `SELECT DISTINCT jsonb_path`
+query away.
+
 **1d. Image storage.** Backend writes uploads to `/data/images/<uuid>.jpg`,
 serves via `GET /images/<key>`. In production `/data` is the container's
 bind-mounted `/var/lib/gnocchi` on the host (that's already how apps.nix
@@ -297,13 +337,18 @@ mounts state). Nothing exotic; no MinIO, no S3.
 - Drop `@supabase/supabase-js`, `expo-auth-session`, `expo-secure-store`,
   `expo-web-browser` from `package.json`.
 
-**1f. Deploy.**
-- **Prereq (serverkepets, one-time):** extend `modules/app-registry.nix` to
-  accept the `db` field described in **1b**. Small change (~15 lines),
-  benefits every future DB-using app.
+**1f. Deploy.** Two containers already prereq'd (`5d7a74e`).
+- **Prereq DONE (serverkepets `288fa8f` / `5d7a74e`):** `app-registry.nix`
+  understands the `db` field; docs updated.
 - `Containerfile` at repo root for the backend (`gnocchi-api`).
-- Second `Containerfile` for the frontend (`npx expo export --platform web`
-  → serve with `nginx:alpine` OR bundle via caddy).
+- `frontend/Containerfile` — Caddy image that (a) serves the
+  `expo export --platform web` static bundle and (b) reverse-proxies
+  `/api/*` → `127.0.0.1:8083`. Because both containers share the host
+  network (`--network=host`), the proxy talks to the backend over
+  loopback with no service discovery. The frontend uses **relative
+  URLs** (`fetch('/api/recipes')`) — no `EXPO_PUBLIC_API_URL`
+  build-time bake-in, no per-environment builds, one URL to give the
+  household regardless of whether they're on LAN or tailnet.
 - Two GitHub Actions workflows publishing to
   `ghcr.io/gkgkgkgk/gnocchi-api:latest` and
   `ghcr.io/gkgkgkgk/gnocchi-web:latest`.
@@ -311,17 +356,14 @@ mounts state). Nothing exotic; no MinIO, no S3.
   - `gnocchi-api`: port 8083, `db = "gnocchi";`, `env = { ANTHROPIC_API_KEY
     = ...; };`. `DATABASE_URL` is injected by the registry, not declared
     here.
-  - `gnocchi-web`: port 8084, `env = { EXPO_PUBLIC_API_URL =
-    "http://homeserver:8083"; };`.
+  - `gnocchi-web`: port 8080… wait, 8080 is reserved. Port **8085**,
+    no `env` needed. Only URL anyone needs: `http://homeserver:8085`.
 
-**Open question:** the frontend is built once, so `EXPO_PUBLIC_API_URL` is
-baked in at build time. That means the API URL has to be reachable from
-wherever a device opens the web app — which for a phone on cellular is *not*
-`homeserver:8083`. Options: (i) build twice (LAN + tailnet), (ii) set it to
-the tailnet hostname `homeserver.tailXXXX.ts.net:8083` which resolves from
-any tailnet device, (iii) put both behind Caddy at
-`https://gnocchi.homeserver.tailXXXX.ts.net` and use relative URLs. (iii)
-is the right long-term answer; (ii) is fine for Phase 1.
+**Optional refinement:** while I'm in `app-registry.nix`, add an
+`internal = true;` field that skips opening the app's port in the
+firewall. Then `gnocchi-api` doesn't need to be firewall-accessible at
+all — Caddy proxies to it over loopback. Keeps the attack surface tight.
+Small addition, worth doing when we hit P1.
 
 **Exit state:** app runs on homeserver, reachable via
 `http://homeserver:8084` on the LAN and via tailscale off it. No Supabase.
@@ -387,6 +429,13 @@ before we redo screens. Playful but grown-up.
 - **Cards:** softer shadows, generous whitespace, rating stars visible on
   hover/press, source badge (Pinterest / Instagram / Web).
 - **Empty states:** illustrated (single doodle SVG each) + one warm line.
+- **Dark mode:** currently stubbed (`hooks/use-color-scheme.ts` returns
+  the OS scheme but nothing in the app has been designed against
+  `Colors.dark`). Design the full palette across light + dark; add a
+  toggle in settings.
+- **Preserve:** the serving multiplier on the recipe view (0.5×–4× slider
+  from `[id].tsx`) and both existing fraction/ingredient formatter utils
+  (`fraction-formatter.ts` handles unicode fractions like ½; keep as-is).
 
 **Exit state:** every existing screen looks intentionally-designed instead
 of stock. No new features yet.
@@ -485,8 +534,12 @@ important.
 - **Shopping list rework.** Aggregated across selected recipes, editable,
   persisted (not just LLM-generated in-memory). Checkbox UI. Send-to-phone
   via a shareable URL.
-- **Meal planning.** The tab exists; probably needs a real UI. Weekly
-  grid, drag recipe onto a day, auto-generate shopping list for the week.
+- **Meal planning.** The grid, drag-and-drop, short list, and checkbox
+  shopping list are already built and working. Phase 6 work here is
+  polish: re-theme with the new design system, fix the racy drag on
+  touch (`onLongPress` with 500ms is jittery on iOS), and hook it up to
+  the P5 dietary-preset system so "generate week's shopping list"
+  respects house preferences.
 - **Health / logs dashboard.** Small `/status` page in the app showing
   DB size, image count, last backup, container versions. Nothing fancy.
 
