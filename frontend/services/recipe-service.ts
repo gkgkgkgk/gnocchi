@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { parseIngredient } from '@/utils/ingredient-parser';
 import { API_ENDPOINTS } from '@/config/api';
 import { fetchAITools, AITool } from './ai-tools-service';
 import { fetchUnits, Unit } from './unit-service';

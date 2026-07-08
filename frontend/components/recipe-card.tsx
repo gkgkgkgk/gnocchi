@@ -43,18 +43,15 @@ export function RecipeCard(props: RecipeCardProps) {
     onDelete,
     onTagsChange,
   } = props;
-  console.log(props);
 
-  const {
-    cookTime,
-    prepTime,
-    servings
-  } = metadata;
+  const cookTime = metadata?.cookTime;
+  const prepTime = metadata?.prepTime;
+  const servings = metadata?.servings;
 
   // Handle both camelCase and snake_case from database
   const image = imageUrl || image_url;
-  const prep = parseInt(prepTime) || 0;
-  const cook = parseInt(cookTime) || 0;
+  const prep = Number(prepTime) || 0;
+  const cook = Number(cookTime) || 0;
   const totalTime = prep + cook;
   
   // Get theme colors

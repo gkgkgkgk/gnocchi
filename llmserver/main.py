@@ -1,11 +1,12 @@
 from typing import ItemsView
+import asyncio
 from fastapi import FastAPI, HTTPException, BackgroundTasks, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
 import base64
-from openai import OpenAI
+from openai import AsyncOpenAI
 from models import Ingredient, Recipe
 from scrape import scrape_pinterest_link, scrape_website
 from rich import print as rprint
@@ -15,7 +16,7 @@ load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Init OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 # FastAPI app
 app = FastAPI()
@@ -101,10 +102,14 @@ class ShoppingListRequest(BaseModel):
 class ShoppingListResponse(BaseModel):
     items: list[ShoppingListItem]
 
+@app.get("/health")
+async def health():
+    return {"ok": True}
+
 @app.post("/structure-recipe", response_model=ChatResponse)
-def structure_recipe(req: ChatRequest):
+async def structure_recipe(req: ChatRequest):
     # Call OpenAI
-    completion = client.chat.completions.parse(
+    completion = await client.chat.completions.parse(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": "You are a helpful cooking assistant. Your job is to structure recipes given an image or website."},
@@ -117,14 +122,14 @@ def structure_recipe(req: ChatRequest):
     return ChatResponse(reply=reply)
 
 @app.post("/scrape-pinterest", response_model=ScrapedRecipeResponse)
-def scrape_pinterest(req: PinterestRequest):
+async def scrape_pinterest(req: PinterestRequest):
     try:
-        # Scrape the Pinterest link
-        scraped_data = scrape_pinterest_link(req.url)
+        # Scrape the Pinterest link (blocking IO; run in threadpool)
+        scraped_data = await asyncio.to_thread(scrape_pinterest_link, req.url)
         rprint(scraped_data)
-        
+
         # Structure the recipe using OpenAI
-        completion = client.chat.completions.parse(
+        completion = await client.chat.completions.parse(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful cooking assistant. Your job is to structure recipes from scraped website text. Extract all ingredients with their quantities and units, and all instruction steps."},
@@ -144,13 +149,13 @@ def scrape_pinterest(req: PinterestRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/scrape-website", response_model=ScrapedRecipeResponse)
-def scrape_recipe_website(req: WebsiteRequest):
+async def scrape_recipe_website(req: WebsiteRequest):
     try:
-        # Scrape the website
-        scraped_data = scrape_website(req.url)
-        
+        # Scrape the website (blocking IO; run in threadpool)
+        scraped_data = await asyncio.to_thread(scrape_website, req.url)
+
         # Structure the recipe using OpenAI
-        completion = client.chat.completions.parse(
+        completion = await client.chat.completions.parse(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a helpful cooking assistant. Your job is to structure recipes from scraped website text. Extract all ingredients with their quantities and units, and all instruction steps."},
@@ -170,7 +175,7 @@ def scrape_recipe_website(req: WebsiteRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/annotate-recipe", response_model=AnnotateRecipeResponse)
-def annotate_recipe(req: AnnotateRecipeRequest):
+async def annotate_recipe(req: AnnotateRecipeRequest):
     """
     Annotate recipe instructions with ingredient references.
     Uses AI to identify where ingredients are mentioned in instructions
@@ -220,7 +225,7 @@ INSTRUCTIONS:
 """
 
         # Call OpenAI
-        completion = client.chat.completions.parse(
+        completion = await client.chat.completions.parse(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -239,7 +244,7 @@ INSTRUCTIONS:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/analyze-recipe", response_model=RecipeInsightResponse)
-def analyze_recipe(req: RecipeInsightRequest):
+async def analyze_recipe(req: RecipeInsightRequest):
     """
     Analyze a recipe based on user's dietary restrictions and preferences.
     Returns insights about dietary compliance and recommends tools if needed.
@@ -314,7 +319,7 @@ USER'S DIETARY RESTRICTIONS: {restrictions_text}
 
 Provide your analysis."""
         # Call OpenAI with structured output
-        completion = client.chat.completions.parse(
+        completion = await client.chat.completions.parse(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -335,7 +340,7 @@ Provide your analysis."""
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/execute-tool", response_model=ExecuteToolResponse)
-def execute_tool(req: ExecuteToolRequest):
+async def execute_tool(req: ExecuteToolRequest):
     """
     Execute an AI tool on a recipe to generate a modified version.
     Uses the tool's prompt to guide the transformation.
@@ -401,7 +406,7 @@ Please modify this recipe according to the tool's purpose. Return a complete rec
         rprint(user_prompt)
 
         # Call OpenAI with structured output
-        completion = client.chat.completions.parse(
+        completion = await client.chat.completions.parse(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -444,7 +449,7 @@ async def parse_recipe_image(
         rprint(f"[dim]Image size: {len(image_bytes)} bytes, format: {image_format}[/dim]")
         
         # Use OpenAI Vision API with structured outputs (same as scrape endpoints)
-        completion = client.beta.chat.completions.parse(
+        completion = await client.beta.chat.completions.parse(
             model="gpt-4o",
             messages=[
                 {
@@ -503,7 +508,7 @@ async def generate_shopping_list(
         Recipe List: {recipe_list}"""
         rprint(user_prompt)
 
-        completion = client.beta.chat.completions.parse(
+        completion = await client.beta.chat.completions.parse(
             model="gpt-4o",
             messages=[
                 {
