@@ -1,5 +1,5 @@
 import { api } from '@/lib/api';
-import type { Recipe } from './recipe-service';
+import { unitToString, type Recipe } from './recipe-service';
 
 export interface AITool {
   id: string;
@@ -38,7 +38,7 @@ export async function executeAITool(
       ingredients: recipe.ingredients.map((i) => ({
         text: i.text,
         quantity: i.quantity,
-        unit: i.unit,
+        unit: unitToString(i.unit),
       })),
       instructions: recipe.steps,
       notes: recipe.notes ?? '',

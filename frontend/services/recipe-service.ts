@@ -1,9 +1,25 @@
 import { api } from '@/lib/api';
 
+// --- Types --------------------------------------------------------------
+
 export interface RecipeIngredient {
   text: string;
   quantity: number;
-  unit: string;
+  // Loose during Phase 1.5: old screens read this as `{name, abbreviation}`,
+  // new code treats it as a plain string. Use `unitToString(i.unit)` when
+  // you need a definite string. Cleaned up in Phase 3.
+  unit: any;
+  ingredient?: { id?: string; name: string };
+  unit_id?: string;
+  ingredient_id?: string;
+  id?: string;
+}
+
+/** Extract the unit as a plain string whether given a string or `{name,abbreviation}`. */
+export function unitToString(u: any): string {
+  if (!u) return '';
+  if (typeof u === 'string') return u;
+  return u.abbreviation || u.name || '';
 }
 
 export interface RecipePhoto {
@@ -15,6 +31,10 @@ export interface RecipePhoto {
 export interface AIInsight {
   insight: string;
   recommended_tool: string | null;
+
+  // Legacy aliases.
+  text?: string;
+  suggested_tool?: string | null;
 }
 
 export interface CookHistoryEntry {
@@ -44,11 +64,24 @@ export interface Recipe {
   photos: RecipePhoto[];
   created_at: string;
   updated_at: string;
+
+  // Legacy aliases the screens still reference.
+  image_url?: string | null;
+  imageUrl?: string | null;
+  prepTime?: number | null;
+  cookTime?: number | null;
+  images?: string[];
+  metadata?: {
+    prepTime?: number;
+    cookTime?: number;
+    servings?: number;
+    tags?: string[];
+  };
 }
 
 export interface CreateRecipeInput {
   title: string;
-  ingredients: RecipeIngredient[];
+  ingredients: any[]; // loose — adapter normalizes
   steps: string[];
   notes?: string | null;
   source_url?: string | null;
@@ -58,6 +91,18 @@ export interface CreateRecipeInput {
   servings?: number | null;
   tags?: string[];
   cover_image?: string | null;
+
+  // Legacy aliases from the current screens.
+  image_url?: string | null;
+  imageUrl?: string | null;
+  metadata?: {
+    prepTime?: number | string;
+    cookTime?: number | string;
+    servings?: number | string;
+    prep_time?: number | string;
+    cook_time?: number | string;
+    tags?: string[];
+  };
 }
 
 export type UpdateRecipeInput = Partial<CreateRecipeInput> & {
@@ -65,13 +110,158 @@ export type UpdateRecipeInput = Partial<CreateRecipeInput> & {
   ai_insight?: AIInsight | null;
 };
 
+// --- Adapters -----------------------------------------------------------
+
+/**
+ * "1 1/2" → 1.5, "1/2" → 0.5, "1.5" → 1.5, "" → 0.
+ */
+function parseQuantity(q: string | number | undefined | null): number {
+  if (q == null) return 0;
+  if (typeof q === 'number') return q;
+  const s = String(q).trim();
+  if (!s) return 0;
+  const mixed = s.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (mixed) return Number(mixed[1]) + Number(mixed[2]) / Number(mixed[3]);
+  const frac = s.match(/^(\d+)\/(\d+)$/);
+  if (frac) return Number(frac[1]) / Number(frac[2]);
+  const n = Number(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseIntOrNull(v: any): number | null {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+  return isNaN(n) ? null : n;
+}
+
+/** Resolve a cover-image reference to a URL the browser can render. */
+function coverUrl(cover?: string | null): string | undefined {
+  if (!cover) return undefined;
+  if (cover.startsWith('http://') || cover.startsWith('https://')) return cover;
+  return api.imageUrl(cover);
+}
+
+/**
+ * Reshape a backend recipe row for the current UI. Keeps every field the
+ * backend returned, adds legacy aliases the screens read. This layer is
+ * temporary — Phase 3's UI rewrite deletes both the adapter and the aliases.
+ */
+function adaptForUI(r: any): Recipe {
+  const image = coverUrl(r.cover_image);
+  return {
+    ...r,
+    ingredients: (r.ingredients ?? []).map((i: any) => {
+      const unitStr = i.unit ?? '';
+      return {
+        text: i.text ?? '',
+        quantity: typeof i.quantity === 'number' ? i.quantity : parseQuantity(i.quantity),
+        // The old screens read `.name` and `.abbreviation`; new code reads
+        // `.unit` as a plain string. Make it an object with a toString so
+        // both patterns work (String(unitObj) → unit string).
+        unit: unitStr
+          ? Object.assign({ name: unitStr, abbreviation: unitStr }, { toString: () => unitStr })
+          : { name: '', abbreviation: '' },
+        // Fake shapes for old screens.
+        ingredient: { name: i.text ?? '' },
+        unit_id: unitStr,
+        ingredient_id: '',
+        id: '',
+      };
+    }),
+    ai_insight: r.ai_insight
+      ? {
+          insight: r.ai_insight.insight ?? r.ai_insight.text ?? '',
+          recommended_tool:
+            r.ai_insight.recommended_tool ?? r.ai_insight.suggested_tool ?? null,
+          text: r.ai_insight.insight ?? r.ai_insight.text ?? '',
+          suggested_tool:
+            r.ai_insight.recommended_tool ?? r.ai_insight.suggested_tool ?? null,
+        }
+      : null,
+    // Legacy image aliases.
+    image_url: image ?? null,
+    imageUrl: image ?? null,
+    images: [
+      ...(r.photos ?? []).map((p: any) => api.imageUrl(p.key) ?? ''),
+      ...(image && !(r.photos ?? []).some((p: any) => api.imageUrl(p.key) === image)
+        ? [image]
+        : []),
+    ].filter(Boolean),
+    prepTime: r.prep_time,
+    cookTime: r.cook_time,
+    metadata: {
+      prepTime: r.prep_time ?? 0,
+      cookTime: r.cook_time ?? 0,
+      servings: r.servings ?? 0,
+      tags: r.tags ?? [],
+    },
+  };
+}
+
+/**
+ * Reshape a loose UI payload into the backend's expected create/update body.
+ * Accepts any of the field aliases the old screens still emit.
+ */
+function adaptForBackend(input: any): Record<string, any> {
+  const meta = input.metadata ?? {};
+  const body: Record<string, any> = {
+    title: input.title,
+    ingredients: (input.ingredients ?? [])
+      .filter((i: any) => i && (i.text || i.ingredientName))
+      .map((i: any) => ({
+        text:
+          i.text ||
+          [i.quantity, i.unitAbbreviation ?? unitToString(i.unit), i.ingredientName]
+            .filter(Boolean)
+            .join(' ')
+            .trim(),
+        quantity: parseQuantity(i.quantity),
+        unit:
+          i.unitAbbreviation ||
+          unitToString(i.unit) ||
+          '',
+      })),
+    steps: (input.steps ?? []).filter(Boolean),
+    notes: input.notes ?? null,
+    source_url: input.source_url ?? null,
+    source_type: input.source_type ?? null,
+    cover_image:
+      input.cover_image ?? input.image_url ?? input.imageUrl ?? null,
+    prep_time: parseIntOrNull(
+      meta.prep_time ?? meta.prepTime ?? input.prep_time ?? input.prepTime,
+    ),
+    cook_time: parseIntOrNull(
+      meta.cook_time ?? meta.cookTime ?? input.cook_time ?? input.cookTime,
+    ),
+    servings: parseIntOrNull(meta.servings ?? input.servings),
+    tags: input.tags ?? meta.tags ?? undefined,
+  };
+  if (input.annotated_steps !== undefined) body.annotated_steps = input.annotated_steps;
+  if (input.ai_insight !== undefined) {
+    body.ai_insight = input.ai_insight
+      ? {
+          insight: input.ai_insight.insight ?? input.ai_insight.text ?? '',
+          recommended_tool:
+            input.ai_insight.recommended_tool ?? input.ai_insight.suggested_tool ?? null,
+        }
+      : null;
+  }
+  // Trim undefined so PATCH stays PATCH.
+  Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
+  return body;
+}
+
+// --- Endpoints ----------------------------------------------------------
+
 export async function fetchRecipes(): Promise<Recipe[]> {
-  return api.get<Recipe[]>('/recipes');
+  const rows = await api.get<any[]>('/recipes');
+  return rows.map(adaptForUI);
 }
 
 export async function fetchRecipeById(id: string): Promise<Recipe | null> {
   try {
-    return await api.get<Recipe>(`/recipes/${id}`);
+    const row = await api.get<any>(`/recipes/${id}`);
+    return adaptForUI(row);
   } catch (err: any) {
     if (err?.status === 404) return null;
     throw err;
@@ -79,11 +269,13 @@ export async function fetchRecipeById(id: string): Promise<Recipe | null> {
 }
 
 export async function createRecipe(input: CreateRecipeInput): Promise<Recipe> {
-  return api.post<Recipe>('/recipes', input);
+  const row = await api.post<any>('/recipes', adaptForBackend(input));
+  return adaptForUI(row);
 }
 
 export async function updateRecipe(id: string, input: UpdateRecipeInput): Promise<Recipe> {
-  return api.patch<Recipe>(`/recipes/${id}`, input);
+  const row = await api.patch<any>(`/recipes/${id}`, adaptForBackend(input));
+  return adaptForUI(row);
 }
 
 export async function deleteRecipe(id: string): Promise<void> {
@@ -91,15 +283,18 @@ export async function deleteRecipe(id: string): Promise<void> {
 }
 
 export async function updateRecipeTags(id: string, tagIds: string[]): Promise<Recipe> {
-  return api.patch<Recipe>(`/recipes/${id}`, { tags: tagIds });
+  const row = await api.patch<any>(`/recipes/${id}`, { tags: tagIds });
+  return adaptForUI(row);
 }
 
 export async function setRecipeRating(id: string, rating: number | null): Promise<Recipe> {
-  return api.patch<Recipe>(`/recipes/${id}/rating`, { rating });
+  const row = await api.patch<any>(`/recipes/${id}/rating`, { rating });
+  return adaptForUI(row);
 }
 
 export async function addCookNote(id: string, note: CookHistoryEntry): Promise<Recipe> {
-  return api.post<Recipe>(`/recipes/${id}/cook-notes`, note);
+  const row = await api.post<any>(`/recipes/${id}/cook-notes`, note);
+  return adaptForUI(row);
 }
 
 export async function uploadRecipePhoto(id: string, uri: string): Promise<RecipePhoto> {
@@ -114,9 +309,7 @@ export async function deleteRecipePhoto(recipeId: string, photoId: string): Prom
   await api.delete(`/recipes/${recipeId}/photos/${photoId}`);
 }
 
-// --- AI helpers: analyze + annotate ---
-// These call the backend, then PATCH the resulting insight/annotations
-// back onto the recipe row. Recipe view screen uses these.
+// --- AI helpers ---------------------------------------------------------
 
 export async function analyzeRecipeInsight(recipe: Recipe): Promise<AIInsight> {
   const { getPreferences } = await import('./profile-service');
@@ -129,7 +322,11 @@ export async function analyzeRecipeInsight(recipe: Recipe): Promise<AIInsight> {
     {
       recipe: {
         title: recipe.title,
-        ingredients: recipe.ingredients,
+        ingredients: recipe.ingredients.map((i) => ({
+          text: i.text,
+          quantity: i.quantity,
+          unit: unitToString(i.unit),
+        })),
         instructions: recipe.steps,
         notes: recipe.notes ?? '',
         metadata: {
@@ -141,11 +338,22 @@ export async function analyzeRecipeInsight(recipe: Recipe): Promise<AIInsight> {
       preferences,
     },
   );
-  return { insight: res.insight, recommended_tool: res.recommended_tool };
+  return {
+    insight: res.insight,
+    recommended_tool: res.recommended_tool,
+    text: res.insight,
+    suggested_tool: res.recommended_tool,
+  };
 }
 
 export async function saveRecipeInsight(id: string, insight: AIInsight): Promise<Recipe> {
-  return api.patch<Recipe>(`/recipes/${id}`, { ai_insight: insight });
+  const row = await api.patch<any>(`/recipes/${id}`, {
+    ai_insight: {
+      insight: insight.insight ?? insight.text ?? '',
+      recommended_tool: insight.recommended_tool ?? insight.suggested_tool ?? null,
+    },
+  });
+  return adaptForUI(row);
 }
 
 export async function annotateRecipeInstructions(recipe: Recipe): Promise<string[]> {
@@ -162,12 +370,14 @@ export async function saveAnnotatedInstructions(
   id: string,
   annotated: any[],
 ): Promise<Recipe> {
-  return api.patch<Recipe>(`/recipes/${id}`, { annotated_steps: annotated });
+  const row = await api.patch<any>(`/recipes/${id}`, { annotated_steps: annotated });
+  return adaptForUI(row);
 }
 
 /**
- * Save a recipe modified by an AI tool. Backend produces an AIRecipePayload;
- * we turn it into a Recipe by POSTing to /recipes.
+ * Save a recipe modified by an AI tool. Backend returns an AIRecipePayload
+ * shape (`instructions` instead of `steps`, `metadata` nested); adaptForBackend
+ * flattens it into a real Recipe row.
  */
 export async function saveModifiedRecipe(
   modified: any,
@@ -175,11 +385,7 @@ export async function saveModifiedRecipe(
 ): Promise<Recipe> {
   return createRecipe({
     title: modified.title,
-    ingredients: (modified.ingredients ?? []).map((i: any) => ({
-      text: i.text,
-      quantity: i.quantity ?? 0,
-      unit: i.unit ?? '',
-    })),
+    ingredients: modified.ingredients ?? [],
     steps: modified.instructions ?? modified.steps ?? [],
     notes: modified.notes ?? original?.notes ?? null,
     prep_time: modified.metadata?.prep_time ?? original?.prep_time ?? null,
