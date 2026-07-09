@@ -1,0 +1,15 @@
+:8085 {
+	# Backend API: strip /api and proxy to gnocchi-api on loopback.
+	handle_path /api/* {
+		reverse_proxy 127.0.0.1:8083
+	}
+
+	# Static SPA. Fall through to index.html for expo-router deep links.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	encode gzip
+}

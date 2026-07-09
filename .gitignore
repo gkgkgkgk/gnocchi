@@ -74,6 +74,12 @@ web_modules/
 # Expo local dev state — machine-specific, not for the repo
 .expo/
 
+# Nix / local dev state
+.pg/                # local postgres cluster
+result              # nix build symlinks
+result-*
+.direnv/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

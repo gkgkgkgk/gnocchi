@@ -1,4 +1,8 @@
-import { supabase } from '@/lib/supabase';
+/**
+ * Legacy shim. Units used to be a normalized lookup table; now they're
+ * free-text strings stored inline on the ingredient. These stubs let old
+ * screens keep compiling.
+ */
 
 export interface Unit {
   id: string;
@@ -6,56 +10,14 @@ export interface Unit {
   name?: string;
 }
 
-/**
- * Fetches all units from the database
- */
 export async function fetchUnits(): Promise<Unit[]> {
-  const { data, error } = await supabase
-    .from('units')
-    .select('*')
-    .order('abbreviation');
-
-  if (error) {
-    console.error('Error fetching units:', error);
-    throw error;
-  }
-
-  return data || [];
+  return [];
 }
 
-/**
- * Fetches a single unit by ID
- */
-export async function fetchUnitById(id: string): Promise<Unit | null> {
-  const { data, error } = await supabase
-    .from('units')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error) {
-    console.error('Error fetching unit:', error);
-    return null;
-  }
-
-  return data;
+export async function fetchUnitById(): Promise<Unit | null> {
+  return null;
 }
 
-/**
- * Fetches multiple units by their IDs
- */
-export async function fetchUnitsByIds(ids: string[]): Promise<Unit[]> {
-  if (ids.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from('units')
-    .select('*')
-    .in('id', ids);
-
-  if (error) {
-    console.error('Error fetching units:', error);
-    return [];
-  }
-
-  return data || [];
+export async function fetchUnitsByIds(): Promise<Unit[]> {
+  return [];
 }

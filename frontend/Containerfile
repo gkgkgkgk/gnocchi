@@ -1,0 +1,24 @@
+# Two-stage build:
+#   1. Node builds the Expo web bundle.
+#   2. Caddy serves the bundle and reverse-proxies /api/* to the backend.
+#
+# Both containers share the host network in prod, so Caddy reaches the API at
+# 127.0.0.1:8083 — no service discovery, no external endpoint needed.
+
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+# `/api` is a relative path that Caddy in this same container reverse-proxies
+# to gnocchi-api. No per-environment builds; the URL is stable across
+# LAN + tailnet because it's the same origin as the SPA.
+ENV EXPO_PUBLIC_API_URL="/api"
+RUN npx expo export --platform web
+
+FROM caddy:2-alpine
+COPY --from=build /app/dist /srv
+COPY Caddyfile /etc/caddy/Caddyfile
+EXPOSE 8085
+
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://127.0.0.1:8085/ || exit 1

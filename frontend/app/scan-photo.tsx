@@ -5,8 +5,7 @@ import { Image } from 'expo-image';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { Ionicons } from '@expo/vector-icons';
-import { takePhoto, pickImage, uploadRecipeImage, parseRecipeFromImage } from '@/services/image-service';
-import { supabase } from '@/lib/supabase';
+import { takePhoto, pickImage, parseRecipeFromImage } from '@/services/image-service';
 
 export default function ScanPhotoScreen() {
   const router = useRouter();
@@ -43,43 +42,32 @@ export default function ScanPhotoScreen() {
 
     try {
       setUploading(true);
-      
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
 
-      // Upload image to Supabase storage
-      const { url: imageUrl, path: imagePath } = await uploadRecipeImage(imageUri, user.id);
-      
+      // Send the local image URI straight to /import/photo; backend OCRs it.
+      const imported = await parseRecipeFromImage(imageUri);
+      const recipeData = imported.recipe ?? imported;
+
       setUploading(false);
       setProcessing(true);
 
-      // Parse recipe from image (sends image as multipart form data)
-      const recipeData = await parseRecipeFromImage(imageUrl, imagePath);
-
-      setProcessing(false);
-
-      // Navigate to new recipe page with parsed data
-      // Use router.push with pathname only, then pass data via a global state or context
-      // For now, we'll use a workaround with a shorter identifier
       const importData = {
         title: recipeData.title,
-        ingredients: recipeData.ingredients.map((ing: any) => ({
+        ingredients: (recipeData.ingredients ?? []).map((ing: any) => ({
           text: ing.text,
-          id: ing.id || '',
-          quantity: ing.quantity.toString(),
-          unit: ing.unit,
+          id: '',
+          quantity: (ing.quantity ?? 0).toString(),
+          unit: ing.unit ?? '',
         })),
-        steps: recipeData.instructions,
-        notes: recipeData.notes,
-        imageUrl: imageUrl,
-        prepTime: recipeData.metadata.prep_time.toString(),
-        cookTime: recipeData.metadata.cook_time.toString(),
-        servings: recipeData.metadata.servings.toString(),
-        source: imagePath,
+        steps: recipeData.steps ?? recipeData.instructions ?? [],
+        notes: recipeData.notes ?? '',
+        imageUrl: undefined,
+        prepTime: (recipeData.prep_time ?? 0).toString(),
+        cookTime: (recipeData.cook_time ?? 0).toString(),
+        servings: (recipeData.servings ?? 1).toString(),
+        source: undefined,
       };
+
+      setProcessing(false);
       
       // Store in global state temporarily
       (global as any).__pendingRecipeImport = importData;

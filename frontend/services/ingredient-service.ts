@@ -1,78 +1,27 @@
-import { supabase } from '@/lib/supabase';
+/**
+ * Legacy shim. In the new backend, ingredients are stored inline on each
+ * recipe as `{text, quantity, unit}`; there is no shared ingredients table.
+ * These functions are kept only so existing screens that referenced them
+ * keep compiling — they return empty results and are safe no-ops.
+ */
 
 export interface Ingredient {
   id: string;
   name: string;
 }
 
-/**
- * Fetches all ingredients from the database
- */
 export async function fetchIngredients(): Promise<Ingredient[]> {
-  const { data, error } = await supabase
-    .from('ingredients')
-    .select('*')
-    .order('name');
-
-  if (error) {
-    console.error('Error fetching ingredients:', error);
-    throw error;
-  }
-
-  return data || [];
+  return [];
 }
 
-/**
- * Fetches a single ingredient by ID
- */
-export async function fetchIngredientById(id: string): Promise<Ingredient | null> {
-  const { data, error } = await supabase
-    .from('ingredients')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error) {
-    console.error('Error fetching ingredient:', error);
-    return null;
-  }
-
-  return data;
+export async function fetchIngredientById(): Promise<Ingredient | null> {
+  return null;
 }
 
-/**
- * Fetches multiple ingredients by their IDs
- */
-export async function fetchIngredientsByIds(ids: string[]): Promise<Ingredient[]> {
-  if (ids.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from('ingredients')
-    .select('*')
-    .in('id', ids);
-
-  if (error) {
-    console.error('Error fetching ingredients:', error);
-    return [];
-  }
-
-  return data || [];
+export async function fetchIngredientsByIds(): Promise<Ingredient[]> {
+  return [];
 }
 
-/**
- * Creates a new ingredient in the database
- */
-export async function createIngredient(name: string): Promise<Ingredient | null> {
-  const { data, error } = await supabase
-    .from('ingredients')
-    .insert({ name })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating ingredient:', error);
-    return null;
-  }
-
-  return data;
+export async function createIngredient(name: string): Promise<Ingredient> {
+  return { id: `local-${Date.now()}`, name };
 }

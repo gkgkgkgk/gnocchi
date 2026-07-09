@@ -4,8 +4,9 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
-import { pickImage, uploadRecipeImage } from '@/services/image-service';
-import { supabase } from '@/lib/supabase';
+import { pickImage } from '@/services/image-service';
+import { uploadRecipePhoto } from '@/services/recipe-service';
+import { api } from '@/lib/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -50,16 +51,13 @@ export function RecipePhotoGallery({ recipeId, images, chosenImage, onUpdate }: 
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
+      // Upload to gnocchi-api; server returns {id, key, ord} and the
+      // image is fetched via GET /images/{key}.
+      const photo = await uploadRecipePhoto(recipeId, uri);
+      const url = api.imageUrl(photo.key) ?? '';
 
-      // Upload to Supabase
-      const { url } = await uploadRecipeImage(uri, user.id);
-      
       const newImages = [...images, url];
-      const newChosenImage = chosenImage || url; // Set as chosen if first image
+      const newChosenImage = chosenImage || url;
       
       await updateRecipeImages(newImages, newChosenImage);
       setShowAddMenu(false);
@@ -132,16 +130,11 @@ export function RecipePhotoGallery({ recipeId, images, chosenImage, onUpdate }: 
 
   const updateRecipeImages = async (newImages: string[], newChosenImage: string | null) => {
     try {
-      const { error } = await supabase
-        .from('recipes')
-        .update({ 
-          images: newImages,
-          image_url: newChosenImage 
-        })
-        .eq('id', recipeId);
-
-      if (error) throw error;
-      
+      // The gnocchi-api schema doesn't track a URL list — photos are
+      // uploaded via /recipes/{id}/photos and become RecipePhoto rows.
+      // Cover image is a photo key (or, for URL-added images, a raw URL
+      // string kept in cover_image). For URL adds we set cover_image only.
+      await api.patch(`/recipes/${recipeId}`, { cover_image: newChosenImage });
       onUpdate(newImages, newChosenImage);
     } catch (error) {
       console.error('Failed to update images:', error);

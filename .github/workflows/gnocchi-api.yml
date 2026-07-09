@@ -1,0 +1,28 @@
+name: gnocchi-api
+on:
+  push:
+    branches: [main]
+    paths:
+      - gnocchi-api/**
+      - .github/workflows/gnocchi-api.yml
+permissions:
+  contents: read
+  packages: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: gnocchi-api
+          file: gnocchi-api/Containerfile
+          push: true
+          tags: |
+            ghcr.io/gkgkgkgk/gnocchi-api:latest
+            ghcr.io/gkgkgkgk/gnocchi-api:${{ github.sha }}

@@ -34,16 +34,6 @@ export default function DrawerLayout() {
             ),
           }}
         />
-        <Drawer.Screen
-          name="account"
-          options={{
-            drawerLabel: 'Account',
-            title: 'Account',
-            drawerIcon: ({ color, size }) => (
-              <IconSymbol size={size} name="person.fill" color={color} />
-            ),
-          }}
-        />
       </Drawer>
     </GestureHandlerRootView>
   );

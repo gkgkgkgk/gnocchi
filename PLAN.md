@@ -149,7 +149,7 @@ rewrite, they'll get killed naturally in Phase 1.
 Six phases, each independently shippable. Between phases the app still
 works; the sequence is chosen so we're never mid-migration for long.
 
-### Phase 0 — Groundwork (1 sitting)
+### Phase 0 — Groundwork (1 sitting) — ✅ shipped (`88f242d`)
 Small, low-risk. Gets the repo into a state where the bigger changes are safe.
 
 - [ ] Regenerate `llmserver/.env.example` and `frontend/.env.example`
@@ -174,7 +174,23 @@ embarrassing to open in an editor.
 
 ---
 
-### Phase 1 — Homelab migration (the big one)
+### Phase 1 — Homelab migration (the big one) — ✅ shipped
+
+Landed in this turn: new `gnocchi-api/` service (FastAPI + SQLAlchemy async +
+Alembic, model-per-real-thing schema, all seven endpoint families), root
+`flake.nix` + `justfile` dev environment, `frontend/lib/api.ts` client with
+every service rewritten (recipes, cookbooks, tags, meal-plan, preferences,
+imports, AI tools, images), Supabase files deleted (`lib/supabase.ts`,
+auth-context, `(auth)/` route group, login-callback, `SETUP_AUTH.md`),
+auth packages removed from `package.json`, two Containerfiles + two GH
+workflows, three `apps.nix` entries in serverkepets (backend + web + Caddy
+via the frontend container), `internal = true` support in `app-registry.nix`
+so the backend stays firewall-internal.
+
+Not landed but tracked forward: the servings multiplier and fraction
+formatter are preserved on the frontend side but the recipe view page still
+uses the polling loop against `ai_insight.text === '__GENERATING__'` — that
+racy hack survives Phase 1 and dies in Phase 2 when streaming lands.
 
 Goal: rip out Supabase entirely. One Postgres on the homeserver, one FastAPI
 container that owns everything, zero auth, deployed via the serverkepets

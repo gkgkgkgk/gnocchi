@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { View, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, Animated, useColorScheme } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
-import { supabase } from '@/lib/supabase';
 
 interface Question {
   id: string;
@@ -59,24 +58,12 @@ export function ProfileQuestionnaireModal({ visible, onComplete }: ProfileQuesti
   const isLastQuestion = currentQuestionIndex === QUESTIONS.length - 1;
   const textColor = colorScheme === 'dark' ? '#fff' : '#000';
 
-  // Fetch user's name on mount to autopopulate display name
+  // No user auth in this build; default the display-name suggestion to "Chef".
   useEffect(() => {
-    const fetchUserName = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        // Try to get name from user metadata, email, or default
-        const userName = user.user_metadata?.full_name || 
-                        user.user_metadata?.name || 
-                        user.email?.split('@')[0] || 
-                        'Chef';
-        setCurrentAnswer(userName);
-      }
-    };
-    
-    if (visible && currentQuestionIndex === 0) {
-      fetchUserName();
+    if (visible && currentQuestionIndex === 0 && !currentAnswer) {
+      setCurrentAnswer('Chef');
     }
-  }, [visible]);
+  }, [visible, currentQuestionIndex, currentAnswer]);
 
   const handleNext = async () => {
     // Save current answer

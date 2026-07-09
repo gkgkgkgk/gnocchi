@@ -1,0 +1,26 @@
+FROM python:3.12-slim
+WORKDIR /app
+
+# System deps: libpq for asyncpg, curl for HEALTHCHECK.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq5 curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY alembic.ini .
+COPY alembic ./alembic
+COPY app ./app
+
+# Provide default env; DATABASE_URL and IMAGE_STORAGE_DIR are injected in prod.
+ENV PORT=8001 \
+    IMAGE_STORAGE_DIR=/data/images
+
+EXPOSE 8001
+
+# Migrate on boot (idempotent), then serve. `data/images` is the container
+# path bound to /var/lib/gnocchi/images on the host.
+CMD ["sh", "-c", "mkdir -p ${IMAGE_STORAGE_DIR} && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+
+HEALTHCHECK --interval=30s --timeout=3s CMD curl -fs http://127.0.0.1:${PORT}/health || exit 1

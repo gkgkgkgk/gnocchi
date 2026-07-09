@@ -6,9 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useRouter } from 'expo-router';
 import { fetchRecipes, Recipe, fetchRecipeById } from '@/services/recipe-service';
-import { saveMealPlan, fetchMealPlan, MealPlanStructure, ShoppingListIngredient } from '@/services/meal-plan-service';
-import { supabase } from '@/lib/supabase';
-import { API_ENDPOINTS } from '@/config/api';
+import { saveMealPlan, fetchMealPlan, MealPlanStructure } from '@/services/meal-plan-service';
+import { api } from '@/lib/api';
 
 interface PlannedRecipe {
   id: string;
@@ -67,8 +66,6 @@ export default function PlanningScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loadingRecipes, setLoadingRecipes] = useState(false);
   const [shortList, setShortList] = useState<PlannedRecipe[]>([]);
-  const [mealPlanId, setMealPlanId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
   const [draggedShoppingItem, setDraggedShoppingItem] = useState<number | null>(null);
   const [generatingShoppingList, setGeneratingShoppingList] = useState(false);
@@ -264,21 +261,8 @@ export default function PlanningScreen() {
 
   const loadUserAndMealPlan = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setLoadingShoppingList(false);
-        return;
-      }
-      
-      setUserId(user.id);
-      const mealPlan = await fetchMealPlan(user.id);
-      
-      if (mealPlan) {
-        setMealPlanId(mealPlan.id);
-        await loadMealPlanData(mealPlan.plan);
-      } else {
-        setLoadingShoppingList(false);
-      }
+      const mealPlan = await fetchMealPlan();
+      await loadMealPlanData(mealPlan);
     } catch (error) {
       console.error('Failed to load meal plan:', error);
       setLoadingShoppingList(false);
@@ -326,7 +310,7 @@ export default function PlanningScreen() {
 
       // Load short list
       const shortListRecipes: PlannedRecipe[] = [];
-      for (const recipeId of planData.shortList) {
+      for (const recipeId of planData.short_list) {
         try {
           const recipe = await fetchRecipeById(recipeId);
           if (recipe) {
@@ -347,8 +331,8 @@ export default function PlanningScreen() {
       setShortList(shortListRecipes);
 
       // Load shopping list from the meal plan
-      if (planData.shoppingList && Array.isArray(planData.shoppingList)) {
-        setShoppingList(planData.shoppingList);
+      if (planData.shopping_list && Array.isArray(planData.shopping_list)) {
+        setShoppingList(planData.shopping_list as ShoppingListItem[]);
       }
       setLoadingShoppingList(false);
     } catch (error) {
@@ -452,24 +436,16 @@ export default function PlanningScreen() {
     shortListData: PlannedRecipe[],
     shoppingListData?: ShoppingListItem[]
   ) => {
-    if (!userId) return;
-
     try {
       const planStructure: MealPlanStructure = {
         plan: weekPlanData.map(day => ({
-          date: day.date.toISOString().split('T')[0], // YYYY-MM-DD
+          date: day.date.toISOString().split('T')[0],
           recipes: day.recipes.map(r => r.recipeId),
         })),
-        shortList: shortListData.map(r => r.recipeId),
-        shoppingList: shoppingListData || shoppingList,
+        short_list: shortListData.map(r => r.recipeId),
+        shopping_list: shoppingListData || shoppingList,
       };
-
-      const savedPlan = await saveMealPlan(userId, planStructure, mealPlanId || undefined);
-      
-      // Capture the meal plan ID if we didn't have it
-      if (!mealPlanId && savedPlan.id) {
-        setMealPlanId(savedPlan.id);
-      }
+      await saveMealPlan(planStructure);
     } catch (error) {
       console.error('Failed to save meal plan:', error);
     }
@@ -528,42 +504,29 @@ export default function PlanningScreen() {
         return;
       }
       
-      // Convert recipes to the format expected by the API
       const apiRecipes = recipes.map(recipe => ({
         title: recipe.title,
-        ingredients: recipe.ingredients?.map(ing => ({
+        ingredients: (recipe.ingredients ?? []).map(ing => ({
           text: ing.text,
           quantity: ing.quantity,
-          unit: ing.unit?.abbreviation || ing.unit?.name || '',
-        })) || [],
+          unit: ing.unit ?? '',
+        })),
         instructions: recipe.steps || [],
         notes: recipe.notes || '',
         metadata: {
-          prep_time: recipe.prep_time || recipe.prepTime || 0,
-          cook_time: recipe.cook_time || recipe.cookTime || 0,
-          servings: recipe.servings || 0,
+          prep_time: recipe.prep_time ?? 0,
+          cook_time: recipe.cook_time ?? 0,
+          servings: recipe.servings ?? 0,
         },
       }));
-      
-      // Call the API
-      const response = await fetch(API_ENDPOINTS.GENERATE_SHOPPING_LIST, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(apiRecipes),
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API call failed: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      // Backend returns { items: [...] } where each item has { text, source }
-      const items = data.items || data;
-      const shoppingListWithState: ShoppingListItem[] = items.map((item: any) => ({
-        name: item.text,
-        sources: item.source || [],
+
+      const data = await api.post<{ items: { name: string; sources: string[] }[] }>(
+        '/ai/shopping-list',
+        { recipes: apiRecipes },
+      );
+      const shoppingListWithState: ShoppingListItem[] = data.items.map(item => ({
+        name: item.name,
+        sources: item.sources ?? [],
         checked: false,
       }));
       setShoppingList(shoppingListWithState);

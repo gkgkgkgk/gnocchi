@@ -1,5 +1,5 @@
-import { supabase } from '@/lib/supabase';
-import { API_ENDPOINTS } from '@/config/api';
+import { api } from '@/lib/api';
+import type { Recipe } from './recipe-service';
 
 export interface AITool {
   id: string;
@@ -7,94 +7,51 @@ export interface AITool {
   description: string;
   icon: string;
   prompt: string;
-  created_at?: string;
-  updated_at?: string;
 }
 
-/**
- * Fetches all enabled AI tools from the database
- */
 export async function fetchAITools(): Promise<AITool[]> {
-  const { data, error } = await supabase
-    .from('ai_tools')
-    .select('*')
-    .order('name', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching AI tools:', error);
-    throw error;
-  }
-
-  return data || [];
+  return api.get<AITool[]>('/ai-tools');
 }
 
-/**
- * Fetches a single AI tool by name
- */
 export async function fetchAIToolByName(name: string): Promise<AITool | null> {
-  const { data, error } = await supabase
-    .from('ai_tools')
-    .select('*')
-    .eq('name', name)
-    .single();
-
-  if (error) {
-    console.error('Error fetching AI tool:', error);
-    return null;
-  }
-
-  return data;
+  const tools = await fetchAITools();
+  return tools.find((t) => t.name === name) ?? null;
 }
 
 /**
- * Executes an AI tool on a recipe to generate a modified version
+ * Apply an AI tool to a recipe. Returns the modified recipe payload; caller
+ * decides whether to save it as a new recipe or overwrite the current one.
  */
-export async function executeAITool(recipe: any, tool: AITool, userGuidance?: string): Promise<any> {
-  try {
-    // Extract AI insight reasoning if available
-    const aiReasoning = recipe.ai_insight?.text && recipe.ai_insight.text !== '__GENERATING__' 
-      ? recipe.ai_insight.text 
+export async function executeAITool(
+  recipe: Recipe,
+  tool: AITool,
+  userGuidance?: string,
+): Promise<any> {
+  const aiReasoning =
+    recipe.ai_insight?.insight && recipe.ai_insight.insight !== '__GENERATING__'
+      ? recipe.ai_insight.insight
       : '';
-    
-    const response = await fetch(API_ENDPOINTS.EXECUTE_TOOL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+
+  const payload = {
+    recipe: {
+      title: recipe.title,
+      ingredients: recipe.ingredients.map((i) => ({
+        text: i.text,
+        quantity: i.quantity,
+        unit: i.unit,
+      })),
+      instructions: recipe.steps,
+      notes: recipe.notes ?? '',
+      metadata: {
+        prep_time: recipe.prep_time ?? 0,
+        cook_time: recipe.cook_time ?? 0,
+        servings: recipe.servings ?? 1,
       },
-      body: JSON.stringify({
-        recipe: {
-          title: recipe.title,
-          ingredients: recipe.ingredients?.map((ing: any) => ({
-            text: ing.text,
-            quantity: ing.quantity,
-            unit: ing.unit?.abbreviation || ing.unit?.name || '',
-          })) || [],
-          instructions: recipe.steps || [],
-          notes: recipe.notes || '',
-          metadata: {
-            prep_time: recipe.prep_time || recipe.prepTime || 0,
-            cook_time: recipe.cook_time || recipe.cookTime || 0,
-            servings: recipe.servings || 0,
-          },
-        },
-        tool: {
-          name: tool.name,
-          description: tool.description,
-          prompt: tool.prompt,
-        },
-        user_guidance: userGuidance || '',
-        ai_reasoning: aiReasoning,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Tool execution failed: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data.recipe;
-  } catch (error) {
-    console.error('Error executing AI tool:', error);
-    throw error;
-  }
+    },
+    tool,
+    user_guidance: userGuidance ?? '',
+    ai_reasoning: aiReasoning,
+  };
+  const res = await api.post<{ recipe: any }>('/ai/execute-tool', payload);
+  return res.recipe;
 }
