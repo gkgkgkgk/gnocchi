@@ -43,9 +43,9 @@ db-up:
 db-down:
     pg_ctl -D "$PGDATA" -m fast stop
 
-# Connect a psql session.
+# Connect a psql session (uses PGHOST/PGDATABASE from the shell).
 db-shell:
-    psql "$DATABASE_URL"
+    psql
 
 # Nuke the whole local cluster. Requires re-init.
 db-wipe:

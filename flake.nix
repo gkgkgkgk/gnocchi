@@ -34,7 +34,9 @@
             export PGHOST="$PWD/.pg/sock"
             export PGUSER=gnocchi
             export PGDATABASE=gnocchi
-            export DATABASE_URL="postgresql:///$PGDATABASE?host=$PGHOST"
+            # SQLAlchemy dispatches on the `+driver` — asyncpg is what the
+            # app uses. Plain `postgresql://` would try to load psycopg2.
+            export DATABASE_URL="postgresql+asyncpg:///$PGDATABASE?host=$PGHOST"
             mkdir -p "$PGHOST"
 
             # Backend deps via uv into a repo-local venv, kept in sync each shell entry.
