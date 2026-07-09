@@ -30,19 +30,19 @@ export default function ImportPinterestScreen() {
         params: {
           importedData: JSON.stringify({
             title: result.recipe.title,
-            ingredients: result.recipe.ingredients.map(ing => ({
+            ingredients: (result.recipe.ingredients ?? []).map((ing: any) => ({
               text: ing.text,
-              id: ing.id || '',
-              quantity: ing.quantity.toString(),
-              unit: ing.unit,
+              id: '',
+              quantity: String(ing.quantity ?? ''),
+              unit: ing.unit ?? '',
             })),
-            steps: result.recipe.instructions,
-            notes: result.recipe.notes,
-            imageUrl: result.source_image || '',
-            prepTime: result.recipe.metadata.prep_time.toString(),
-            cookTime: result.recipe.metadata.cook_time.toString(),
-            servings: result.recipe.metadata.servings.toString(),
-            source: result.source_url,
+            steps: result.recipe.steps ?? [],
+            notes: result.recipe.notes ?? '',
+            imageUrl: result.source_image ?? '',
+            prepTime: String(result.recipe.prep_time ?? ''),
+            cookTime: String(result.recipe.cook_time ?? ''),
+            servings: String(result.recipe.servings ?? ''),
+            source: result.source_url ?? '',
           }),
         },
       } as any);

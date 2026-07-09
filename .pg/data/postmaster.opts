@@ -1,0 +1,1 @@
+/nix/store/p5pq2f0kfrbnkg5scal6nkigqmiarsd1-postgresql-17.6/bin/postgres "-D" "/home/gavri/Code/gnocchi/.pg/data" "-k" "/home/gavri/Code/gnocchi/.pg/sock" "-h" "" "-p" "5432"
