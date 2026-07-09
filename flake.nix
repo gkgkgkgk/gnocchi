@@ -29,6 +29,11 @@
           ];
 
           shellHook = ''
+            # pip-installed wheels (greenlet, asyncpg, etc.) are pre-compiled
+            # against libstdc++/zlib. Nix's Python doesn't put those on the
+            # standard search path; expose them via LD_LIBRARY_PATH.
+            export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.zlib}/lib:''${LD_LIBRARY_PATH:-}"
+
             # Local Postgres cluster lives inside the repo, gitignored.
             export PGDATA="$PWD/.pg/data"
             export PGHOST="$PWD/.pg/sock"
