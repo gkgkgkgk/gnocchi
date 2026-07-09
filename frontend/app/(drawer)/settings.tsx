@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, Platfo
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useTheme } from '@/hooks/use-theme';
+import { useThemePreference, type ThemePreference } from '@/contexts/theme-context';
 import { getUserTags, saveUserTags, RecipeTag, generateUUID, getDietaryRestrictions, saveDietaryRestrictions, getFavoriteFood, saveFavoriteFood } from '@/services/profile-service';
 
 // Available icons for tags
@@ -100,6 +102,72 @@ const getFoodEmoji = (food: string | null): string => {
   // Default
   return '🍽️';
 };
+
+const APPEARANCE_OPTIONS: { value: ThemePreference; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
+  { value: 'light', label: 'Light', icon: 'sunny-outline' },
+  { value: 'dark', label: 'Dark', icon: 'moon-outline' },
+];
+
+function AppearanceSection() {
+  const theme = useTheme();
+  const { preference, setPreference } = useThemePreference();
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <ThemedText style={styles.sectionTitle}>Appearance</ThemedText>
+      </View>
+      <ThemedText style={styles.sectionDescription}>
+        Choose a light or dark look, or follow your device.
+      </ThemedText>
+
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: theme.spacing.sm,
+          backgroundColor: theme.colors.bgMuted,
+          padding: theme.spacing.xs,
+          borderRadius: theme.radius.lg,
+        }}
+      >
+        {APPEARANCE_OPTIONS.map((opt) => {
+          const active = preference === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => setPreference(opt.value)}
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: theme.spacing.xs,
+                paddingVertical: theme.spacing.md,
+                borderRadius: theme.radius.md,
+                backgroundColor: active ? theme.colors.accent : 'transparent',
+              }}
+            >
+              <Ionicons
+                name={opt.icon}
+                size={18}
+                color={active ? theme.colors.accentFg : theme.colors.fgMuted}
+              />
+              <Text
+                style={{
+                  ...theme.type.button,
+                  color: active ? theme.colors.accentFg : theme.colors.fgMuted,
+                }}
+              >
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
 
 export default function SettingsScreen() {
   const [tags, setTags] = useState<RecipeTag[]>([]);
@@ -260,6 +328,9 @@ export default function SettingsScreen() {
   return (
     <ThemedView style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
+        {/* Appearance Section */}
+        <AppearanceSection />
+
         {/* Favorite Food Section */}
         <View style={styles.favoriteFoodSection}>
           {isEditingFood ? (

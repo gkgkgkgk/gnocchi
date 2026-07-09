@@ -20,11 +20,15 @@ import { IngredientPickerModal } from '@/components/ingredient-picker-modal';
 import { Unit, fetchUnits } from '@/services/unit-service';
 import { Ingredient } from '@/services/ingredient-service';
 import { createRecipe, updateRecipe, fetchRecipeById } from '@/services/recipe-service';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: c.bg,
   },
   header: {
     flexDirection: 'row',
@@ -34,7 +38,7 @@ const styles = StyleSheet.create({
     paddingTop: 48,
     paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: c.border,
   },
   backButton: {
     paddingVertical: 8,
@@ -45,17 +49,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...theme.type.h3,
   },
   saveButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     borderRadius: 8,
   },
   saveButtonText: {
-    color: '#fff',
+    color: c.accentFg,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -69,20 +72,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...theme.type.label,
+    color: c.fgMuted,
     marginBottom: 8,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 8,
+    borderColor: c.border,
+    borderRadius: 10,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: c.fg,
+    backgroundColor: c.bgElevated,
   },
   errorField: {
-    borderColor: '#ff3b30',
+    borderColor: c.danger,
     borderWidth: 2,
   },
   optionalToggle: {
@@ -90,20 +94,19 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.2)',
+    borderColor: c.border,
   },
   optionalToggleActive: {
-    backgroundColor: '#E07856',
-    borderColor: '#E07856',
+    backgroundColor: c.accent,
+    borderColor: c.accent,
   },
   optionalToggleText: {
     fontSize: 11,
     fontWeight: '600',
-    opacity: 0.6,
+    color: c.fgMuted,
   },
   optionalToggleTextActive: {
-    color: '#fff',
-    opacity: 1,
+    color: c.accentFg,
   },
   textArea: {
     height: 80,
@@ -119,18 +122,18 @@ const styles = StyleSheet.create({
   },
   quickInput: {
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 8,
+    borderColor: c.border,
+    borderRadius: 10,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: c.fg,
+    backgroundColor: c.bgElevated,
   },
   section: {
     marginBottom: 32,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...theme.type.h2,
     marginBottom: 16,
   },
   ingredientRow: {
@@ -141,15 +144,19 @@ const styles = StyleSheet.create({
   },
   ingredientInput: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderColor: c.border,
+    borderRadius: 10,
     padding: 12,
     fontSize: 16,
+    color: c.fg,
+    backgroundColor: c.bgElevated,
     flex: 1,
     justifyContent: 'center',
   },
   ingredientNameInput: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderColor: c.border,
+    borderRadius: 10,
     padding: 12,
     fontSize: 16,
     flex: 2,
@@ -160,20 +167,20 @@ const styles = StyleSheet.create({
   },
   removeButtonText: {
     fontSize: 18,
-    color: '#ff4444',
+    color: c.danger,
     fontWeight: 'bold',
   },
   addButton: {
     alignSelf: 'flex-start',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 8,
+    backgroundColor: c.bgMuted,
+    borderRadius: 10,
     marginTop: 8,
   },
   addButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...theme.type.smallMedium,
+    color: c.accent,
   },
   stepContainer: {
     flexDirection: 'row',
@@ -184,19 +191,23 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#E07856',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: c.accent,
+    color: c.accentFg,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    lineHeight: 28,
+    overflow: 'hidden',
     marginRight: 12,
     marginTop: 2,
   },
   stepInput: {
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.2)',
-    borderRadius: 8,
+    borderColor: c.border,
+    borderRadius: 10,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: c.fg,
+    backgroundColor: c.bgElevated,
     flex: 1,
     textAlignVertical: 'top',
   },
@@ -204,20 +215,19 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   photoButton: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: c.bgMuted,
     paddingVertical: 16,
     paddingHorizontal: 20,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
     marginBottom: 8,
   },
   photoButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...theme.type.bodyMedium,
   },
   orText: {
-    fontSize: 14,
-    opacity: 0.6,
+    ...theme.type.small,
+    color: c.fgSubtle,
     textAlign: 'center',
     marginVertical: 8,
   },
@@ -226,8 +236,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-    backgroundColor: 'rgba(0,0,0,0.02)',
+    borderBottomColor: c.border,
+    backgroundColor: c.bgMuted,
   },
   timelineItem: {
     flex: 1,
@@ -239,36 +249,36 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: 'rgba(0,0,0,0.2)',
-    backgroundColor: '#fff',
+    borderColor: c.borderStrong,
+    backgroundColor: c.bgElevated,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
   },
   timelineCircleActive: {
-    borderColor: '#E07856',
-    backgroundColor: '#E07856',
+    borderColor: c.accent,
+    backgroundColor: c.accent,
   },
   timelineCircleCompleted: {
-    borderColor: '#E07856',
-    backgroundColor: '#E07856',
+    borderColor: c.accent,
+    backgroundColor: c.accent,
   },
   timelineNumber: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#999',
+    color: c.fgSubtle,
   },
   timelineNumberActive: {
-    color: '#fff',
+    color: c.accentFg,
   },
   timelineLabel: {
-    fontSize: 12,
+    ...theme.type.caption,
+    color: c.fgMuted,
     textAlign: 'center',
-    opacity: 0.6,
   },
   timelineLabelActive: {
     fontWeight: '600',
-    opacity: 1,
+    color: c.fg,
   },
   timelineLine: {
     position: 'absolute',
@@ -276,49 +286,49 @@ const styles = StyleSheet.create({
     left: '50%',
     right: '-50%',
     height: 2,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: c.borderStrong,
     zIndex: -1,
   },
   timelineLineCompleted: {
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
   },
   navigationContainer: {
     flexDirection: 'row',
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-    backgroundColor: '#fff',
+    borderTopColor: c.border,
+    backgroundColor: c.bgElevated,
   },
   navButton: {
     paddingVertical: 12,
     paddingHorizontal: 24,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.2)',
+    borderColor: c.borderStrong,
   },
   navButtonPrimary: {
-    backgroundColor: '#E07856',
-    borderColor: '#E07856',
+    backgroundColor: c.accent,
+    borderColor: c.accent,
   },
   navButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...theme.type.button,
+    color: c.fg,
   },
   navButtonTextPrimary: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    ...theme.type.button,
+    color: c.accentFg,
   },
   navButtonDisabled: {
     opacity: 0.6,
   },
   selectedText: {
     fontSize: 16,
+    color: c.fg,
   },
   placeholderText: {
     fontSize: 16,
-    opacity: 0.5,
+    color: c.fgSubtle,
   },
   loadingContainer: {
     flex: 1,
@@ -332,7 +342,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
@@ -342,28 +352,24 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     gap: 16,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    ...theme.shadow.lg,
   },
   loadingText: {
-    fontSize: 18,
-    fontWeight: '600',
+    ...theme.type.h3,
   },
   imagePreviewContainer: {
     marginTop: 16,
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderColor: c.border,
   },
   imagePreview: {
     width: '100%',
     height: 200,
   },
-});
+  });
+}
 
 interface RecipeIngredient {
   ingredientId: string;
@@ -591,9 +597,12 @@ export default function NewRecipeScreen() {
   const [ingredientModalVisible, setIngredientModalVisible] = useState(false);
   const [selectedIngredientIndex, setSelectedIngredientIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
-  
-  const backgroundColor = useThemeColor({}, 'background');
-  const borderColor = useThemeColor({ light: 'rgba(0,0,0,0.2)', dark: 'rgba(255,255,255,0.2)' }, 'text');
+
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
+  const backgroundColor = c.bgElevated;
+  const borderColor = c.border;
 
   const stepTitles = ['Basic Info', 'Ingredients', 'Instructions', 'Details'];
 
@@ -881,7 +890,7 @@ export default function NewRecipeScreen() {
           value={formData.title}
           onChangeText={(value) => updateFormData('title', value)}
           placeholder="Enter recipe name..."
-          placeholderTextColor="#999"
+          placeholderTextColor={c.fgSubtle}
         />
       </View>
 
@@ -901,7 +910,7 @@ export default function NewRecipeScreen() {
           value={formData.imageUrl}
           onChangeText={(value) => updateFormData('imageUrl', value)}
           placeholder="Enter photo URL..."
-          placeholderTextColor="#999"
+          placeholderTextColor={c.fgSubtle}
         />
         
         {/* Image Preview */}
@@ -931,7 +940,7 @@ export default function NewRecipeScreen() {
             value={ingredient.quantity}
             onChangeText={(value) => updateIngredient(index, 'quantity', value)}
             placeholder="2"
-            placeholderTextColor="#999"
+            placeholderTextColor={c.fgSubtle}
             keyboardType="decimal-pad"
           />
           <Pressable
@@ -992,7 +1001,7 @@ export default function NewRecipeScreen() {
             value={step}
             onChangeText={(value) => updateStep(index, value)}
             placeholder={`Step ${index + 1}...`}
-            placeholderTextColor="#999"
+            placeholderTextColor={c.fgSubtle}
             multiline
           />
           <Pressable
@@ -1018,7 +1027,7 @@ export default function NewRecipeScreen() {
           value={formData.description}
           onChangeText={(value) => updateFormData('description', value)}
           placeholder="Brief description..."
-          placeholderTextColor="#999"
+          placeholderTextColor={c.fgSubtle}
           multiline
           numberOfLines={3}
         />
@@ -1032,7 +1041,7 @@ export default function NewRecipeScreen() {
             value={formData.prepTime}
             onChangeText={(value) => updateFormData('prepTime', value)}
             placeholder="30 min"
-            placeholderTextColor="#999"
+            placeholderTextColor={c.fgSubtle}
           />
         </View>
         <View style={styles.quickInfoField}>
@@ -1042,7 +1051,7 @@ export default function NewRecipeScreen() {
             value={formData.cookTime}
             onChangeText={(value) => updateFormData('cookTime', value)}
             placeholder="45 min"
-            placeholderTextColor="#999"
+            placeholderTextColor={c.fgSubtle}
           />
         </View>
         <View style={styles.quickInfoField}>
@@ -1052,7 +1061,7 @@ export default function NewRecipeScreen() {
             value={formData.servings}
             onChangeText={(value) => updateFormData('servings', value)}
             placeholder="4"
-            placeholderTextColor="#999"
+            placeholderTextColor={c.fgSubtle}
             keyboardType="numeric"
           />
         </View>
@@ -1079,8 +1088,8 @@ export default function NewRecipeScreen() {
       {/* Loading Overlay */}
       {saving && (
         <View style={styles.loadingOverlay}>
-          <ThemedView style={styles.loadingCard}>
-            <ActivityIndicator size="large" color="#E07856" />
+          <ThemedView lightColor={c.bgElevated} darkColor={c.bgElevated} style={styles.loadingCard}>
+            <ActivityIndicator size="large" color={c.accent} />
             <ThemedText style={styles.loadingText}>Saving recipe...</ThemedText>
           </ThemedView>
         </View>
@@ -1171,9 +1180,10 @@ export default function NewRecipeScreen() {
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={c.accentFg} />
             ) : (
               <ThemedText style={styles.navButtonTextPrimary}>Save Recipe</ThemedText>
+
             )}
           </Pressable>
         )}

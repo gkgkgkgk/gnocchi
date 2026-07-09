@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useColorScheme as useRNColorScheme } from 'react-native';
+
+import { useResolvedScheme } from '@/contexts/theme-context';
 
 /**
- * To support static rendering, this value needs to be re-calculated on the client side for web
+ * Web variant. Returns 'light' until the client has hydrated to avoid a
+ * static-render mismatch, then defers to the user's in-app preference
+ * (resolved via ThemeProvider). See `contexts/theme-context.tsx`.
  */
 export function useColorScheme() {
   const [hasHydrated, setHasHydrated] = useState(false);
@@ -11,11 +14,7 @@ export function useColorScheme() {
     setHasHydrated(true);
   }, []);
 
-  const colorScheme = useRNColorScheme();
+  const scheme = useResolvedScheme();
 
-  if (hasHydrated) {
-    return colorScheme;
-  }
-
-  return 'light';
+  return hasHydrated ? scheme : 'light';
 }

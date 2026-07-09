@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, Animated, useColorScheme } from 'react-native';
+import { View, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, Animated } from 'react-native';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 

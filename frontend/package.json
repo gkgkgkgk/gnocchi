@@ -14,6 +14,7 @@
     "@expo-google-fonts/fraunces": "*",
     "@expo-google-fonts/inter": "*",
     "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native-community/cli": "latest",
     "@react-native-community/slider": "5.0.1",
     "@react-navigation/bottom-tabs": "^7.4.0",

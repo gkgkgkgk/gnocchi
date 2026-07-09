@@ -18,6 +18,7 @@ import {
 } from '@expo-google-fonts/inter';
 import { ActivityIndicator, View } from 'react-native';
 
+import { ThemeProvider as ThemePreferenceProvider } from '@/contexts/theme-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -26,13 +27,22 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
   const [interLoaded] = useInter({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
   const [frLoaded] = useFraunces({ Fraunces_400Regular, Fraunces_500Medium, Fraunces_700Bold });
 
   if (!interLoaded || !frLoaded) {
     return <FontsLoading />;
   }
+
+  return (
+    <ThemePreferenceProvider>
+      <RootNavigation />
+    </ThemePreferenceProvider>
+  );
+}
+
+function RootNavigation() {
+  const colorScheme = useColorScheme();
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>

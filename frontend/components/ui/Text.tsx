@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { StyleProp, Text as RNText, TextStyle } from 'react-native';
-import { useTheme, type Theme } from '@/hooks/use-theme';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 type Variant = keyof Theme['type'];
 

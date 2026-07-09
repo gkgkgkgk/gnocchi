@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Modal, View, StyleSheet, Pressable, ActivityIndicator, TextInput, useColorScheme } from 'react-native';
+import { Modal, View, StyleSheet, Pressable, ActivityIndicator, TextInput } from 'react-native';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemedView } from './themed-view';
 import { ThemedText } from './themed-text';
 import { AITool } from '@/services/ai-tools-service';

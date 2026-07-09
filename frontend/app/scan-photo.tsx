@@ -1,14 +1,20 @@
 import { useState } from 'react';
-import { View, StyleSheet, Pressable, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, StyleSheet, Pressable, Alert, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
 import { Ionicons } from '@expo/vector-icons';
+
+import { Screen } from '@/components/ui/Screen';
+import { Text } from '@/components/ui/Text';
+import { Button } from '@/components/ui/Button';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { useTheme } from '@/hooks/use-theme';
 import { takePhoto, pickImage, parseRecipeFromImage } from '@/services/image-service';
 
 export default function ScanPhotoScreen() {
   const router = useRouter();
+  const theme = useTheme();
+  const c = theme.colors;
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -16,9 +22,7 @@ export default function ScanPhotoScreen() {
   const handleTakePhoto = async () => {
     try {
       const uri = await takePhoto();
-      if (uri) {
-        setImageUri(uri);
-      }
+      if (uri) setImageUri(uri);
     } catch (error: any) {
       console.error('Error taking photo:', error);
       Alert.alert('Error', error.message || 'Failed to take photo');
@@ -28,9 +32,7 @@ export default function ScanPhotoScreen() {
   const handlePickImage = async () => {
     try {
       const uri = await pickImage();
-      if (uri) {
-        setImageUri(uri);
-      }
+      if (uri) setImageUri(uri);
     } catch (error: any) {
       console.error('Error picking image:', error);
       Alert.alert('Error', error.message || 'Failed to pick image');
@@ -42,8 +44,6 @@ export default function ScanPhotoScreen() {
 
     try {
       setUploading(true);
-
-      // Send the local image URI straight to /import/photo; backend OCRs it.
       const imported = await parseRecipeFromImage(imageUri);
       const recipeData = imported.recipe ?? imported;
 
@@ -68,15 +68,11 @@ export default function ScanPhotoScreen() {
       };
 
       setProcessing(false);
-      
-      // Store in global state temporarily
       (global as any).__pendingRecipeImport = importData;
-      
+
       router.push({
         pathname: '/new-recipe',
-        params: {
-          fromImport: 'true',
-        },
+        params: { fromImport: 'true' },
       } as any);
     } catch (error: any) {
       console.error('Error processing image:', error);
@@ -86,126 +82,73 @@ export default function ScanPhotoScreen() {
     }
   };
 
-  return (
-    <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#333" />
-          </Pressable>
-          <ThemedText style={styles.title}>Scan Recipe Photo</ThemedText>
-          <View style={styles.backButton} />
-        </View>
+  const busy = uploading || processing;
 
-        {/* Image preview */}
+  return (
+    <Screen>
+      <ScreenHeader title="Scan Recipe Photo" onBack={() => router.back()} />
+
+      <ScrollView contentContainerStyle={styles.content}>
         {imageUri ? (
-          <View style={styles.imageContainer}>
+          <View style={[styles.imageContainer, { backgroundColor: c.bgMuted, borderRadius: theme.radius.lg }]}>
             <Image source={{ uri: imageUri }} style={styles.image} contentFit="contain" />
             <Pressable style={styles.retakeButton} onPress={() => setImageUri(null)}>
               <Ionicons name="close-circle" size={32} color="#fff" />
             </Pressable>
           </View>
         ) : (
-          <View style={styles.placeholderContainer}>
-            <Ionicons name="camera-outline" size={80} color="#ccc" />
-            <ThemedText style={styles.placeholderText}>
+          <View style={[styles.placeholder, { borderColor: c.borderStrong, borderRadius: theme.radius.lg }]}>
+            <Ionicons name="camera-outline" size={72} color={c.fgSubtle} />
+            <Text variant="body" color="fgMuted" style={{ marginTop: 16, textAlign: 'center' }}>
               Take a photo or select from gallery
-            </ThemedText>
+            </Text>
           </View>
         )}
 
-        {/* Action buttons */}
-        {!imageUri ? (
-          <View style={styles.buttonContainer}>
-            <Pressable style={styles.actionButton} onPress={handleTakePhoto}>
-              <Ionicons name="camera" size={24} color="#fff" />
-              <ThemedText style={styles.actionButtonText}>Take Photo</ThemedText>
-            </Pressable>
-
-            <Pressable style={styles.actionButton} onPress={handlePickImage}>
-              <Ionicons name="images" size={24} color="#fff" />
-              <ThemedText style={styles.actionButtonText}>Choose from Gallery</ThemedText>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.buttonContainer}>
-            <Pressable
-              style={[styles.processButton, (uploading || processing) && styles.processButtonDisabled]}
+        <View style={styles.buttons}>
+          {!imageUri ? (
+            <>
+              <Button onPress={handleTakePhoto} fullWidth size="lg" icon={<Ionicons name="camera" size={20} color={c.accentFg} />}>
+                Take Photo
+              </Button>
+              <Button onPress={handlePickImage} variant="secondary" fullWidth size="lg" icon={<Ionicons name="images" size={20} color={c.fg} />}>
+                Choose from Gallery
+              </Button>
+            </>
+          ) : (
+            <Button
               onPress={handleProcessImage}
-              disabled={uploading || processing}
+              loading={busy}
+              disabled={busy}
+              fullWidth
+              size="lg"
+              icon={!busy ? <Ionicons name="sparkles" size={20} color={c.accentFg} /> : undefined}
             >
-              {uploading || processing ? (
-                <>
-                  <ActivityIndicator color="#fff" />
-                  <ThemedText style={styles.processButtonText}>
-                    {uploading ? 'Uploading...' : 'Processing...'}
-                  </ThemedText>
-                </>
-              ) : (
-                <>
-                  <Ionicons name="sparkles" size={24} color="#fff" />
-                  <ThemedText style={styles.processButtonText}>Process Recipe</ThemedText>
-                </>
-              )}
-            </Pressable>
-          </View>
-        )}
+              {busy ? (uploading ? 'Uploading…' : 'Processing…') : 'Process Recipe'}
+            </Button>
+          )}
+        </View>
 
-        {/* Info text */}
-        <View style={styles.infoContainer}>
-          <ThemedText style={styles.infoText}>
-            📸 Take a clear photo of the recipe
-          </ThemedText>
-          <ThemedText style={styles.infoText}>
-            ✨ AI will extract ingredients and instructions
-          </ThemedText>
-          <ThemedText style={styles.infoText}>
-            ✏️ Review and edit before saving
-          </ThemedText>
+        <View style={[styles.info, { backgroundColor: c.bgMuted, borderRadius: theme.radius.lg }]}>
+          <Text variant="small" color="fgMuted">📸 Take a clear photo of the recipe</Text>
+          <Text variant="small" color="fgMuted">✨ AI will extract ingredients and instructions</Text>
+          <Text variant="small" color="fgMuted">✏️ Review and edit before saving</Text>
         </View>
       </ScrollView>
-    </ThemedView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    padding: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
+  content: { padding: 20 },
   imageContainer: {
     position: 'relative',
     width: '100%',
     height: 400,
-    borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 24,
-    backgroundColor: '#f0f0f0',
   },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
+  image: { width: '100%', height: '100%' },
   retakeButton: {
     position: 'absolute',
     top: 12,
@@ -213,66 +156,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 20,
   },
-  placeholderContainer: {
+  placeholder: {
     width: '100%',
     height: 400,
-    borderRadius: 12,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: '#ccc',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
   },
-  placeholderText: {
-    fontSize: 16,
-    opacity: 0.6,
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  buttonContainer: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E07856',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  processButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#2196F3',
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  processButtonDisabled: {
-    opacity: 0.6,
-  },
-  processButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  infoContainer: {
-    gap: 8,
-    padding: 16,
-    backgroundColor: 'rgba(33, 150, 243, 0.1)',
-    borderRadius: 12,
-  },
-  infoText: {
-    fontSize: 14,
-    opacity: 0.8,
-  },
+  buttons: { gap: 12, marginBottom: 24 },
+  info: { gap: 8, padding: 16 },
 });
