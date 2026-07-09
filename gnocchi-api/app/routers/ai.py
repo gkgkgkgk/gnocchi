@@ -21,6 +21,7 @@ class _LLMIngredient(BaseModel):
     text: str
     quantity: float = 0
     unit: str = ""
+    optional: bool = False
 
 
 class _LLMMetadata(BaseModel):
@@ -143,7 +144,7 @@ Return a complete modified recipe."""
         recipe=schemas.AIRecipePayload(
             title=parsed.title,
             ingredients=[
-                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit)
+                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional)
                 for i in parsed.ingredients
             ],
             instructions=list(parsed.instructions),

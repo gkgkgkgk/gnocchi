@@ -2,26 +2,27 @@
 tool-use variants and prompt caching against Claude."""
 
 
+_INGREDIENT_RULES = """For each ingredient, output ONE row with:
+- text: the raw ingredient line as written (e.g. "2 cups all-purpose flour, sifted")
+- quantity: numeric amount (0 if not specified). Convert fractions like 1/2 to 0.5.
+- unit: unit of measurement, lowercased, without a trailing period (e.g. "cup", "tbsp", "g"). Empty string if none.
+- optional: true if the source marks the ingredient as optional / "for garnish" / "to taste" / "if desired" / "to serve". false otherwise.
+
+CRITICAL: Never merge multiple ingredients into one row, even if the source lists them together like "salt, pepper, and cayenne (optional)". Split them into separate rows — salt (optional=false), pepper (optional=false), cayenne (optional=true). Merging breaks quantity scaling."""
+
+
 SCRAPE_STRUCTURE = (
     "You are a helpful cooking assistant. Your job is to structure recipes "
-    "from scraped website text. Extract all ingredients with their quantities "
-    "and units, and all instruction steps."
+    "from scraped website text.\n\n" + _INGREDIENT_RULES + "\n\n"
+    "Also extract all instruction steps and metadata (prep time, cook time, servings)."
 )
 
 
 IMAGE_STRUCTURE = (
     "You are a helpful cooking assistant. Your job is to structure recipes "
-    "from images.\n\n"
-    "Extract all ingredients with their quantities and units, and all "
-    "instruction steps.\n\n"
-    "For each ingredient, parse:\n"
-    "- text: The ingredient name as written (e.g., 'sugar', 'flour', "
-    "'chicken breast') - DO NOT include quantity or unit\n"
-    "- quantity: The numeric amount (use 0 if not specified)\n"
-    "- unit: The unit of measurement (use empty string if not specified)\n\n"
-    "Extract metadata including prep time, cook time, and servings. If any "
-    "metadata is not visible, use reasonable defaults (0 for times, 1 for "
-    "servings)."
+    "from images.\n\n" + _INGREDIENT_RULES + "\n\n"
+    "Also extract instruction steps and metadata. If any metadata isn't "
+    "visible, use reasonable defaults (0 for times, 1 for servings)."
 )
 
 
@@ -84,6 +85,9 @@ Guidelines:
 - Keep the recipe practical and achievable.
 - Preserve cooking times unless they need to change.
 - Update ingredient quantities and instructions as needed.
+- Preserve the `optional` flag on each ingredient — if it was optional
+  before, keep it optional (unless the tool specifically changes that).
+- One ingredient per row. Never merge multiple ingredients into one line.
 - Return a complete, valid recipe.
 
 Tool context: {tool_prompt}"""

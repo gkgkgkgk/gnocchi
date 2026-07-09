@@ -529,10 +529,12 @@ export default function RecipeDetailScreen() {
                         const unitName = item.unit?.name;
                         const quantity = item.quantity * multiplier; // Apply multiplier
                         let displayText = formatIngredientLine(quantity, unitName, ingredientName);
+                        const isOptional = (item as any).optional;
+                        if (isOptional) displayText = `${displayText} (optional)`;
                         // Convert decimals to fractions for display
                         displayText = convertDecimalsToFractions(displayText);
                         return (
-                          <View key={item.id || index} style={styles.ingredientItem}>
+                          <View key={item.id || index} style={[styles.ingredientItem, isOptional && { opacity: 0.55 }]}>
                             <ThemedText style={styles.ingredientBullet}>•</ThemedText>
                             <ThemedText style={styles.ingredientText}>
                               {displayText}

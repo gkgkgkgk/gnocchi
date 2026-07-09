@@ -17,6 +17,7 @@ class RecipeIngredient(BaseModel):
     text: str
     quantity: float = 0
     unit: str = ""
+    optional: bool = False
 
 
 class RecipePhotoOut(BaseModel):

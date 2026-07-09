@@ -28,6 +28,7 @@ class _LLMIngredient(BaseModel):
     text: str
     quantity: float = 0
     unit: str = ""
+    optional: bool = False
 
 
 class _LLMMetadata(BaseModel):
@@ -49,7 +50,7 @@ def _to_imported(parsed: _LLMRecipe, source_url: str | None, source_image: str |
         recipe=schemas.RecipeCreate(
             title=parsed.title,
             ingredients=[
-                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit)
+                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional)
                 for i in parsed.ingredients
             ],
             steps=list(parsed.instructions),
@@ -93,10 +94,12 @@ def _from_jsonld(data: dict[str, Any]) -> _LLMRecipe:
 
     raw_ings = data.get("recipeIngredient") or data.get("ingredients") or []
     ingredients: list[_LLMIngredient] = []
+    optional_re = re.compile(r"\b(optional|for garnish|to taste|to serve)\b", re.I)
     for line in raw_ings:
         s = str(line).strip()
         if not s:
             continue
+        is_optional = bool(optional_re.search(s))
         # Best-effort qty extraction from "2 cups flour", "1/2 tsp salt", etc.
         m = re.match(r"^([\d]+(?:[.\/][\d]+)?|\d+\s+\d+\/\d+)\s+([A-Za-z.]+)?\s*(.*)$", s)
         qty = 0.0
@@ -113,7 +116,7 @@ def _from_jsonld(data: dict[str, Any]) -> _LLMRecipe:
             else:
                 qty = float(qraw)
             unit = (m.group(2) or "").strip(".") if m.group(2) else ""
-        ingredients.append(_LLMIngredient(text=s, quantity=qty, unit=unit))
+        ingredients.append(_LLMIngredient(text=s, quantity=qty, unit=unit, optional=is_optional))
 
     raw_ins = data.get("recipeInstructions") or []
     instructions: list[str] = []

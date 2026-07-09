@@ -85,6 +85,26 @@ const styles = StyleSheet.create({
     borderColor: '#ff3b30',
     borderWidth: 2,
   },
+  optionalToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.2)',
+  },
+  optionalToggleActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  optionalToggleText: {
+    fontSize: 11,
+    fontWeight: '600',
+    opacity: 0.6,
+  },
+  optionalToggleTextActive: {
+    color: '#fff',
+    opacity: 1,
+  },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
@@ -352,6 +372,7 @@ interface RecipeIngredient {
   unitId: string;
   unitAbbreviation: string;
   text: string;  // Raw ingredient text
+  optional: boolean;
 }
 
 interface RecipeFormData {
@@ -380,7 +401,7 @@ export default function NewRecipeScreen() {
     prepTime: '',
     cookTime: '',
     servings: '',
-    ingredients: [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '' }],
+    ingredients: [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false }],
     steps: [''],
     imageUrl: '',
   });
@@ -434,8 +455,9 @@ export default function NewRecipeScreen() {
           unitId: matchedUnit?.id || ing.unit_id || '',
           unitAbbreviation: matchedUnit?.abbreviation || ing.unit?.abbreviation || '',
           text: ing.text || '',
+          optional: !!ing.optional,
         };
-      }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '' }];
+      }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false }];
 
       setFormData({
         title: recipe.title || '',
@@ -541,8 +563,9 @@ export default function NewRecipeScreen() {
               unitId: matchedUnit?.id || '',
               unitAbbreviation: matchedUnit?.abbreviation || ing.unit || '',
               text: ing.text || '',
+              optional: !!ing.optional,
             };
-          }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '' }];
+          }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false }];
           
           setFormData({
             title: imported.title || '',
@@ -638,7 +661,7 @@ export default function NewRecipeScreen() {
   const addIngredient = () => {
     setFormData(prev => ({
       ...prev,
-      ingredients: [...prev.ingredients, { ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '' }]
+      ingredients: [...prev.ingredients, { ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false }]
     }));
   };
 
@@ -788,6 +811,9 @@ export default function NewRecipeScreen() {
           id: ing.ingredientId && ing.ingredientId.trim() !== '' ? ing.ingredientId : undefined,
           quantity: ing.quantity,
           unit: ing.unitId || undefined,
+          unitAbbreviation: ing.unitAbbreviation,
+          ingredientName: ing.ingredientName,
+          optional: ing.optional,
         }));
 
       // Filter out empty steps
@@ -926,6 +952,19 @@ export default function NewRecipeScreen() {
           >
             <ThemedText style={ingredient.ingredientName ? styles.selectedText : styles.placeholderText}>
               {ingredient.ingredientName || 'ingredient'}
+            </ThemedText>
+          </Pressable>
+          <Pressable
+            onPress={() => setFormData(prev => ({
+              ...prev,
+              ingredients: prev.ingredients.map((ing, i) => i === index ? { ...ing, optional: !ing.optional } : ing),
+            }))}
+            style={[styles.optionalToggle, ingredient.optional && styles.optionalToggleActive]}
+          >
+            <ThemedText
+              style={[styles.optionalToggleText, ingredient.optional && styles.optionalToggleTextActive]}
+            >
+              opt
             </ThemedText>
           </Pressable>
           <Pressable

@@ -146,9 +146,11 @@ export default function EasyRecipeViewer() {
                     const quantity = item.quantity * multiplier; // Apply multiplier
                     let displayText = formatIngredientLine(quantity, unitName, ingredientName);
                     displayText = convertDecimalsToFractions(displayText);
+                    const isOptional = (item as any).optional;
+                    if (isOptional) displayText = `${displayText} (optional)`;
                     
                     return (
-                      <View key={item.id || index} style={styles.ingredientItem}>
+                      <View key={item.id || index} style={[styles.ingredientItem, isOptional && { opacity: 0.55 }]}>
                         <ThemedText style={styles.ingredientBullet}>•</ThemedText>
                         <ThemedText style={styles.ingredientText}>
                           {displayText}

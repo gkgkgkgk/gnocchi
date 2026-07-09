@@ -9,6 +9,7 @@ export interface RecipeIngredient {
   // new code treats it as a plain string. Use `unitToString(i.unit)` when
   // you need a definite string. Cleaned up in Phase 3.
   unit: any;
+  optional?: boolean;
   ingredient?: { id?: string; name: string };
   unit_id?: string;
   ingredient_id?: string;
@@ -177,6 +178,7 @@ function adaptForUI(r: any): Recipe {
       return {
         text: i.text ?? '',
         quantity: qty,
+        optional: !!i.optional,
         // The old screens read `.name` and `.abbreviation`; new code reads
         // `.unit` as a plain string. Make it an object with a toString so
         // both patterns work (String(unitObj) → unit string).
@@ -246,6 +248,7 @@ function adaptForBackend(input: any): Record<string, any> {
           i.unitAbbreviation ||
           unitToString(i.unit) ||
           '',
+        optional: !!i.optional,
       })),
     steps: (input.steps ?? []).filter(Boolean),
     notes: input.notes ?? null,
