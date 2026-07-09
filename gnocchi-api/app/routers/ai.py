@@ -1,18 +1,20 @@
-"""AI operations that don't fit under /import or /ai-tools: annotate,
-analyze, execute a tool, generate a shopping list."""
+"""AI operations: annotate, analyze, execute a tool, generate a shopping list.
+
+Every endpoint funnels through `call_structured` in app.llm, which forces a
+tool-call structured response and caches the (usually large) system prompt."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app import prompts, schemas
-from app.llm import client
+from app.llm import MODEL_FAST, call_structured
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
-# --- Ad-hoc LLM response schemas (same as imports; kept separate for clarity)
+# --- Ad-hoc LLM shapes ---
 
 
 class _LLMIngredient(BaseModel):
@@ -40,24 +42,32 @@ class _RecipeInsight(BaseModel):
     recommended_tool: str | None = None
 
 
+class _ShoppingItem(BaseModel):
+    text: str
+    source: list[str]
+
+
+class _ShoppingResp(BaseModel):
+    items: list[_ShoppingItem]
+
+
+# --- Endpoints ---
+
+
 @router.post("/annotate", response_model=schemas.AnnotateResponse)
 async def annotate(body: schemas.AnnotateRequest):
     ingredients_list = "\n".join(f"- {i}" for i in body.ingredients)
     instructions_list = "\n".join(f"{i+1}. {s}" for i, s in enumerate(body.instructions))
-    prompt = f"INGREDIENTS LIST:\n{ingredients_list}\n\nINSTRUCTIONS:\n{instructions_list}"
+    user = f"INGREDIENTS LIST:\n{ingredients_list}\n\nINSTRUCTIONS:\n{instructions_list}"
 
-    completion = await client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": prompts.ANNOTATE_SYSTEM},
-            {"role": "user", "content": prompt},
-        ],
-        response_format=schemas.AnnotateResponse,
+    return await call_structured(
+        model=MODEL_FAST,
+        system=prompts.ANNOTATE_SYSTEM,
+        user=user,
+        tool_name="record_annotations",
+        tool_description="Record the annotated instructions.",
+        schema=schemas.AnnotateResponse,
     )
-    parsed = completion.choices[0].message.parsed
-    if parsed is None:
-        raise HTTPException(status_code=502, detail="Annotation failed")
-    return parsed
 
 
 @router.post("/analyze", response_model=schemas.AnalyzeResponse)
@@ -65,12 +75,9 @@ async def analyze(body: schemas.AnalyzeRequest):
     ingredients_text = "\n".join(f"- {i.text}" for i in body.recipe.ingredients)
     restrictions = (body.preferences.dietary_restrictions if body.preferences else []) or ["None"]
     restrictions_text = ", ".join(restrictions)
-
-    # Available tools — for now, hardcoded fallback. Phase 5 makes this
-    # aware of the ai_tools table so the model picks tools that exist.
     tools_text = '- "suggest_substitutions": When ingredients conflict with dietary restrictions'
 
-    user_prompt = f"""Analyze this recipe for dietary compliance:
+    user = f"""Analyze this recipe for dietary compliance:
 
 RECIPE: {body.recipe.title}
 
@@ -81,17 +88,14 @@ DIETARY RESTRICTIONS: {restrictions_text}
 
 Provide your analysis."""
 
-    completion = await client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": prompts.analyze_system(tools_text)},
-            {"role": "user", "content": user_prompt},
-        ],
-        response_format=_RecipeInsight,
+    parsed = await call_structured(
+        model=MODEL_FAST,
+        system=prompts.analyze_system(tools_text),
+        user=user,
+        tool_name="record_insight",
+        tool_description="Record the recipe insight and optional recommended tool.",
+        schema=_RecipeInsight,
     )
-    parsed = completion.choices[0].message.parsed
-    if parsed is None:
-        raise HTTPException(status_code=502, detail="Analysis failed")
     return schemas.AnalyzeResponse(insight=parsed.insight, recommended_tool=parsed.recommended_tool)
 
 
@@ -108,9 +112,9 @@ async def execute_tool(body: schemas.ExecuteToolRequest):
         f"\n\nUser's guidance: {body.user_guidance}\nPlease incorporate this."
         if body.user_guidance else ""
     )
-
     md = body.recipe.metadata or {}
-    user_prompt = f"""Original Recipe: {body.recipe.title}
+
+    user = f"""Original Recipe: {body.recipe.title}
 
 Ingredients:
 {ingredients_text}
@@ -125,20 +129,16 @@ Metadata:
 
 Notes: {body.recipe.notes or 'None'}{reasoning_section}{guidance_section}
 
-Please modify this recipe according to the tool's purpose. Return a complete recipe with all fields filled out."""
+Return a complete modified recipe."""
 
-    completion = await client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": prompts.execute_tool_system(body.tool.description, body.tool.prompt)},
-            {"role": "user", "content": user_prompt},
-        ],
-        response_format=_LLMRecipe,
+    parsed = await call_structured(
+        model=MODEL_FAST,
+        system=prompts.execute_tool_system(body.tool.description, body.tool.prompt),
+        user=user,
+        tool_name="record_modified_recipe",
+        tool_description="Record the modified recipe with all fields.",
+        schema=_LLMRecipe,
     )
-    parsed = completion.choices[0].message.parsed
-    if parsed is None:
-        raise HTTPException(status_code=502, detail="Tool execution failed")
-
     return schemas.ExecuteToolResponse(
         recipe=schemas.AIRecipePayload(
             title=parsed.title,
@@ -163,25 +163,14 @@ async def shopping_list(body: schemas.ShoppingListRequest):
         f"### {r.title}\n" + "\n".join(f"- {i.text}" for i in r.ingredients)
         for r in body.recipes
     )
-
-    class _Item(BaseModel):
-        text: str
-        source: list[str]
-
-    class _Resp(BaseModel):
-        items: list[_Item]
-
-    completion = await client.beta.chat.completions.parse(
-        model="gpt-4o",
-        messages=[
-            {"role": "system", "content": prompts.SHOPPING_LIST_SYSTEM},
-            {"role": "user", "content": f"Generate a shopping list for these recipes:\n\n{recipes_text}"},
-        ],
-        response_format=_Resp,
+    parsed = await call_structured(
+        model=MODEL_FAST,
+        system=prompts.SHOPPING_LIST_SYSTEM,
+        user=f"Generate a shopping list for these recipes:\n\n{recipes_text}",
+        tool_name="record_shopping_list",
+        tool_description="Record the aggregated shopping list.",
+        schema=_ShoppingResp,
     )
-    parsed = completion.choices[0].message.parsed
-    if parsed is None:
-        raise HTTPException(status_code=502, detail="Shopping list generation failed")
     return schemas.ShoppingListResponse(
         items=[schemas.ShoppingListItem(name=i.text, sources=i.source) for i in parsed.items]
     )

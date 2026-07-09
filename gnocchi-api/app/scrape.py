@@ -1,18 +1,49 @@
-"""Recipe URL scraping. httpx for async fetch, bs4 for parsing.
+"""Recipe URL scraping.
 
-Handles: (a) generic recipe websites — prefer known WPRM/Tasty containers,
-fall back to any dense block. (b) Pinterest pins — follow the outbound
-link to the actual recipe site.
+Preference order: (1) schema.org/Recipe JSON-LD (a huge fraction of recipe
+sites embed it; when present, we skip the LLM entirely and the extraction
+is essentially perfect). (2) Recipe-container div classes (wprm, tasty,
+etc.). (3) Whole-page fallback.
+
+Returns a dict shaped `{jsonld?, raw_text?, source_url, source_image}` —
+callers check `jsonld` first and only fall back to `raw_text` + LLM.
 """
 
 from __future__ import annotations
+
+import json
+from typing import Any
 
 import httpx
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
 
-
 TIMEOUT = 10.0
+
+
+def _find_jsonld_recipe(soup: BeautifulSoup) -> dict[str, Any] | None:
+    """Return the first schema.org/Recipe blob on the page, or None."""
+    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
+        try:
+            data = json.loads(script.string or "")
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+        candidates: list[Any] = []
+        if isinstance(data, list):
+            candidates.extend(data)
+        elif isinstance(data, dict):
+            candidates.append(data)
+            if isinstance(data.get("@graph"), list):
+                candidates.extend(data["@graph"])
+
+        for c in candidates:
+            if not isinstance(c, dict):
+                continue
+            t = c.get("@type")
+            if t == "Recipe" or (isinstance(t, list) and "Recipe" in t):
+                return c
+    return None
 
 
 def _extract_recipe_text(soup: BeautifulSoup) -> str:
@@ -39,63 +70,56 @@ def _extract_recipe_text(soup: BeautifulSoup) -> str:
     return text
 
 
-async def scrape_website(url: str) -> dict[str, str | None]:
-    async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True) as client:
+async def _fetch(url: str) -> str:
+    async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True) as c:
         try:
-            resp = await client.get(url)
+            resp = await c.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; Gnocchi/1.0)"})
             resp.raise_for_status()
         except httpx.HTTPError as e:
             raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {e}") from e
+        return resp.text
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+
+async def scrape_website(url: str) -> dict[str, Any]:
+    html = await _fetch(url)
+    soup = BeautifulSoup(html, "html.parser")
+
     og = soup.find("meta", property="og:image")
     cover = og["content"] if og else None
-    return {
-        "raw_text": _extract_recipe_text(soup),
-        "source_image": cover,
-        "source_url": url,
-    }
+
+    jsonld = _find_jsonld_recipe(soup)
+    if jsonld:
+        return {"jsonld": jsonld, "source_image": cover, "source_url": url}
+
+    return {"raw_text": _extract_recipe_text(soup), "source_image": cover, "source_url": url}
 
 
-async def scrape_pinterest(url: str) -> dict[str, str | None]:
-    async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True) as client:
-        try:
-            resp = await client.get(url)
-            resp.raise_for_status()
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=400, detail=f"Failed to fetch Pinterest URL: {e}") from e
+async def scrape_pinterest(url: str) -> dict[str, Any]:
+    """Follow a pin's outbound link to the actual recipe site, then scrape it."""
+    html = await _fetch(url)
+    soup = BeautifulSoup(html, "html.parser")
+    og = soup.find("meta", property="og:image")
+    cover = og["content"] if og else None
 
-        soup = BeautifulSoup(resp.text, "html.parser")
-        og = soup.find("meta", property="og:image")
-        cover = og["content"] if og else None
+    outbound: str | None = None
+    for meta in soup.find_all("meta"):
+        if meta.get("property") in {"og:url", "al:ios:url", "al:android:url"}:
+            candidate = meta.get("content")
+            if candidate and "pin.it" not in candidate and "pinterest.com" not in candidate:
+                outbound = candidate
+                break
+    if not outbound:
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if not href.startswith("/") and "pinterest.com" not in href:
+                outbound = href
+                break
+    if not outbound:
+        raise HTTPException(status_code=400, detail="No external recipe link found on this pin.")
 
-        outbound: str | None = None
-        for meta in soup.find_all("meta"):
-            if meta.get("property") in {"og:url", "al:ios:url", "al:android:url"}:
-                candidate = meta.get("content")
-                if candidate and "pin.it" not in candidate and "pinterest.com" not in candidate:
-                    outbound = candidate
-                    break
-
-        if not outbound:
-            for a in soup.find_all("a", href=True):
-                href = a["href"]
-                if not href.startswith("/") and "pinterest.com" not in href:
-                    outbound = href
-                    break
-
-        if not outbound:
-            raise HTTPException(status_code=400, detail="No external recipe link found on this pin.")
-
-        try:
-            recipe_resp = await client.get(outbound)
-            recipe_resp.raise_for_status()
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=400, detail=f"Failed to fetch linked recipe: {e}") from e
-
-    recipe_soup = BeautifulSoup(recipe_resp.text, "html.parser")
-    return {
-        "raw_text": _extract_recipe_text(recipe_soup),
-        "source_image": cover,
-        "source_url": outbound,
-    }
+    recipe_html = await _fetch(outbound)
+    recipe_soup = BeautifulSoup(recipe_html, "html.parser")
+    jsonld = _find_jsonld_recipe(recipe_soup)
+    if jsonld:
+        return {"jsonld": jsonld, "source_image": cover, "source_url": outbound}
+    return {"raw_text": _extract_recipe_text(recipe_soup), "source_image": cover, "source_url": outbound}

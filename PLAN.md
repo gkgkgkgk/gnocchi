@@ -388,7 +388,27 @@ No auth screen. Existing data isn't migrated — this is a fresh start
 
 ---
 
-### Phase 2 — Anthropic overhaul
+### Phase 2 — Anthropic overhaul — ✅ shipped
+
+Everything LLM now goes through Claude via `app/llm.py`'s
+`call_structured` helper: forced tool-use for typed JSON, prompt caching
+(`cache_control: ephemeral`) on system messages, SDK-level retries. Model
+tiers: `claude-sonnet-4-6` for extraction/annotation/analysis/transform;
+`claude-opus-4-7` reserved for the "pitch me a recipe" endpoint that
+lands in Phase 5.
+
+**JSON-LD fast path in `scrape.py`.** A large share of recipe websites
+embed `schema.org/Recipe` in a `<script type="application/ld+json">`.
+When present, we parse structured fields directly (ingredients,
+instructions, prep/cook time as ISO-8601 durations, yield) and skip the
+LLM entirely — result is faster and more accurate than round-tripping
+through Claude. Falls back to text extraction + LLM when no JSON-LD is
+found or the payload is malformed.
+
+Still deferred to later phases: streaming for /ai/chat (Phase 5 with the
+chat feature itself), richer annotate response format (Phase 3 UI
+rework), retries with real exponential backoff (SDK default is fine
+for now).
 
 Goal: better model, better prompts, better structured outputs, streaming
 where it makes sense.
