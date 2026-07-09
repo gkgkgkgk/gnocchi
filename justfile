@@ -5,8 +5,19 @@
 default:
     @just --list
 
-# One-command initial setup: init db, install deps, migrate. Idempotent.
-setup: db-init backend-install migrate frontend-install
+# One-command initial setup: init db, install deps, seed .env files, migrate. Idempotent.
+setup: envs db-init backend-install migrate frontend-install
+
+# Copy .env.example → .env if missing (never overwrites existing values).
+envs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for d in gnocchi-api frontend; do
+        if [ -f "$d/.env.example" ] && [ ! -f "$d/.env" ]; then
+            cp "$d/.env.example" "$d/.env"
+            echo "Created $d/.env (edit it to set secrets)."
+        fi
+    done
 
 # --- Local Postgres cluster (state in ./.pg, gitignored) -----------------
 
