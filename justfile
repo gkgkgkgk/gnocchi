@@ -28,9 +28,16 @@ db-init:
     psql -h "$PGHOST" -U postgres -c "create database gnocchi owner gnocchi" postgres 2>/dev/null || true
     echo "DB ready at $DATABASE_URL"
 
-# Start postgres in the background (idempotent).
-db-up: _db-start-bg
-    @echo "postgres listening on socket $PGHOST"
+# Start postgres. Auto-inits the cluster the first time.
+db-up:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f "$PGDATA/PG_VERSION" ]; then
+        just db-init
+    else
+        just _db-start-bg
+        echo "postgres listening on socket $PGHOST"
+    fi
 
 # Stop postgres. Data persists in ./.pg.
 db-down:
