@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import ai, ai_tools, cookbooks, health, images, imports, recipes, singletons, tags
 
-app = FastAPI(title="Gnocchi API", version="1.0.0")
+app = FastAPI(title="Gnocchi API", version="1.0.1")
 
 # No auth: any device on the tailnet is trusted. CORS is wide open in dev;
 # in prod the frontend and API share an origin (Caddy proxies /api to us),
