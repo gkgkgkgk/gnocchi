@@ -1,6 +1,9 @@
-import { Modal, View, StyleSheet, Pressable } from 'react-native';
-import { ThemedView } from './themed-view';
-import { ThemedText } from './themed-text';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+import { Sheet } from './ui/Sheet';
+import { Text } from './ui/Text';
+import { useTheme } from '@/hooks/use-theme';
 
 interface AddRecipeModalProps {
   visible: boolean;
@@ -11,6 +14,13 @@ interface AddRecipeModalProps {
   onScanPhoto: () => void;
 }
 
+interface Option {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+}
+
 export function AddRecipeModal({
   visible,
   onClose,
@@ -19,152 +29,58 @@ export function AddRecipeModal({
   onAddFromWebsite,
   onScanPhoto,
 }: AddRecipeModalProps) {
+  const theme = useTheme();
+  const c = theme.colors;
+
+  const options: Option[] = [
+    { icon: 'globe-outline',    title: 'From a website',  subtitle: 'Paste any recipe URL',              onPress: onAddFromWebsite },
+    { icon: 'logo-pinterest',   title: 'From Pinterest',  subtitle: 'Import a saved pin',                onPress: onAddFromPinterest },
+    { icon: 'camera-outline',   title: 'Scan a photo',    subtitle: 'From your camera or gallery',       onPress: onScanPhoto },
+    { icon: 'create-outline',   title: 'Type it in',      subtitle: 'Build a recipe from scratch',       onPress: onAddManually },
+  ];
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.modalContainer} onPress={(e) => e.stopPropagation()}>
-          <ThemedView style={styles.modal}>
-            {/* Header */}
-            <View style={styles.header}>
-              <ThemedText style={styles.title}>Add Recipe</ThemedText>
-              <Pressable onPress={onClose} style={styles.closeButton}>
-                <ThemedText style={styles.closeButtonText}>✕</ThemedText>
-              </Pressable>
-            </View>
-
-            {/* Options */}
-            <View style={styles.optionsContainer}>
-              <Pressable
-                style={styles.optionButton}
-                onPress={onAddFromPinterest}
-              >
-                <ThemedText style={styles.optionIcon}>📌</ThemedText>
-                <View style={styles.optionTextContainer}>
-                  <ThemedText style={styles.optionTitle}>Add from Pinterest</ThemedText>
-                  <ThemedText style={styles.optionSubtitle}>
-                    Import a recipe from Pinterest
-                  </ThemedText>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.optionButton}
-                onPress={onAddFromWebsite}
-              >
-                <ThemedText style={styles.optionIcon}>🌐</ThemedText>
-                <View style={styles.optionTextContainer}>
-                  <ThemedText style={styles.optionTitle}>Add from Website</ThemedText>
-                  <ThemedText style={styles.optionSubtitle}>
-                    Import from any recipe website
-                  </ThemedText>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.optionButton}
-                onPress={onScanPhoto}
-              >
-                <ThemedText style={styles.optionIcon}>📸</ThemedText>
-                <View style={styles.optionTextContainer}>
-                  <ThemedText style={styles.optionTitle}>Scan Photo</ThemedText>
-                  <ThemedText style={styles.optionSubtitle}>
-                    Take a photo or upload an image
-                  </ThemedText>
-                </View>
-              </Pressable>
-
-              <Pressable
-                style={styles.optionButton}
-                onPress={onAddManually}
-              >
-                <ThemedText style={styles.optionIcon}>✏️</ThemedText>
-                <View style={styles.optionTextContainer}>
-                  <ThemedText style={styles.optionTitle}>Add Manually</ThemedText>
-                  <ThemedText style={styles.optionSubtitle}>
-                    Create a recipe from scratch
-                  </ThemedText>
-                </View>
-              </Pressable>
-            </View>
-          </ThemedView>
+    <Sheet visible={visible} onClose={onClose}>
+      <View style={styles.header}>
+        <Text variant="h1">Add a recipe</Text>
+        <Pressable onPress={onClose} hitSlop={12}>
+          <Ionicons name="close" size={24} color={c.fgMuted} />
         </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+
+      <View style={{ gap: theme.spacing.sm, marginTop: theme.spacing.lg }}>
+        {options.map((opt) => (
+          <Pressable
+            key={opt.title}
+            onPress={opt.onPress}
+            style={({ pressed }) => [
+              styles.option,
+              {
+                backgroundColor: pressed ? c.bgHover : c.bgMuted,
+                borderRadius: theme.radius.lg,
+                padding: theme.spacing.lg,
+              },
+            ]}
+          >
+            <View style={[styles.iconWrap, { backgroundColor: c.accent }]}>
+              <Ionicons name={opt.icon} size={22} color={c.accentFg} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="bodyMedium">{opt.title}</Text>
+              <Text variant="small" color="fgMuted">{opt.subtitle}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={c.fgSubtle} />
+          </Pressable>
+        ))}
+      </View>
+    </Sheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContainer: {
-    width: '100%',
-    maxWidth: 400,
-  },
-  modal: {
-    borderRadius: 16,
-    padding: 24,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    fontSize: 24,
-    opacity: 0.6,
-  },
-  optionsContainer: {
-    gap: 12,
-  },
-  optionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    backgroundColor: 'transparent',
-  },
-  optionIcon: {
-    fontSize: 32,
-    marginRight: 16,
-  },
-  optionTextContainer: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  optionSubtitle: {
-    fontSize: 14,
-    opacity: 0.6,
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  option: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconWrap: {
+    width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center',
   },
 });

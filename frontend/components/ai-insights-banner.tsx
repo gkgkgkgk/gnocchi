@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ThemedView } from './themed-view';
-import { ThemedText } from './themed-text';
+
+import { Card } from './ui/Card';
+import { Text } from './ui/Text';
+import { Button } from './ui/Button';
 import { fetchAITools, AITool } from '@/services/ai-tools-service';
+import { useTheme } from '@/hooks/use-theme';
 
 interface AIInsightsBannerProps {
   insight?: string;
@@ -14,232 +17,121 @@ interface AIInsightsBannerProps {
   onRefresh?: () => void;
 }
 
+const formatToolName = (n: string) =>
+  n.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-export function AIInsightsBanner({ 
-  insight, 
-  recommendedAction, 
+export function AIInsightsBanner({
+  insight,
+  recommendedAction,
   loading,
   onActionPress,
   onToolPress,
-  onRefresh
+  onRefresh,
 }: AIInsightsBannerProps) {
+  const theme = useTheme();
+  const c = theme.colors;
   const [tools, setTools] = useState<AITool[]>([]);
   const [toolsLoading, setToolsLoading] = useState(true);
 
   useEffect(() => {
-    loadTools();
+    fetchAITools().then(setTools).catch(console.error).finally(() => setToolsLoading(false));
   }, []);
-
-  const loadTools = async () => {
-    try {
-      const data = await fetchAITools();
-      setTools(data);
-    } catch (error) {
-      console.error('Failed to load AI tools:', error);
-    } finally {
-      setToolsLoading(false);
-    }
-  };
-
-  const formatToolName = (toolName: string): string => {
-    // Convert snake_case to Title Case
-    return toolName
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ');
-  };
 
   if (loading) {
     return (
-      <ThemedView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" />
-          <ThemedText style={styles.loadingText}>Analyzing recipe...</ThemedText>
+      <Card style={[styles.container, { backgroundColor: c.secondaryMuted, borderColor: c.secondary }]}>
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={c.secondary} />
+          <Text variant="small" color="fgMuted">Analyzing recipe…</Text>
         </View>
-      </ThemedView>
+      </Card>
     );
   }
 
-  if (!insight) {
-    return null;
-  }
+  if (!insight) return null;
 
   return (
-    <ThemedView style={styles.container}>
-      {/* Main Insight */}
-      <View style={styles.mainInsight}>
-        <View style={styles.iconContainer}>
-          <ThemedText style={styles.logo}>🥟</ThemedText>
+    <Card style={[styles.container, { backgroundColor: c.secondaryMuted, borderColor: c.secondary }]}>
+      <View style={styles.row}>
+        <View style={[styles.badge, { backgroundColor: c.secondary }]}>
+          <Text style={{ fontSize: 22 }}>🥟</Text>
         </View>
-        
-        <View style={styles.insightContent}>
-          <View style={styles.insightHeader}>
-            <ThemedText style={styles.insightLabel}>Chef Gnocchi's Note:</ThemedText>
+        <View style={{ flex: 1 }}>
+          <View style={styles.headerRow}>
+            <Text variant="label" color="fgMuted">Chef Gnocchi's note</Text>
             {onRefresh && (
-              <Pressable style={styles.refreshButton} onPress={onRefresh}>
-                <Ionicons name="refresh" size={16} color="#666" />
+              <Pressable hitSlop={8} onPress={onRefresh} style={{ padding: 4 }}>
+                <Ionicons name="refresh" size={14} color={c.fgMuted} />
               </Pressable>
             )}
           </View>
-          <ThemedText style={styles.insightText}>{insight}</ThemedText>
-          
+          <Text variant="body" style={{ marginTop: 4 }}>{insight}</Text>
+
           {recommendedAction && (
-            <Pressable 
-              style={styles.actionButton}
+            <Button
+              variant="secondary"
+              size="sm"
               onPress={onActionPress}
+              iconRight={<Ionicons name="arrow-forward" size={14} color={c.fg} />}
+              style={{ marginTop: theme.spacing.md, alignSelf: 'flex-start' }}
             >
-              <ThemedText style={styles.actionButtonText}>
-                {recommendedAction}
-              </ThemedText>
-              <ThemedText style={styles.actionArrow}>→</ThemedText>
-            </Pressable>
+              {recommendedAction}
+            </Button>
           )}
         </View>
       </View>
 
-      {/* AI Functions Grid */}
       {!toolsLoading && tools.length > 0 && (
         <>
-          <View style={styles.divider} />
-          <View style={styles.functionsSection}>
-            <ThemedText style={styles.functionsTitle}>Available AI-Powered Tools</ThemedText>
-            <View style={styles.functionsGrid}>
-              {tools.map((tool) => (
-                <Pressable
-                  key={tool.id}
-                  style={styles.functionButton}
-                  onPress={() => {
-                    if (onToolPress) {
-                      onToolPress(tool);
-                    }
-                  }}
-                >
-                  <ThemedText style={styles.functionIcon}>{tool.icon}</ThemedText>
-                  <ThemedText style={styles.functionLabel}>{formatToolName(tool.name)}</ThemedText>
-                </Pressable>
-              ))}
-            </View>
+          <View style={[styles.divider, { backgroundColor: c.border }]} />
+          <Text variant="label" color="fgMuted" style={{ marginBottom: theme.spacing.sm }}>
+            Try a tool
+          </Text>
+          <View style={styles.toolGrid}>
+            {tools.map((tool) => (
+              <Pressable
+                key={tool.id}
+                onPress={() => onToolPress?.(tool)}
+                style={({ pressed }) => [
+                  styles.toolButton,
+                  {
+                    backgroundColor: pressed ? c.bgHover : c.bgElevated,
+                    borderColor: c.border,
+                    borderRadius: theme.radius.md,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 18 }}>{tool.icon}</Text>
+                <Text variant="smallMedium" numberOfLines={1}>{formatToolName(tool.name)}</Text>
+              </Pressable>
+            ))}
           </View>
         </>
       )}
-    </ThemedView>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  insightHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  insightLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    opacity: 0.7,
-    fontStyle: 'italic',
-  },
-  refreshButton: {
-    padding: 4,
-    opacity: 0.7,
-  },
   container: {
-    borderRadius: 12,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(76, 175, 80, 0.3)',
-    backgroundColor: 'rgba(76, 175, 80, 0.05)',
   },
-  loadingContainer: {
+  row: { flexDirection: 'row', gap: 12 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  badge: {
+    width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center',
+  },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  divider: { height: 1, marginVertical: 16 },
+  toolGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  toolButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 8,
-  },
-  loadingText: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  mainInsight: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logo: {
-    fontSize: 28,
-  },
-  insightContent: {
-    flex: 1,
-    gap: 12,
-  },
-  insightText: {
-    fontSize: 15,
-    lineHeight: 22,
-    opacity: 0.9,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#4CAF50',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-    marginRight: 8,
-  },
-  actionArrow: {
-    fontSize: 16,
-    color: '#fff',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-    marginVertical: 16,
-  },
-  functionsSection: {
-    gap: 12,
-  },
-  functionsTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    opacity: 0.7,
-    marginBottom: 4,
-  },
-  functionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
-  },
-  functionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  functionIcon: {
-    fontSize: 16,
-  },
-  functionLabel: {
-    fontSize: 12,
-    fontWeight: '500',
   },
 });

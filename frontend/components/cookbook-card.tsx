@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { View, StyleSheet, Pressable, Modal } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
-import { ThemedText } from './themed-text';
-import { ThemedView } from './themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColor } from '@/hooks/use-theme-color';
+
+import { Text } from './ui/Text';
+import { Sheet } from './ui/Sheet';
+import { Button } from './ui/Button';
+import { useTheme } from '@/hooks/use-theme';
 
 interface CookbookCardProps {
   id: string;
@@ -17,329 +19,160 @@ interface CookbookCardProps {
   onDelete?: () => void;
 }
 
+/** A stylized "book cover" tile: colored cover + spine, title in serif,
+ *  small recipe-count pill, top-right menu. Uses the theme palette for
+ *  contrast text so wild cover colors still stay readable. */
 export function CookbookCard({
   name,
   description,
-  cover_color = '#4CAF50',
+  cover_color = '#E07856',
   recipe_count = 0,
   onPress,
   onEdit,
   onDelete,
 }: CookbookCardProps) {
+  const theme = useTheme();
+  const c = theme.colors;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const menuBackgroundColor = useThemeColor({}, 'background');
-  const menuTextColor = useThemeColor({}, 'text');
 
   return (
     <>
       <Pressable
-        style={({ pressed }) => [
-          styles.container,
-          pressed && styles.pressed,
-        ]}
         onPress={onPress}
+        style={({ pressed }) => [styles.container, pressed && { opacity: 0.92 }]}
       >
-      {/* Book spine/shadow effect */}
-      <View style={[styles.bookSpine, { backgroundColor: cover_color }]} />
-      
-      {/* Book cover */}
-      <View style={[styles.bookCover, { backgroundColor: cover_color }]}>
-        {/* Book title */}
-        <View style={styles.titleContainer}>
-          <ThemedText style={styles.title} numberOfLines={2}>
-            {name}
-          </ThemedText>
-          {description && (
-            <ThemedText style={styles.description} numberOfLines={2}>
-              {description}
-            </ThemedText>
-          )}
-        </View>
-        
-        {/* Recipe count badge */}
-        <View style={styles.badge}>
-          <Ionicons name="restaurant" size={14} color="#fff" />
-          <ThemedText style={styles.badgeText}>
-            {recipe_count} {recipe_count === 1 ? 'recipe' : 'recipes'}
-          </ThemedText>
-        </View>
-        
-        {/* Decorative elements */}
-        <View style={styles.decoration}>
-          <View style={styles.decorativeLine} />
-          <View style={styles.decorativeLine} />
-        </View>
-      </View>
-      
-      {/* Menu */}
-      {(onEdit || onDelete) && (
-        <View style={styles.menuContainer}>
-          <Menu>
-            <MenuTrigger
-              customStyles={{
-                triggerWrapper: styles.menuButton,
-              }}
-            >
-              <ThemedText style={styles.menuIcon}>⋮</ThemedText>
-            </MenuTrigger>
-            <MenuOptions
-              customStyles={{
-                optionsContainer: {
-                  ...styles.menuOptionsContainer,
-                  backgroundColor: menuBackgroundColor,
-                },
-              }}
-            >
-              {onEdit && (
-                <MenuOption
-                  onSelect={onEdit}
-                  customStyles={{
-                    optionWrapper: styles.menuItem,
-                  }}
-                >
-                  <ThemedText style={styles.menuItemText}>✏️ Edit</ThemedText>
-                </MenuOption>
-              )}
-              {onDelete && (
-                <MenuOption
-                  onSelect={() => setShowDeleteConfirm(true)}
-                  customStyles={{
-                    optionWrapper: styles.menuItem,
-                  }}
-                >
-                  <ThemedText style={[styles.menuItemText, styles.menuItemTextDanger]}>
-                    🗑️ Delete
-                  </ThemedText>
-                </MenuOption>
-              )}
-            </MenuOptions>
-          </Menu>
-        </View>
-      )}
-    </Pressable>
+        {/* Book spine — offset behind the cover */}
+        <View style={[styles.spine, { backgroundColor: cover_color }]} />
 
-      {/* Delete Confirmation Modal */}
-      <Modal
-        visible={showDeleteConfirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDeleteConfirm(false)}
-      >
-        <Pressable 
-          style={styles.confirmOverlay}
-          onPress={() => setShowDeleteConfirm(false)}
-        >
-          <Pressable 
-            style={styles.confirmModal}
-            onPress={(e) => e.stopPropagation()}
+        {/* Cover */}
+        <View style={[styles.cover, { backgroundColor: cover_color, borderRadius: theme.radius.lg, ...theme.shadow.md }]}>
+          <View style={styles.decor}>
+            <View style={styles.decorLine} />
+            <View style={styles.decorLine} />
+          </View>
+
+          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 4 }}>
+            <Text variant="h1" style={styles.title} numberOfLines={2}>
+              {name}
+            </Text>
+            {description ? (
+              <Text variant="small" style={styles.description} numberOfLines={2}>
+                {description}
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={styles.badge}>
+            <Ionicons name="restaurant" size={12} color="#fff" />
+            <Text variant="caption" style={{ color: '#fff', fontWeight: '600' }}>
+              {recipe_count} {recipe_count === 1 ? 'recipe' : 'recipes'}
+            </Text>
+          </View>
+        </View>
+
+        {(onEdit || onDelete) && (
+          <View style={styles.menuWrap}>
+            <Menu>
+              <MenuTrigger customStyles={{ triggerWrapper: styles.menuButton }}>
+                <Ionicons name="ellipsis-vertical" size={16} color="#fff" />
+              </MenuTrigger>
+              <MenuOptions
+                customStyles={{
+                  optionsContainer: {
+                    borderRadius: theme.radius.md,
+                    padding: 4,
+                    minWidth: 160,
+                    backgroundColor: c.bgElevated,
+                    ...theme.shadow.md,
+                  },
+                }}
+              >
+                {onEdit && (
+                  <MenuOption onSelect={onEdit} customStyles={{ optionWrapper: styles.menuItem }}>
+                    <Text variant="bodyMedium">Edit</Text>
+                  </MenuOption>
+                )}
+                {onDelete && (
+                  <MenuOption onSelect={() => setShowDeleteConfirm(true)} customStyles={{ optionWrapper: styles.menuItem }}>
+                    <Text variant="bodyMedium" color="danger">Delete</Text>
+                  </MenuOption>
+                )}
+              </MenuOptions>
+            </Menu>
+          </View>
+        )}
+      </Pressable>
+
+      <Sheet visible={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+        <Text variant="h2">Delete cookbook?</Text>
+        <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, marginBottom: theme.spacing.xl }}>
+          "{name}" will be removed. The recipes inside will not be deleted.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: theme.spacing.md, justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onPress={() => setShowDeleteConfirm(false)}>Cancel</Button>
+          <Button
+            variant="danger"
+            onPress={() => {
+              setShowDeleteConfirm(false);
+              onDelete?.();
+            }}
           >
-            <ThemedView style={styles.confirmContent}>
-              <ThemedText style={styles.confirmTitle}>Delete Cookbook</ThemedText>
-              <ThemedText style={styles.confirmMessage}>
-                Are you sure you want to delete this cookbook? The recipes will not be deleted.
-              </ThemedText>
-              <View style={styles.confirmButtons}>
-                <Pressable
-                  style={[styles.confirmButton, styles.cancelButton]}
-                  onPress={() => setShowDeleteConfirm(false)}
-                >
-                  <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
-                </Pressable>
-                <Pressable
-                  style={[styles.confirmButton, styles.deleteButton]}
-                  onPress={() => {
-                    setShowDeleteConfirm(false);
-                    if (onDelete) {
-                      onDelete();
-                    }
-                  }}
-                >
-                  <ThemedText style={styles.deleteButtonText}>Delete</ThemedText>
-                </Pressable>
-              </View>
-            </ThemedView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+            Delete
+          </Button>
+        </View>
+      </Sheet>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-    aspectRatio: 0.7, // Taller than wide, like a book
-    position: 'relative',
-    marginBottom: 8,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
-  bookSpine: {
+  container: { position: 'relative', margin: 6, aspectRatio: 3 / 4 },
+  spine: {
     position: 'absolute',
-    left: 0,
+    left: -4,
     top: 8,
     bottom: 8,
-    width: 12,
-    borderTopLeftRadius: 4,
-    borderBottomLeftRadius: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: -2, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    width: 8,
+    borderRadius: 4,
+    opacity: 0.85,
   },
-  bookCover: {
-    position: 'absolute',
-    left: 8,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: 8,
+  cover: {
+    flex: 1,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 2, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
     justifyContent: 'space-between',
   },
-  titleContainer: {
-    flex: 1,
-  },
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    textAlign: 'center',
   },
   description: {
-    fontSize: 12,
-    color: '#fff',
-    opacity: 0.9,
-    fontStyle: 'italic',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'center',
+    marginTop: 6,
   },
   badge: {
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    gap: 4,
     paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-    gap: 4,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    borderRadius: 999,
   },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#fff',
+  decor: { gap: 4 },
+  decorLine: {
+    height: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    borderRadius: 999,
   },
-  decoration: {
+  menuWrap: {
     position: 'absolute',
-    bottom: 16,
-    right: 16,
-    gap: 4,
+    top: 6,
+    right: 6,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    borderRadius: 999,
   },
-  decorativeLine: {
-    width: 40,
-    height: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 1,
-  },
-  menuContainer: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    zIndex: 10,
-  },
-  menuButton: {
-    padding: 8,
-    borderRadius: 12,
-    width: 32,
-    height: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuIcon: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  menuOptionsContainer: {
-    borderRadius: 8,
-    padding: 4,
-    minWidth: 140,
-  },
-  menuItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-  },
-  menuItemText: {
-    fontSize: 16,
-  },
-  menuItemTextDanger: {
-    color: '#ff3b30',
-  },
-  confirmOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  confirmModal: {
-    width: '100%',
-    maxWidth: 400,
-  },
-  confirmContent: {
-    borderRadius: 16,
-    padding: 24,
-  },
-  confirmTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  confirmMessage: {
-    fontSize: 16,
-    opacity: 0.8,
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  confirmButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#e0e0e0',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-  },
-  deleteButton: {
-    backgroundColor: '#ff3b30',
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
+  menuButton: { padding: 6 },
+  menuItem: { padding: 12 },
 });

@@ -1,36 +1,41 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
+import { Ionicons } from '@expo/vector-icons';
+
+import { Screen } from '@/components/ui/Screen';
+import { Text } from '@/components/ui/Text';
+import { Button } from '@/components/ui/Button';
+import { WavyDecoration } from '@/components/wavy-decoration';
 import { CookbookCard } from '@/components/cookbook-card';
 import { FloatingActionButton } from '@/components/floating-action-button';
 import { CreateCookbookModal } from '@/components/create-cookbook-modal';
-import { fetchCookbooks, deleteCookbook, createCookbook, updateCookbook, fetchCookbookRecipes, Cookbook } from '@/services/cookbook-service';
+import {
+  fetchCookbooks, deleteCookbook, createCookbook, updateCookbook,
+  fetchCookbookRecipes, Cookbook,
+} from '@/services/cookbook-service';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function CookbooksScreen() {
   const router = useRouter();
+  const theme = useTheme();
+  const c = theme.colors;
   const [cookbooks, setCookbooks] = useState<Cookbook[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCookbook, setEditingCookbook] = useState<{ id: string; name: string; recipeIds: string[] } | null>(null);
   const { width } = useWindowDimensions();
-  
-  // Calculate number of columns based on screen width
-  // Books look good at around 180-220px wide
-  const numColumns = Math.max(2, Math.floor(width / 220));
 
-  useEffect(() => {
-    loadCookbooks();
-  }, []);
+  const numColumns = Math.max(2, Math.min(5, Math.floor(width / 220)));
+
+  useEffect(() => { loadCookbooks(); }, []);
 
   const loadCookbooks = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchCookbooks();
-      setCookbooks(data);
+      setCookbooks(await fetchCookbooks());
     } catch (err) {
       console.error('Failed to load cookbooks:', err);
       setError('Failed to load cookbooks');
@@ -39,154 +44,106 @@ export default function CookbooksScreen() {
     }
   };
 
-  const handleCookbookPress = (cookbookId: string) => {
-    router.push(`/cookbook/${cookbookId}` as any);
-  };
-
-  const handleAddCookbook = () => {
-    setShowCreateModal(true);
-  };
-
-  const handleCreateCookbook = async (name: string, recipeIds: string[]) => {
+  const handleCreate = async (name: string, recipeIds: string[]) => {
     try {
       if (editingCookbook) {
-        // Update existing cookbook
         await updateCookbook(editingCookbook.id, name, recipeIds);
       } else {
-        // Create new cookbook
         await createCookbook(name, recipeIds);
       }
       await loadCookbooks();
       setEditingCookbook(null);
-    } catch (error) {
-      console.error('Failed to save cookbook:', error);
+    } catch (err) {
+      console.error('Save failed:', err);
       Alert.alert('Error', 'Failed to save cookbook');
-      throw error;
+      throw err;
     }
   };
 
-  const handleEditCookbook = async (cookbookId: string) => {
+  const handleEditPress = async (id: string) => {
     try {
-      // Fetch cookbook details with recipes
-      const { cookbook, recipes } = await fetchCookbookRecipes(cookbookId);
-      const recipeIds = recipes.map(r => r.id);
-      
-      setEditingCookbook({
-        id: cookbookId,
-        name: cookbook.name,
-        recipeIds: recipeIds
-      });
+      const { cookbook, recipes } = await fetchCookbookRecipes(id);
+      setEditingCookbook({ id, name: cookbook.name, recipeIds: recipes.map(r => r.id) });
       setShowCreateModal(true);
-    } catch (error) {
-      console.error('Failed to load cookbook for editing:', error);
-      Alert.alert('Error', 'Failed to load cookbook');
+    } catch (err) {
+      console.error('Load-for-edit failed:', err);
     }
   };
 
-  const handleDeleteCookbook = async (cookbookId: string) => {
+  const handleDelete = async (id: string) => {
     try {
-      await deleteCookbook(cookbookId);
+      await deleteCookbook(id);
       await loadCookbooks();
-    } catch (error) {
-      console.error('Failed to delete cookbook:', error);
-      Alert.alert('Error', 'Failed to delete cookbook');
+    } catch (err) {
+      console.error('Delete failed:', err);
     }
   };
-
-  if (loading) {
-    return (
-      <ThemedView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" />
-        <ThemedText style={styles.loadingText}>Loading cookbooks...</ThemedText>
-      </ThemedView>
-    );
-  }
-
-  if (error) {
-    return (
-      <ThemedView style={[styles.container, styles.centered]}>
-        <ThemedText style={styles.errorText}>{error}</ThemedText>
-      </ThemedView>
-    );
-  }
 
   return (
-    <ThemedView style={styles.container}>
-      <FlatList
-        data={cookbooks}
-        renderItem={({ item }) => (
-          <View style={[styles.cardWrapper, { width: `${100 / numColumns}%` }]}>
-            <CookbookCard
-              {...item}
-              onPress={() => handleCookbookPress(item.id)}
-              onEdit={() => handleEditCookbook(item.id)}
-              onDelete={() => handleDeleteCookbook(item.id)}
-            />
-          </View>
-        )}
-        keyExtractor={(item) => item.id}
-        key={numColumns}
-        numColumns={numColumns}
-        contentContainerStyle={styles.grid}
-        ListEmptyComponent={
-          <ThemedView style={styles.centered}>
-            <ThemedText style={styles.emptyText}>📚 No cookbooks yet!</ThemedText>
-            <ThemedText style={styles.emptySubtext}>Create your first cookbook to organize your recipes</ThemedText>
-          </ThemedView>
-        }
-      />
-      <FloatingActionButton onPress={handleAddCookbook} label="Create Cookbook" icon="book" />
-      
+    <Screen>
+      <View style={styles.header}>
+        <Text variant="display">Cookbooks</Text>
+        <WavyDecoration variant="line" width={140} height={16} style={{ marginTop: 4 }} />
+      </View>
+
+      {loading ? (
+        <View style={styles.centered}><ActivityIndicator color={c.accent} /></View>
+      ) : error ? (
+        <View style={styles.centered}><Text variant="body" color="danger">{error}</Text></View>
+      ) : cookbooks.length === 0 ? (
+        <View style={styles.centered}>
+          <WavyDecoration variant="blob" width={180} height={110} opacity={0.14} color={c.secondary} />
+          <Text variant="h2" style={{ marginTop: theme.spacing.lg, textAlign: 'center' }}>
+            No cookbooks yet
+          </Text>
+          <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, textAlign: 'center' }}>
+            Group your recipes — weeknight dinners, holiday baking, whatever.
+          </Text>
+          <Button
+            variant="primary"
+            onPress={() => setShowCreateModal(true)}
+            icon={<Ionicons name="add" size={18} color={c.accentFg} />}
+            style={{ marginTop: theme.spacing.xl }}
+          >
+            Create a cookbook
+          </Button>
+        </View>
+      ) : (
+        <FlatList
+          data={cookbooks}
+          key={`grid-${numColumns}`}
+          numColumns={numColumns}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: theme.spacing['3xl'] }}
+          renderItem={({ item }) => (
+            <View style={{ flex: 1 / numColumns, minWidth: 0 }}>
+              <CookbookCard
+                {...item}
+                cover_color={item.cover_color}
+                onPress={() => router.push(`/cookbook/${item.id}` as any)}
+                onEdit={() => handleEditPress(item.id)}
+                onDelete={() => handleDelete(item.id)}
+              />
+            </View>
+          )}
+        />
+      )}
+
+      <FloatingActionButton onPress={() => setShowCreateModal(true)} label="New cookbook" icon="book" />
+
       <CreateCookbookModal
         visible={showCreateModal}
-        onClose={() => {
-          setShowCreateModal(false);
-          setEditingCookbook(null);
-        }}
-        onCreate={handleCreateCookbook}
+        onClose={() => { setShowCreateModal(false); setEditingCookbook(null); }}
+        onCreate={handleCreate}
         editMode={!!editingCookbook}
         existingName={editingCookbook?.name}
         existingRecipeIds={editingCookbook?.recipeIds}
       />
-    </ThemedView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  grid: {
-    padding: 12,
-    paddingBottom: 80,
-  },
-  cardWrapper: {
-    padding: 8,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ff4444',
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    opacity: 0.7,
-    textAlign: 'center',
-  },
+  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
 });

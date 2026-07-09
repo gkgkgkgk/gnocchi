@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, Modal, Platform } from 'react-native';
 import Slider from '@react-native-community/slider';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
@@ -8,9 +9,14 @@ import { AIInsightsBanner } from '@/components/ai-insights-banner';
 import { ToolExecutionModal } from '@/components/tool-execution-modal';
 import { RecipePhotoGallery } from '@/components/recipe-photo-gallery';
 import { EditRecipeTagsModal } from '@/components/edit-recipe-tags-modal';
+import { Text } from '@/components/ui/Text';
+import { Button } from '@/components/ui/Button';
+import { Chip } from '@/components/ui/Chip';
+import { Sheet } from '@/components/ui/Sheet';
 import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags } from '@/services/recipe-service';
 import { executeAITool, AITool } from '@/services/ai-tools-service';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
+import { useTheme } from '@/hooks/use-theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { convertDecimalsToFractions } from '@/utils/fraction-formatter';
 
@@ -31,9 +37,11 @@ export default function RecipeDetailScreen() {
   const [showEditTags, setShowEditTags] = useState(false);
   const [recipeTags, setRecipeTags] = useState<string[]>([]);
   
-  const menuBackgroundColor = useThemeColor({}, 'background');
-  const cardBackgroundColor = useThemeColor({}, 'background');
-  const tintColor = useThemeColor({}, 'tint');
+  const theme = useTheme();
+  const c = theme.colors;
+  const menuBackgroundColor = c.bgElevated;
+  const cardBackgroundColor = c.bgElevated;
+  const tintColor = c.accent;
 
   // Multiplier options: 1/2, 3/4, 1, 1 1/4, 1 1/3, 1 1/2, 1 3/4, 2, 2 1/2, 3, 3 1/2, 4
   const multiplierOptions = [0.5, 0.75, 1, 1.25, 1.333, 1.5, 1.75, 2, 2.5, 3, 3.5, 4];
@@ -307,60 +315,40 @@ export default function RecipeDetailScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <ThemedView style={[styles.container, { backgroundColor: c.bg }]}>
       {/* Fixed Back Button and Menu */}
-      <View style={styles.backButtonContainer}>
-        <Pressable 
-          onPress={() => router.push('/(drawer)/(tabs)' as any)}
-          style={styles.backButton}
-        >
-          <ThemedText style={styles.backButtonText}>← Back</ThemedText>
+      <View style={[styles.backButtonContainer, { backgroundColor: c.bg, borderBottomColor: c.border }]}>
+        <Pressable onPress={() => router.push('/(drawer)/(tabs)' as any)} style={styles.backButton}>
+          <ThemedText style={[styles.backButtonText, { color: c.fg }]}>← Back</ThemedText>
         </Pressable>
-        
-        <Pressable 
-          onPress={() => setShowMenu(!showMenu)}
-          style={styles.menuButton}
-        >
-          <ThemedText style={styles.menuIcon}>⋮</ThemedText>
+
+        <Pressable onPress={() => setShowMenu(!showMenu)} style={styles.menuButton}>
+          <ThemedText style={[styles.menuIcon, { color: c.fgMuted }]}>⋮</ThemedText>
         </Pressable>
-        
+
         {/* Dropdown Menu */}
         {showMenu && (
-          <View style={[styles.menuDropdown, { backgroundColor: menuBackgroundColor }]}>
+          <View style={[styles.menuDropdown, { backgroundColor: c.bgElevated, borderColor: c.border, ...theme.shadow.md }]}>
             <Pressable
-              style={styles.menuItem}
-              onPress={() => {
-                setShowMenu(false);
-                router.push(`/easy-recipe/${id}` as any);
-              }}
+              style={[styles.menuItem, { borderBottomColor: c.border }]}
+              onPress={() => { setShowMenu(false); router.push(`/easy-recipe/${id}` as any); }}
             >
-              <ThemedText style={styles.menuItemText}>📖 Easy View</ThemedText>
+              <Text variant="bodyMedium">Easy view</Text>
+            </Pressable>
+            <Pressable style={[styles.menuItem, { borderBottomColor: c.border }]} onPress={handleEdit}>
+              <Text variant="bodyMedium">Edit</Text>
             </Pressable>
             <Pressable
-              style={styles.menuItem}
-              onPress={handleEdit}
+              style={[styles.menuItem, { borderBottomColor: c.border }]}
+              onPress={() => { setShowMenu(false); setShowEditTags(true); }}
             >
-              <ThemedText style={styles.menuItemText}>✏️ Edit</ThemedText>
-            </Pressable>
-            <Pressable
-              style={styles.menuItem}
-              onPress={() => {
-                setShowMenu(false);
-                setShowEditTags(true);
-              }}
-            >
-              <ThemedText style={styles.menuItemText}>🏷️ Edit Tags</ThemedText>
+              <Text variant="bodyMedium">Edit tags</Text>
             </Pressable>
             <Pressable
               style={[styles.menuItem, styles.menuItemLast]}
-              onPress={() => {
-                setShowMenu(false);
-                setShowDeleteConfirm(true);
-              }}
+              onPress={() => { setShowMenu(false); setShowDeleteConfirm(true); }}
             >
-              <ThemedText style={[styles.menuItemText, styles.menuItemTextDanger]}>
-                🗑️ Delete
-              </ThemedText>
+              <Text variant="bodyMedium" color="danger">Delete</Text>
             </Pressable>
           </View>
         )}
@@ -371,58 +359,40 @@ export default function RecipeDetailScreen() {
         {imageUrl ? (
           <Image source={{ uri: imageUrl }} style={styles.bannerImage} />
         ) : (
-          <View style={styles.bannerPlaceholder}>
+          <View style={[styles.bannerPlaceholder, { backgroundColor: c.bgMuted }]}>
             <ThemedText style={styles.bannerEmoji}>🍽️</ThemedText>
           </View>
         )}
 
         {/* Recipe Content */}
         <View style={styles.content}>
-          {/* Title */}
-          <ThemedText style={styles.title}>{recipe.title}</ThemedText>
+          <Text variant="display">{recipe.title}</Text>
 
-          {/* Quick Info */}
-          <View style={styles.quickInfo}>
-            {servings > 0 && (
-              <View style={styles.infoItem}>
-                <ThemedText style={styles.infoIcon}>👥</ThemedText>
-                <View>
-                  <ThemedText style={styles.infoLabel}>Servings</ThemedText>
-                  <ThemedText style={styles.infoValue}>{servings}</ThemedText>
-                </View>
-              </View>
-            )}
-            
-            {prepTime > 0 && (
-              <View style={styles.infoItem}>
-                <ThemedText style={styles.infoIcon}>🔪</ThemedText>
-                <View>
-                  <ThemedText style={styles.infoLabel}>Prep Time</ThemedText>
-                  <ThemedText style={styles.infoValue}>{prepTime} min</ThemedText>
-                </View>
-              </View>
-            )}
-            
-            {cookTime > 0 && (
-              <View style={styles.infoItem}>
-                <ThemedText style={styles.infoIcon}>🔥</ThemedText>
-                <View>
-                  <ThemedText style={styles.infoLabel}>Cook Time</ThemedText>
-                  <ThemedText style={styles.infoValue}>{cookTime} min</ThemedText>
-                </View>
-              </View>
-            )}
-            
-            {totalTime > 0 && (
-              <View style={styles.infoItem}>
-                <ThemedText style={styles.infoIcon}>⏱️</ThemedText>
-                <View>
-                  <ThemedText style={styles.infoLabel}>Total Time</ThemedText>
-                  <ThemedText style={styles.infoValue}>{totalTime} min</ThemedText>
-                </View>
-              </View>
-            )}
-          </View>
+          {/* Metadata chips */}
+          {(servings > 0 || prepTime > 0 || cookTime > 0) && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
+              {servings > 0 && (
+                <Chip icon={<Ionicons name="people-outline" size={14} color={c.fg} />}>
+                  {`${servings} ${servings === 1 ? 'serving' : 'servings'}`}
+                </Chip>
+              )}
+              {prepTime > 0 && (
+                <Chip icon={<Ionicons name="cut-outline" size={14} color={c.fg} />}>
+                  {`${prepTime} min prep`}
+                </Chip>
+              )}
+              {cookTime > 0 && (
+                <Chip icon={<Ionicons name="flame-outline" size={14} color={c.fg} />}>
+                  {`${cookTime} min cook`}
+                </Chip>
+              )}
+              {totalTime > 0 && (
+                <Chip tone={c.accent} icon={<Ionicons name="time-outline" size={14} color={c.accent} />}>
+                  {`${totalTime} min total`}
+                </Chip>
+              )}
+            </View>
+          )}
 
           {/* AI Insights Banner */}
           <AIInsightsBanner
@@ -619,47 +589,19 @@ export default function RecipeDetailScreen() {
         onClose={handleCloseModal}
       />
 
-      {/* Delete Confirmation Modal */}
-      <Modal
-        visible={showDeleteConfirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDeleteConfirm(false)}
-      >
-        <Pressable 
-          style={styles.confirmOverlay}
-          onPress={() => setShowDeleteConfirm(false)}
-        >
-          <Pressable 
-            style={styles.confirmModal}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <ThemedView style={styles.confirmContent}>
-              <ThemedText style={styles.confirmTitle}>Delete Recipe</ThemedText>
-              <ThemedText style={styles.confirmMessage}>
-                Are you sure you want to delete this recipe? This action cannot be undone.
-              </ThemedText>
-              <View style={styles.confirmButtons}>
-                <Pressable
-                  style={[styles.confirmButton, styles.cancelButton]}
-                  onPress={() => setShowDeleteConfirm(false)}
-                >
-                  <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
-                </Pressable>
-                <Pressable
-                  style={[styles.confirmButton, styles.deleteButton]}
-                  onPress={() => {
-                    setShowDeleteConfirm(false);
-                    handleDelete();
-                  }}
-                >
-                  <ThemedText style={styles.deleteButtonText}>Delete</ThemedText>
-                </Pressable>
-              </View>
-            </ThemedView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* Delete Confirmation */}
+      <Sheet visible={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+        <Text variant="h2">Delete recipe?</Text>
+        <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, marginBottom: theme.spacing.xl }}>
+          "{recipe.title}" will be permanently removed.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: theme.spacing.md, justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onPress={() => setShowDeleteConfirm(false)}>Cancel</Button>
+          <Button variant="danger" onPress={() => { setShowDeleteConfirm(false); handleDelete(); }}>
+            Delete
+          </Button>
+        </View>
+      </Sheet>
 
       {/* Edit Recipe Tags Modal */}
       <EditRecipeTagsModal
@@ -702,22 +644,24 @@ const styles = StyleSheet.create({
   },
   backButtonContainer: {
     position: 'absolute',
-    top: 48,
-    left: 16,
-    right: 16,
+    top: 12,
+    left: 12,
+    right: 12,
     zIndex: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  backButton: {
-    backgroundColor: 'rgba(50,50,50, 1.0)',
-    borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+  },
+  backButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
   },
   backButtonText: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '600',
   },
   scrollView: {
