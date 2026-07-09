@@ -1,5 +1,16 @@
 import { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, TextInput, Alert, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
+
+// Alert.alert() is unreliable on web (silent in some Expo builds). Route
+// through window.alert directly so validation errors always surface.
+function notify(title: string, message: string) {
+  console.log(`[${title}] ${message}`);
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined') window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import { ThemedView } from '@/components/themed-view';
@@ -383,7 +394,7 @@ export default function NewRecipeScreen() {
       const recipe = await fetchRecipeById(id);
       
       if (!recipe) {
-        Alert.alert('Error', 'Recipe not found');
+        notify('Error', 'Recipe not found');
         router.back();
         return;
       }
@@ -434,7 +445,7 @@ export default function NewRecipeScreen() {
       });
     } catch (error) {
       console.error('Failed to load recipe:', error);
-      Alert.alert('Error', 'Failed to load recipe');
+      notify('Error', 'Failed to load recipe');
       router.back();
     } finally {
       setLoading(false);
@@ -696,7 +707,7 @@ export default function NewRecipeScreen() {
     // Validate the recipe
     const validationError = validateRecipe();
     if (validationError) {
-      Alert.alert('Validation Error', validationError);
+      notify('Validation Error', validationError);
       return;
     }
 
@@ -747,7 +758,7 @@ export default function NewRecipeScreen() {
       }
     } catch (error) {
       console.error(`Failed to ${isEditing ? 'update' : 'create'} recipe:`, error);
-      Alert.alert('Error', `Failed to ${isEditing ? 'update' : 'create'} recipe. Please try again.`);
+      notify('Error', `Failed to ${isEditing ? 'update' : 'create'} recipe. Please try again.`);
     } finally {
       setSaving(false);
     }
