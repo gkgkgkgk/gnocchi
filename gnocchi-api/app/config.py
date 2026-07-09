@@ -12,6 +12,16 @@ class Settings(BaseSettings):
     image_storage_dir: Path = Path("./.data/images")
     port: int = 8001
 
+    @property
+    def sqlalchemy_url(self) -> str:
+        """Normalize the URL so SQLAlchemy always picks the async driver.
+        The serverkepets registry injects a plain `postgresql://…`, which
+        SQLAlchemy would try to open with psycopg2 (sync) and fail."""
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+        return url
+
 
 settings = Settings()
 
