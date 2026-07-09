@@ -62,7 +62,7 @@ class _LLMRecipe(BaseModel):
 @router.post("/website", response_model=schemas.ImportedRecipe)
 async def import_website(body: schemas.UrlImportRequest):
     scraped = await scrape_website(body.url)
-    completion = await client.chat.completions.parse(
+    completion = await client.beta.chat.completions.parse(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": prompts.SCRAPE_STRUCTURE},
@@ -79,7 +79,7 @@ async def import_website(body: schemas.UrlImportRequest):
 @router.post("/pinterest", response_model=schemas.ImportedRecipe)
 async def import_pinterest(body: schemas.UrlImportRequest):
     scraped = await scrape_pinterest(body.url)
-    completion = await client.chat.completions.parse(
+    completion = await client.beta.chat.completions.parse(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": prompts.SCRAPE_STRUCTURE},

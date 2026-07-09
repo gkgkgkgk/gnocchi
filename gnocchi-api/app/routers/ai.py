@@ -46,7 +46,7 @@ async def annotate(body: schemas.AnnotateRequest):
     instructions_list = "\n".join(f"{i+1}. {s}" for i, s in enumerate(body.instructions))
     prompt = f"INGREDIENTS LIST:\n{ingredients_list}\n\nINSTRUCTIONS:\n{instructions_list}"
 
-    completion = await client.chat.completions.parse(
+    completion = await client.beta.chat.completions.parse(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": prompts.ANNOTATE_SYSTEM},
@@ -81,7 +81,7 @@ DIETARY RESTRICTIONS: {restrictions_text}
 
 Provide your analysis."""
 
-    completion = await client.chat.completions.parse(
+    completion = await client.beta.chat.completions.parse(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": prompts.analyze_system(tools_text)},
@@ -127,7 +127,7 @@ Notes: {body.recipe.notes or 'None'}{reasoning_section}{guidance_section}
 
 Please modify this recipe according to the tool's purpose. Return a complete recipe with all fields filled out."""
 
-    completion = await client.chat.completions.parse(
+    completion = await client.beta.chat.completions.parse(
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": prompts.execute_tool_system(body.tool.description, body.tool.prompt)},

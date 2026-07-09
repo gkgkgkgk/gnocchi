@@ -67,6 +67,18 @@ export function UnitPickerModal({
     onClose();
   };
 
+  const handleUseTypedUnit = () => {
+    const typed = searchQuery.trim();
+    if (!typed) return;
+    handleSelectUnit({ id: typed, abbreviation: typed, name: typed });
+  };
+
+  const showCustomButton =
+    searchQuery.trim() !== '' &&
+    !filteredUnits.some(
+      (u) => u.abbreviation.toLowerCase() === searchQuery.trim().toLowerCase(),
+    );
+
   const renderUnitItem = ({ item }: { item: Unit }) => (
     <Pressable
       style={[
@@ -122,19 +134,35 @@ export function UnitPickerModal({
                 <ActivityIndicator size="large" color="#4CAF50" />
               </View>
             ) : (
-              <FlatList
-                data={filteredUnits}
-                renderItem={renderUnitItem}
-                keyExtractor={(item) => item.id}
-                style={styles.list}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={true}
-                ListEmptyComponent={
-                  <View style={styles.emptyContainer}>
-                    <ThemedText style={styles.emptyText}>No units found</ThemedText>
-                  </View>
-                }
-              />
+              <>
+                {showCustomButton && (
+                  <Pressable
+                    style={[styles.unitItem, styles.customUnitButton]}
+                    onPress={handleUseTypedUnit}
+                  >
+                    <ThemedText style={styles.unitAbbreviation}>
+                      Use "{searchQuery.trim()}"
+                    </ThemedText>
+                  </Pressable>
+                )}
+                <FlatList
+                  data={filteredUnits}
+                  renderItem={renderUnitItem}
+                  keyExtractor={(item) => item.id}
+                  style={styles.list}
+                  contentContainerStyle={styles.listContent}
+                  showsVerticalScrollIndicator={true}
+                  ListEmptyComponent={
+                    showCustomButton ? null : (
+                      <View style={styles.emptyContainer}>
+                        <ThemedText style={styles.emptyText}>
+                          Type a unit like "cup" or "tbsp" to add one
+                        </ThemedText>
+                      </View>
+                    )
+                  }
+                />
+              </>
             )}
           </ThemedView>
         </Pressable>
@@ -210,6 +238,11 @@ const styles = StyleSheet.create({
   unitItemSelected: {
     borderColor: '#4CAF50',
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
+  },
+  customUnitButton: {
+    borderColor: '#4CAF50',
+    borderStyle: 'dashed',
+    marginBottom: 8,
   },
   unitItemContent: {
     flex: 1,
