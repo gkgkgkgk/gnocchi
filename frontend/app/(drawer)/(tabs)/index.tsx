@@ -106,14 +106,6 @@ export default function HomeScreen() {
           <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, textAlign: 'center' }}>
             Import from a website, paste a photo, or type one in.
           </Text>
-          <Button
-            variant="primary"
-            onPress={() => setShowAddModal(true)}
-            icon={<Ionicons name="add" size={18} color={c.accentFg} />}
-            style={{ marginTop: theme.spacing.xl }}
-          >
-            Add your first recipe
-          </Button>
         </View>
       ) : (
         <FlatList

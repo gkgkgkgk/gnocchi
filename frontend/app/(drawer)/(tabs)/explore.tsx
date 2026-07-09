@@ -99,14 +99,6 @@ export default function CookbooksScreen() {
           <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, textAlign: 'center' }}>
             Group your recipes — weeknight dinners, holiday baking, whatever.
           </Text>
-          <Button
-            variant="primary"
-            onPress={() => setShowCreateModal(true)}
-            icon={<Ionicons name="add" size={18} color={c.accentFg} />}
-            style={{ marginTop: theme.spacing.xl }}
-          >
-            Create a cookbook
-          </Button>
         </View>
       ) : (
         <FlatList
