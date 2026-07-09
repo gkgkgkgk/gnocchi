@@ -1,13 +1,17 @@
 import { useState } from 'react';
-import { View, StyleSheet, Pressable, Image, Modal, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, Pressable, Image, useWindowDimensions } from 'react-native';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { Ionicons } from '@expo/vector-icons';
-import { ThemedView } from './themed-view';
-import { ThemedText } from './themed-text';
+
+import { Card } from '@/components/ui/Card';
+import { Chip } from '@/components/ui/Chip';
+import { Text } from '@/components/ui/Text';
+import { Sheet } from '@/components/ui/Sheet';
+import { Button } from '@/components/ui/Button';
 import { EditRecipeTagsModal } from './edit-recipe-tags-modal';
 import { updateRecipeTags } from '@/services/recipe-service';
 import { RecipeTag } from '@/services/profile-service';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTheme } from '@/hooks/use-theme';
 
 interface RecipeCardProps {
   id: string;
@@ -15,14 +19,9 @@ interface RecipeCardProps {
   imageUrl?: string;
   image_url?: string;
   metadata?: any;
-  prepTime?: number;
-  prep_time?: number;
-  cookTime?: number;
-  cook_time?: number;
-  servings?: number;
   ingredients?: any[];
-  tags?: string[]; // Array of tag IDs
-  userTags?: RecipeTag[]; // All user tags for lookup
+  tags?: string[];
+  userTags?: RecipeTag[];
   onPress?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -31,6 +30,7 @@ interface RecipeCardProps {
 
 export function RecipeCard(props: RecipeCardProps) {
   const {
+    id,
     title,
     imageUrl,
     image_url,
@@ -44,200 +44,142 @@ export function RecipeCard(props: RecipeCardProps) {
     onTagsChange,
   } = props;
 
-  const cookTime = metadata?.cookTime;
-  const prepTime = metadata?.prepTime;
-  const servings = metadata?.servings;
-
-  // Handle both camelCase and snake_case from database
-  const image = imageUrl || image_url;
-  const prep = Number(prepTime) || 0;
-  const cook = Number(cookTime) || 0;
-  const totalTime = prep + cook;
-  
-  // Get theme colors
-  const menuBackgroundColor = useThemeColor({}, 'background');
-  const menuTextColor = useThemeColor({}, 'text');
+  const theme = useTheme();
+  const c = theme.colors;
   const { width } = useWindowDimensions();
-  const isMobile = width < 768; // Consider mobile if width < 768px
-  
+  const isMobile = width < 768;
+
+  const image = imageUrl || image_url;
+  const prep = Number(metadata?.prepTime) || 0;
+  const cook = Number(metadata?.cookTime) || 0;
+  const totalTime = prep + cook;
+  const numIngredients = ingredients?.length ?? 0;
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditTags, setShowEditTags] = useState(false);
 
-  // Get tag details for the recipe's tags from the provided userTags
   const tagDetails = tags
-    .map(tagId => userTags.find(t => t.id === tagId))
-    .filter((tag): tag is RecipeTag => tag !== undefined)
-    .slice(0, 3); // Max 3 tags
+    .map((tid) => userTags.find((t) => t.id === tid))
+    .filter((t): t is RecipeTag => !!t)
+    .slice(0, 3);
 
   return (
     <>
-      <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [
-          styles.card,
-          pressed && styles.cardPressed,
-        ]}
-      >
-        <ThemedView style={styles.cardContent}>
+      <Card onPress={onPress} style={styles.card}>
         {image ? (
           <Image source={{ uri: image }} style={styles.image} />
         ) : (
-          <View style={styles.imagePlaceholder}>
-            <ThemedText style={styles.placeholderText}>🍽️</ThemedText>
+          <View style={[styles.imagePlaceholder, { backgroundColor: c.bgMuted }]}>
+            <Text variant="display" color="fgSubtle" style={{ fontSize: 44 }}>
+              🍽️
+            </Text>
           </View>
         )}
-        
-        <View style={styles.info}>
+
+        <View style={[styles.info, { padding: theme.spacing.md }]}>
           <View style={styles.titleRow}>
-            <ThemedText style={styles.title} numberOfLines={3}>
+            <Text variant="h3" numberOfLines={2} style={styles.title}>
               {title}
-            </ThemedText>
+            </Text>
             <Menu>
-              <MenuTrigger
-                customStyles={{
-                  triggerWrapper: styles.menuButton,
-                }}
-              >
-                <ThemedText style={[styles.menuIcon, { color: menuTextColor }]}>⋮</ThemedText>
+              <MenuTrigger customStyles={{ triggerWrapper: styles.menuButton }}>
+                <Ionicons name="ellipsis-vertical" size={18} color={c.fgMuted} />
               </MenuTrigger>
               <MenuOptions
                 customStyles={{
                   optionsContainer: {
-                    ...styles.menuOptionsContainer,
-                    backgroundColor: menuBackgroundColor,
+                    borderRadius: theme.radius.md,
+                    padding: 4,
+                    minWidth: 160,
+                    backgroundColor: c.bgElevated,
+                    ...theme.shadow.md,
                   },
                 }}
               >
                 {onEdit && (
-                  <MenuOption
-                    onSelect={onEdit}
-                    customStyles={{
-                      optionWrapper: styles.menuItem,
-                    }}
-                  >
-                    <ThemedText style={styles.menuItemText}>✏️ Edit</ThemedText>
+                  <MenuOption onSelect={onEdit} customStyles={{ optionWrapper: styles.menuItem }}>
+                    <Text variant="bodyMedium">Edit</Text>
                   </MenuOption>
                 )}
-                <MenuOption
-                  onSelect={() => setShowEditTags(true)}
-                  customStyles={{
-                    optionWrapper: styles.menuItem,
-                  }}
-                >
-                  <ThemedText style={styles.menuItemText}>🏷️ Edit Tags</ThemedText>
+                <MenuOption onSelect={() => setShowEditTags(true)} customStyles={{ optionWrapper: styles.menuItem }}>
+                  <Text variant="bodyMedium">Edit tags</Text>
                 </MenuOption>
                 {onDelete && (
-                  <MenuOption
-                    onSelect={() => setShowDeleteConfirm(true)}
-                    customStyles={{
-                      optionWrapper: styles.menuItem,
-                    }}
-                  >
-                    <ThemedText style={[styles.menuItemText, styles.menuItemTextDanger]}>
-                      🗑️ Delete
-                    </ThemedText>
+                  <MenuOption onSelect={() => setShowDeleteConfirm(true)} customStyles={{ optionWrapper: styles.menuItem }}>
+                    <Text variant="bodyMedium" color="danger">Delete</Text>
                   </MenuOption>
                 )}
               </MenuOptions>
             </Menu>
           </View>
-          
-          <View style={styles.metadata}>
-            {totalTime > 0 && (
-              <ThemedText style={styles.metadataText}>
-                ⏱️ {totalTime} min
-              </ThemedText>
-            )}
-            {ingredients && ingredients.length > 0 && (
-              <ThemedText style={styles.metadataText}>
-                🥘 {ingredients.length} ingredients
-              </ThemedText>
-            )}
-          </View>
 
-          {/* Tag Chips */}
-          {tagDetails.length > 0 && (
-            <View style={[styles.tagsContainer, isMobile && styles.tagsContainerMobile]}>
-              {tagDetails.map((tag) => (
-                <View 
-                  key={tag.id} 
-                  style={[
-                    styles.tagChip,
-                    isMobile && styles.tagChipMobile,
-                    { 
-                      backgroundColor: `${tag.color}15`, // 15 = ~8% opacity in hex
-                      borderColor: tag.color,
-                    }
-                  ]}
-                >
-                  <Ionicons name={tag.icon as any} size={12} color={tag.color} />
-                  <ThemedText style={[styles.tagChipText, { color: tag.color }]}>{tag.name}</ThemedText>
+          {(totalTime > 0 || numIngredients > 0) && (
+            <View style={[styles.metaRow, { gap: theme.spacing.md, marginTop: theme.spacing.xs }]}>
+              {totalTime > 0 && (
+                <View style={styles.metaItem}>
+                  <Ionicons name="time-outline" size={13} color={c.fgSubtle} />
+                  <Text variant="caption" color="fgMuted">{totalTime}m</Text>
                 </View>
+              )}
+              {numIngredients > 0 && (
+                <View style={styles.metaItem}>
+                  <Ionicons name="list-outline" size={13} color={c.fgSubtle} />
+                  <Text variant="caption" color="fgMuted">{numIngredients} items</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {tagDetails.length > 0 && (
+            <View
+              style={[
+                styles.tagsRow,
+                {
+                  marginTop: theme.spacing.sm,
+                  gap: theme.spacing.xs,
+                  flexDirection: isMobile ? 'column' : 'row',
+                },
+              ]}
+            >
+              {tagDetails.map((tag) => (
+                <Chip key={tag.id} tone={tag.color} size="sm" icon={<Ionicons name={tag.icon as any} size={11} color={tag.color} />}>
+                  {tag.name}
+                </Chip>
               ))}
             </View>
           )}
         </View>
-      </ThemedView>
-    </Pressable>
-      
-      {/* Delete Confirmation Modal */}
-      <Modal
-        visible={showDeleteConfirm}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDeleteConfirm(false)}
-      >
-        <Pressable 
-          style={styles.confirmOverlay}
-          onPress={() => setShowDeleteConfirm(false)}
-        >
-          <Pressable 
-            style={styles.confirmModal}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <ThemedView style={styles.confirmContent}>
-              <ThemedText style={styles.confirmTitle}>Delete Recipe</ThemedText>
-              <ThemedText style={styles.confirmMessage}>
-                Are you sure you want to delete this recipe? This action cannot be undone.
-              </ThemedText>
-              <View style={styles.confirmButtons}>
-                <Pressable
-                  style={[styles.confirmButton, styles.cancelButton]}
-                  onPress={() => setShowDeleteConfirm(false)}
-                >
-                  <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
-                </Pressable>
-                <Pressable
-                  style={[styles.confirmButton, styles.deleteButton]}
-                  onPress={() => {
-                    setShowDeleteConfirm(false);
-                    if (onDelete) {
-                      onDelete();
-                    }
-                  }}
-                >
-                  <ThemedText style={styles.deleteButtonText}>Delete</ThemedText>
-                </Pressable>
-              </View>
-            </ThemedView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      </Card>
 
-      {/* Edit Tags Modal */}
+      <Sheet visible={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+        <Text variant="h2" style={{ marginBottom: theme.spacing.sm }}>Delete recipe?</Text>
+        <Text variant="body" color="fgMuted" style={{ marginBottom: theme.spacing.xl }}>
+          "{title}" will be permanently removed.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: theme.spacing.md, justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onPress={() => setShowDeleteConfirm(false)}>Cancel</Button>
+          <Button
+            variant="danger"
+            onPress={() => {
+              setShowDeleteConfirm(false);
+              onDelete?.();
+            }}
+          >
+            Delete
+          </Button>
+        </View>
+      </Sheet>
+
       <EditRecipeTagsModal
         visible={showEditTags}
         onClose={() => setShowEditTags(false)}
         currentTags={tags}
         onSave={async (tagIds) => {
           try {
-            await updateRecipeTags(props.id, tagIds);
-            if (onTagsChange) {
-              onTagsChange(tagIds);
-            }
+            await updateRecipeTags(id, tagIds);
+            onTagsChange?.(tagIds);
           } catch (error) {
             console.error('Failed to update recipe tags:', error);
-            // TODO: Show error toast to user
           }
         }}
         recipeName={title}
@@ -249,166 +191,47 @@ export function RecipeCard(props: RecipeCardProps) {
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    margin: 8,
-    borderRadius: 12,
+    margin: 6,
     overflow: 'hidden',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cardPressed: {
-    opacity: 0.7,
-  },
-  cardContent: {
-    flex: 1,
   },
   image: {
     width: '100%',
-    height: 150,
+    height: 160,
     resizeMode: 'cover',
   },
   imagePlaceholder: {
     width: '100%',
-    height: 150,
-    backgroundColor: '#e0e0e0',
+    height: 160,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  placeholderText: {
-    fontSize: 48,
-  },
-  info: {
-    padding: 12,
-    minHeight: 80,
-  },
+  info: {},
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    gap: 8,
   },
-  title: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 8,
-    lineHeight: 22,
-  },
+  title: { flex: 1, lineHeight: 22 },
   menuButton: {
-    padding: 4,
-  },
-  menuIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    opacity: 0.6,
-  },
-  menuOptionsContainer: {
-    borderRadius: 8,
-    padding: 4,
-    minWidth: 140,
-  },
-  metadata: {
-    flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  metadataText: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 8,
-  },
-  tagsContainerMobile: {
-    flexDirection: 'column',
-    gap: 4,
-  },
-  tagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    width: '31.33%', // ~1/3 of width accounting for gaps
-  },
-  tagChipMobile: {
-    width: '100%', // Full width on mobile when stacked
-  },
-  tagChipText: {
-    fontSize: 10,
-    fontWeight: '600',
-    flexShrink: 1,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
   menuItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    padding: 12,
   },
-  menuItemDanger: {
-    borderBottomWidth: 0,
-  },
-  menuItemText: {
-    fontSize: 16,
-  },
-  menuItemTextDanger: {
-    color: '#ff3b30',
-  },
-  confirmOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  confirmModal: {
-    width: '100%',
-    maxWidth: 400,
-  },
-  confirmContent: {
-    borderRadius: 16,
-    padding: 24,
-  },
-  confirmTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  confirmMessage: {
-    fontSize: 16,
-    opacity: 0.8,
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  confirmButtons: {
+  metaRow: {
     flexDirection: 'row',
-    gap: 12,
-  },
-  confirmButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 8,
     alignItems: 'center',
+    flexWrap: 'wrap',
   },
-  cancelButton: {
-    backgroundColor: '#e0e0e0',
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-  },
-  deleteButton: {
-    backgroundColor: '#ff3b30',
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
 });

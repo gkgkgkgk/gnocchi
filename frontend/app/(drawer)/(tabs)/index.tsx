@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
+import { Ionicons } from '@expo/vector-icons';
+
+import { Screen } from '@/components/ui/Screen';
+import { Text } from '@/components/ui/Text';
+import { Button } from '@/components/ui/Button';
+import { WavyDecoration } from '@/components/wavy-decoration';
 import { RecipeCard } from '@/components/recipe-card';
 import { FloatingActionButton } from '@/components/floating-action-button';
 import { AddRecipeModal } from '@/components/add-recipe-modal';
 import { ProfileQuestionnaireModal } from '@/components/profile-questionnaire-modal';
 import { fetchRecipes, deleteRecipe, Recipe } from '@/services/recipe-service';
 import { checkUserProfile, createUserProfile, getUserTags, RecipeTag } from '@/services/profile-service';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const theme = useTheme();
+  const c = theme.colors;
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [userTags, setUserTags] = useState<RecipeTag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,10 +26,9 @@ export default function HomeScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const { width } = useWindowDimensions();
-  
-  // Calculate number of columns based on screen width
-  // Aim for cards around 250-280px wide
-  const numColumns = Math.max(2, Math.floor(width / 500));
+
+  // Card sizing: aim for ~280px per card.
+  const numColumns = Math.max(1, Math.min(4, Math.floor(width / 300)));
 
   useEffect(() => {
     loadRecipes();
@@ -32,26 +38,22 @@ export default function HomeScreen() {
 
   const loadTags = async () => {
     try {
-      const tags = await getUserTags();
-      setUserTags(tags);
-    } catch (error) {
-      console.error('Failed to load tags:', error);
+      setUserTags(await getUserTags());
+    } catch (err) {
+      console.error('Failed to load tags:', err);
     }
   };
 
   const checkProfile = async () => {
     const hasProfile = await checkUserProfile();
-    if (!hasProfile) {
-      setShowProfileModal(true);
-    }
+    if (!hasProfile) setShowProfileModal(true);
   };
 
   const loadRecipes = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchRecipes();
-      setRecipes(data);
+      setRecipes(await fetchRecipes());
     } catch (err) {
       console.error('Failed to load recipes:', err);
       setError('Failed to load recipes');
@@ -60,45 +62,12 @@ export default function HomeScreen() {
     }
   };
 
-  const handleRecipePress = (recipeId: string) => {
-    router.push(`/recipe/${recipeId}` as any);
-  };
-
-  const handleAddRecipe = () => {
-    setShowAddModal(true);
-  };
-
-  const handleAddFromPinterest = () => {
-    setShowAddModal(false);
-    router.push('/import-pinterest' as any);
-  };
-
-  const handleAddManually = () => {
-    setShowAddModal(false);
-    router.push('/new-recipe' as any);
-  };
-
-  const handleAddFromWebsite = () => {
-    setShowAddModal(false);
-    router.push('/import-website' as any);
-  };
-
-  const handleScanPhoto = () => {
-    setShowAddModal(false);
-    router.push('/scan-photo' as any);
-  };
-
-  const handleEditRecipe = (recipeId: string) => {
-    router.push(`/new-recipe?id=${recipeId}` as any);
-  };
-
-  const handleDeleteRecipe = async (recipeId: string) => {
+  const handleDelete = async (id: string) => {
     try {
-      await deleteRecipe(recipeId);
-      // Reload recipes after deletion
+      await deleteRecipe(id);
       await loadRecipes();
-    } catch (error) {
-      console.error('Failed to delete recipe:', error);
+    } catch (err) {
+      console.error('Delete failed:', err);
       Alert.alert('Error', 'Failed to delete recipe');
     }
   };
@@ -107,118 +76,94 @@ export default function HomeScreen() {
     try {
       await createUserProfile(answers);
       setShowProfileModal(false);
-    } catch (error) {
-      console.error('Failed to create profile:', error);
+    } catch (err) {
+      console.error('Profile create failed:', err);
       Alert.alert('Error', 'Failed to create profile');
     }
   };
 
-  if (loading) {
-    return (
-      <ThemedView style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" />
-        <ThemedText style={styles.loadingText}>Loading recipes...</ThemedText>
-      </ThemedView>
-    );
-  }
-
-  if (error) {
-    return (
-      <ThemedView style={[styles.container, styles.centered]}>
-        <ThemedText style={styles.errorText}>{error}</ThemedText>
-      </ThemedView>
-    );
-  }
-
   return (
-    <ThemedView style={styles.container}>
-      <FlatList
-        data={recipes}
-        renderItem={({ item }) => (
-          <View style={[styles.cardWrapper, { width: `${100 / numColumns}%` }]}>
-            <RecipeCard
-              {...item}
-              tags={item.metadata?.tags || []}
-              userTags={userTags}
-              onPress={() => handleRecipePress(item.id)}
-              onEdit={() => handleEditRecipe(item.id)}
-              onDelete={() => handleDeleteRecipe(item.id)}
-              onTagsChange={(tagIds) => {
-                // Update local state to reflect tag changes
-                setRecipes(recipes.map(r => 
-                  r.id === item.id 
-                    ? { ...r, metadata: { ...r.metadata, tags: tagIds } }
-                    : r
-                ));
-              }}
-            />
-          </View>
-        )}
-        keyExtractor={(item) => item.id}
-        key={numColumns}
-        numColumns={numColumns}
-        contentContainerStyle={styles.grid}
-        ListEmptyComponent={
-          <ThemedView style={styles.centered}>
-            <ThemedText style={styles.emptyText}>No recipes yet!</ThemedText>
-            <ThemedText style={styles.emptySubtext}>Tap the button below to add your first recipe</ThemedText>
-          </ThemedView>
-        }
-      />
-      <FloatingActionButton onPress={handleAddRecipe} label="Add New Recipe!" />
-      
+    <Screen>
+      <View style={styles.header}>
+        <Text variant="display">Recipes</Text>
+        <WavyDecoration variant="line" width={140} height={16} style={{ marginTop: 4 }} />
+      </View>
+
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator color={c.accent} />
+        </View>
+      ) : error ? (
+        <View style={styles.centered}>
+          <Text variant="body" color="danger">{error}</Text>
+        </View>
+      ) : recipes.length === 0 ? (
+        <View style={styles.centered}>
+          <WavyDecoration variant="blob" width={180} height={110} opacity={0.14} />
+          <Text variant="h2" style={{ marginTop: theme.spacing.lg, textAlign: 'center' }}>
+            Your cookbook awaits
+          </Text>
+          <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, textAlign: 'center' }}>
+            Import from a website, paste a photo, or type one in.
+          </Text>
+          <Button
+            variant="primary"
+            onPress={() => setShowAddModal(true)}
+            icon={<Ionicons name="add" size={18} color={c.accentFg} />}
+            style={{ marginTop: theme.spacing.xl }}
+          >
+            Add your first recipe
+          </Button>
+        </View>
+      ) : (
+        <FlatList
+          data={recipes}
+          key={`grid-${numColumns}`}
+          numColumns={numColumns}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: theme.spacing['3xl'] }}
+          renderItem={({ item }) => (
+            <View style={{ flex: 1 / numColumns, minWidth: 0 }}>
+              <RecipeCard
+                {...item}
+                tags={item.metadata?.tags || []}
+                userTags={userTags}
+                onPress={() => router.push(`/recipe/${item.id}` as any)}
+                onEdit={() => router.push(`/new-recipe?id=${item.id}` as any)}
+                onDelete={() => handleDelete(item.id)}
+                onTagsChange={(tagIds) => {
+                  setRecipes(recipes.map(r =>
+                    r.id === item.id ? { ...r, metadata: { ...r.metadata, tags: tagIds } } : r,
+                  ));
+                }}
+              />
+            </View>
+          )}
+        />
+      )}
+
+      <FloatingActionButton onPress={() => setShowAddModal(true)} label="Add recipe" />
+
       <AddRecipeModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onAddFromPinterest={handleAddFromPinterest}
-        onAddManually={handleAddManually}
-        onAddFromWebsite={handleAddFromWebsite}
-        onScanPhoto={handleScanPhoto}
+        onAddFromPinterest={() => { setShowAddModal(false); router.push('/import-pinterest' as any); }}
+        onAddManually={() => { setShowAddModal(false); router.push('/new-recipe' as any); }}
+        onAddFromWebsite={() => { setShowAddModal(false); router.push('/import-website' as any); }}
+        onScanPhoto={() => { setShowAddModal(false); router.push('/scan-photo' as any); }}
       />
 
-      <ProfileQuestionnaireModal
-        visible={showProfileModal}
-        onComplete={handleProfileComplete}
-      />
-    </ThemedView>
+      <ProfileQuestionnaireModal visible={showProfileModal} onComplete={handleProfileComplete} />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  grid: {
-    padding: 8,
-    paddingBottom: 80,
-  },
-  cardWrapper: {
-    padding: 8,
-  },
+  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#ff4444',
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    opacity: 0.7,
-    textAlign: 'center',
+    padding: 32,
   },
 });

@@ -1,5 +1,5 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
-
+import { useTheme } from '@/hooks/use-theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 export type ThemedTextProps = TextProps & {
@@ -8,6 +8,9 @@ export type ThemedTextProps = TextProps & {
   type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
 };
 
+/** Legacy component. Refactored to consume the new theme's type + font
+ *  stack while keeping the `type` prop's variants intact so no screen has
+ *  to change. New code should prefer `components/ui/Text.tsx`. */
 export function ThemedText({
   style,
   lightColor,
@@ -15,46 +18,17 @@ export function ThemedText({
   type = 'default',
   ...rest
 }: ThemedTextProps) {
+  const theme = useTheme();
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
 
-  return (
-    <Text
-      style={[
-        { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
-        style,
-      ]}
-      {...rest}
-    />
-  );
+  const variantStyle =
+    type === 'title'         ? theme.type.display :
+    type === 'subtitle'      ? theme.type.h2 :
+    type === 'defaultSemiBold' ? theme.type.bodyMedium :
+    type === 'link'          ? { ...theme.type.body, color: theme.colors.accent } :
+    theme.type.body;
+
+  return <Text style={[variantStyle, { color }, style]} {...rest} />;
 }
 
-const styles = StyleSheet.create({
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    lineHeight: 32,
-  },
-  subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  link: {
-    lineHeight: 30,
-    fontSize: 16,
-    color: '#0a7ea4',
-  },
-});
+const _s = StyleSheet;
