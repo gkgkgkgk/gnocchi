@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Modal, View, StyleSheet, Pressable, ActivityIndicator, TextInput } from 'react-native';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemedView } from './themed-view';
 import { ThemedText } from './themed-text';
 import { AITool } from '@/services/ai-tools-service';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 interface ToolExecutionModalProps {
   visible: boolean;
@@ -25,8 +26,10 @@ export function ToolExecutionModal({
   onClose,
 }: ToolExecutionModalProps) {
   const [userGuidance, setUserGuidance] = useState('');
-  const colorScheme = useColorScheme();
-  const textColor = colorScheme === 'dark' ? '#fff' : '#000';
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
+  const textColor = c.fg;
   
   const formatToolName = (toolName: string): string => {
     return toolName
@@ -88,7 +91,7 @@ export function ToolExecutionModal({
                     value={userGuidance}
                     onChangeText={(text) => setUserGuidance(text.slice(0, 50))}
                     placeholder="e.g., use almond milk, make it spicy"
-                    placeholderTextColor="#999"
+                    placeholderTextColor={c.fgSubtle}
                     maxLength={50}
                   />
                   <ThemedText style={styles.charCount}>
@@ -99,7 +102,7 @@ export function ToolExecutionModal({
             ) : loading ? (
               // Loading state
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#E07856" />
+                <ActivityIndicator size="large" color={c.accent} />
                 <ThemedText style={styles.loadingText}>
                   Creating your modified recipe...
                 </ThemedText>
@@ -164,10 +167,12 @@ export function ToolExecutionModal({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -179,11 +184,7 @@ const styles = StyleSheet.create({
   modalContent: {
     borderRadius: 16,
     padding: 24,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    ...theme.shadow.lg,
   },
   header: {
     alignItems: 'center',
@@ -248,11 +249,11 @@ const styles = StyleSheet.create({
   },
   textInput: {
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.2)',
+    borderColor: c.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
-    backgroundColor: '#fff',
+    backgroundColor: c.bgElevated,
   },
   charCount: {
     fontSize: 11,
@@ -268,14 +269,14 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
   checkmarkText: {
     fontSize: 36,
-    color: '#fff',
+    color: c.accentFg,
     fontWeight: 'bold',
   },
   successText: {
@@ -300,17 +301,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButton: {
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
   },
   primaryButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: c.accentFg,
   },
   secondaryButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.2)',
+    borderColor: c.border,
   },
   secondaryButtonText: {
     fontSize: 16,
@@ -319,4 +320,5 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
-});
+  });
+}

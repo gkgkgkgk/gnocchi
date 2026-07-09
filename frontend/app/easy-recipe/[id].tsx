@@ -7,16 +7,20 @@ import { ThemedText } from '@/components/themed-text';
 import { fetchRecipeById, Recipe } from '@/services/recipe-service';
 import { convertDecimalsToFractions } from '@/utils/fraction-formatter';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 export default function EasyRecipeViewer() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [multiplier, setMultiplier] = useState(1);
   const { width } = useWindowDimensions();
-  const tintColor = useThemeColor({}, 'tint');
+  const tintColor = c.accent;
   
   // Use side-by-side layout if width is >= 768px (tablet landscape or desktop)
   const useSideBySide = width >= 768;
@@ -125,7 +129,7 @@ export default function EasyRecipeViewer() {
                 value={multiplier}
                 onValueChange={handleSliderChange}
                 minimumTrackTintColor={tintColor}
-                maximumTrackTintColor="rgba(0,0,0,0.1)"
+                maximumTrackTintColor={c.border}
                 thumbTintColor={tintColor}
                 step={0.01}
               />
@@ -197,27 +201,29 @@ export default function EasyRecipeViewer() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: c.bg,
   },
   headerButtons: {
     padding: 16,
     paddingTop: 48,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: c.border,
   },
   backButton: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    backgroundColor: c.accentMuted,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     alignSelf: 'flex-start',
   },
   backButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#E07856',
+    ...theme.type.button,
+    color: c.accent,
   },
   loadingContainer: {
     flex: 1,
@@ -270,7 +276,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 8,
     borderBottomWidth: 2,
-    borderBottomColor: '#E07856',
+    borderBottomColor: c.accent,
   },
   ingredientsList: {
     gap: 8,
@@ -301,7 +307,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -310,7 +316,7 @@ const styles = StyleSheet.create({
   stepNumberText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
+    color: c.accentFg,
   },
   stepText: {
     fontSize: 18,
@@ -325,7 +331,7 @@ const styles = StyleSheet.create({
   multiplierContainer: {
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    backgroundColor: c.bgMuted,
     borderRadius: 12,
     marginBottom: 24,
     maxWidth: 400,
@@ -349,7 +355,7 @@ const styles = StyleSheet.create({
   multiplierValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#E07856',
+    color: c.accent,
   },
   sliderRow: {
     flexDirection: 'row',
@@ -367,4 +373,5 @@ const styles = StyleSheet.create({
     minWidth: 32,
     textAlign: 'center',
   },
-});
+  });
+}

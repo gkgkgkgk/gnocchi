@@ -442,10 +442,37 @@ Q&A streams to the UI.
 
 ---
 
-### Phase 3 — UI foundation
+### Phase 3 — UI foundation — ✅ shipped
 
 Goal: kill the default-Expo look. Build a small, cohesive design system
 before we redo screens. Playful but grown-up.
+
+**Shipped:** design tokens (`constants/theme.ts`), UI primitives (`Button`,
+`Card`, `Chip`, `Input`, `Sheet`, `Screen`, `Text`, plus `ScreenHeader` and an
+illustrated `EmptyState` with hand-drawn doodles), Fraunces + Inter, redone
+wavy divider, card refresh. An in-app **dark-mode toggle** (System/Light/Dark)
+persisted via AsyncStorage in `contexts/theme-context.tsx` — `useColorScheme`
+now reads the resolved scheme, so every screen (primitives and legacy
+`Themed*` alike) follows it. Every screen was swept off hardcoded hex onto
+theme tokens via a `makeStyles(theme)` convention (module-level StyleSheets
+became `makeStyles` factories called in-component): import/new-recipe/
+edit-recipe/scan-photo/cookbook/easy-recipe/settings + all picker/tag/tool/
+questionnaire modals + the photo gallery.
+
+**Deliberately deferred / not done:**
+- **Meal-planning screen** (`planning.tsx`, ~1900 lines) — its re-theme is
+  explicitly Phase 6 work (see Phase 6 below). It still works in dark mode via
+  `Themed*`; the `calendar` EmptyState doodle is ready for that pass.
+- **Phosphor icons** — kept Ionicons. Tag icons are stored as Ionicons name
+  strings in `profile_config` and rendered in recipe-card/edit-recipe-tags/
+  settings; swapping icon libraries would break stored tag data + the 18-icon
+  picker for marginal gain. The plan's own hedge was "stick with
+  `@expo/vector-icons`."
+- Pre-existing type errors surfaced during the sweep (not introduced by it):
+  `edit-recipe`'s picker uses `onSelect` where the modals expect
+  `onSelectUnit`/`onSelectIngredient`; `external-link` imports the removed
+  `expo-web-browser`; assorted `null`-vs-`undefined` image-uri mismatches.
+  Left for a dedicated correctness pass.
 
 - **Palette:** warm off-white base (`#FBF7F1`), terracotta accent
   (`#E07856`), sage secondary (`#7A9B76`), ink text (`#1E1B18`). Dark mode:

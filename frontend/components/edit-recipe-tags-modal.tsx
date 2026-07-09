@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemedView } from './themed-view';
 import { ThemedText } from './themed-text';
 import { getUserTags, RecipeTag } from '@/services/profile-service';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 interface EditRecipeTagsModalProps {
   visible: boolean;
@@ -20,6 +22,9 @@ export function EditRecipeTagsModal({
   onSave,
   recipeName,
 }: EditRecipeTagsModalProps) {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
   const [availableTags, setAvailableTags] = useState<RecipeTag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(currentTags);
   const [loading, setLoading] = useState(true);
@@ -80,7 +85,7 @@ export function EditRecipeTagsModal({
             <View style={styles.header}>
               <ThemedText style={styles.title}>Tags</ThemedText>
               <Pressable onPress={handleCancel} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color="#666" />
+                <Ionicons name="close" size={24} color={c.fgMuted} />
               </Pressable>
             </View>
 
@@ -161,10 +166,12 @@ export function EditRecipeTagsModal({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'flex-end',
   },
   modalContainer: {
@@ -235,8 +242,8 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   tagItemSelected: {
-    borderColor: '#E07856',
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderColor: c.accent,
+    backgroundColor: c.accentMuted,
   },
   tagItemDisabled: {
     opacity: 0.4,
@@ -267,7 +274,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkboxSelected: {
-    borderColor: '#E07856',
+    borderColor: c.accent,
   },
   actions: {
     flexDirection: 'row',
@@ -280,19 +287,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: c.bgMuted,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: c.fg,
   },
   saveButton: {
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
   },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: c.accentFg,
   },
-});
+  });
+}

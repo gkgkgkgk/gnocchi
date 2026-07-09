@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 import { useThemePreference, type ThemePreference } from '@/contexts/theme-context';
 import { getUserTags, saveUserTags, RecipeTag, generateUUID, getDietaryRestrictions, saveDietaryRestrictions, getFavoriteFood, saveFavoriteFood } from '@/services/profile-service';
 
@@ -111,6 +112,7 @@ const APPEARANCE_OPTIONS: { value: ThemePreference; label: string; icon: keyof t
 
 function AppearanceSection() {
   const theme = useTheme();
+  const styles = makeStyles(theme);
   const { preference, setPreference } = useThemePreference();
 
   return (
@@ -170,6 +172,9 @@ function AppearanceSection() {
 }
 
 export default function SettingsScreen() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
   const [tags, setTags] = useState<RecipeTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -340,7 +345,7 @@ export default function SettingsScreen() {
                 value={foodInput}
                 onChangeText={setFoodInput}
                 placeholder="What's your favorite food? 🤔"
-                placeholderTextColor="#999"
+                placeholderTextColor={c.fgSubtle}
                 autoFocus
                 onSubmitEditing={handleSaveFood}
                 returnKeyType="done"
@@ -413,7 +418,7 @@ export default function SettingsScreen() {
                       ]}
                       onPress={() => openEditModal(tag)}
                     >
-                      <Ionicons name="pencil" size={18} color="#666" />
+                      <Ionicons name="pencil" size={18} color={c.fgMuted} />
                     </Pressable>
                     <Pressable
                       style={({ pressed }) => [
@@ -447,7 +452,7 @@ export default function SettingsScreen() {
               value={restrictionInput}
               onChangeText={setRestrictionInput}
               placeholder="Type and press Enter..."
-              placeholderTextColor="#999"
+              placeholderTextColor={c.fgSubtle}
               onSubmitEditing={handleAddRestriction}
               returnKeyType="done"
             />
@@ -463,7 +468,7 @@ export default function SettingsScreen() {
                   style={styles.chipRemove}
                   hitSlop={8}
                 >
-                  <Ionicons name="close-circle" size={18} color="#666" />
+                  <Ionicons name="close-circle" size={18} color={c.fgMuted} />
                 </Pressable>
               </ThemedView>
             ))}
@@ -493,7 +498,7 @@ export default function SettingsScreen() {
                   value={newTagName}
                   onChangeText={setNewTagName}
                   placeholder="Enter tag name"
-                  placeholderTextColor="#999"
+                  placeholderTextColor={c.fgSubtle}
                 />
               </View>
 
@@ -538,7 +543,7 @@ export default function SettingsScreen() {
                         ]}
                         onPress={() => setNewTagIcon(icon)}
                       >
-                        <Ionicons name={icon as any} size={24} color="#666" />
+                        <Ionicons name={icon as any} size={24} color={c.fgMuted} />
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -622,9 +627,12 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: c.bg,
   },
   scrollView: {
     flex: 1,
@@ -642,12 +650,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    ...theme.type.h2,
   },
   sectionDescription: {
-    fontSize: 14,
-    opacity: 0.7,
+    ...theme.type.small,
+    color: c.fgMuted,
     marginBottom: 16,
   },
   addButton: {
@@ -701,7 +708,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -730,11 +737,12 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: c.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: c.fg,
+    backgroundColor: c.bgElevated,
   },
   colorPicker: {
     flexDirection: 'row',
@@ -751,7 +759,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   colorOptionSelected: {
-    borderColor: '#333',
+    borderColor: c.fg,
   },
   iconPickerContainer: {
     maxHeight: 120,
@@ -771,11 +779,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
     marginRight: 8,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: c.bgMuted,
   },
   iconOptionSelected: {
-    borderColor: '#E07856',
-    backgroundColor: '#e8f5e9',
+    borderColor: c.accent,
+    backgroundColor: c.accentMuted,
   },
   previewSection: {
     marginBottom: 20,
@@ -804,24 +812,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: c.bgMuted,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: c.fg,
   },
   saveButton: {
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
   },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: c.accentFg,
   },
   confirmOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -856,23 +864,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deleteButton: {
-    backgroundColor: '#ff3b30',
+    backgroundColor: c.danger,
   },
   deleteButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: c.dangerFg,
   },
   chipInputContainer: {
     marginBottom: 16,
   },
   chipInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: c.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: c.fg,
+    backgroundColor: c.bgElevated,
   },
   chipsContainer: {
     flexDirection: 'row',
@@ -905,12 +914,8 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#FFB74D',
-    shadowColor: '#FF9800',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    borderColor: c.warning,
+    ...theme.shadow.sm,
   },
   foodContent: {
     flexDirection: 'row',
@@ -928,7 +933,7 @@ const styles = StyleSheet.create({
   },
   foodValue: {
     fontWeight: '700',
-    color: '#FF6F00',
+    color: c.warning,
   },
   foodPlaceholder: {
     opacity: 0.6,
@@ -939,15 +944,16 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#FFB74D',
+    borderColor: c.warning,
   },
   foodInput: {
     borderWidth: 2,
-    borderColor: '#FFB74D',
+    borderColor: c.warning,
     borderRadius: 12,
     padding: 14,
     fontSize: 16,
-    backgroundColor: '#fff',
+    color: c.fg,
+    backgroundColor: c.bgElevated,
   },
   foodEditButtons: {
     flexDirection: 'row',
@@ -960,26 +966,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   foodCancelButton: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: c.bgMuted,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: c.border,
   },
   foodCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: c.fgMuted,
   },
   foodSaveButton: {
-    backgroundColor: '#FF9800',
-    shadowColor: '#FF9800',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: c.warning,
+    ...theme.shadow.sm,
   },
   foodSaveText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',
   },
-});
+  });
+}

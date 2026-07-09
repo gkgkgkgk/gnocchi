@@ -7,7 +7,8 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { fetchRecipes, Recipe } from '@/services/recipe-service';
 import { Image } from 'expo-image';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 interface CreateCookbookModalProps {
   visible: boolean;
@@ -32,10 +33,12 @@ export function CreateCookbookModal({
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const { width } = useWindowDimensions();
-  
-  // Get theme colors
-  const textColor = useThemeColor({}, 'text');
-  const backgroundColor = useThemeColor({}, 'background');
+
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
+  const textColor = c.fg;
+  const backgroundColor = c.bgElevated;
 
   // Calculate grid columns
   const numColumns = Math.max(3, Math.floor((width - 80) / 120));
@@ -113,7 +116,7 @@ export function CreateCookbookModal({
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={onClose} style={styles.headerButton}>
-            <Ionicons name="close" size={24} color="#666" />
+            <Ionicons name="close" size={24} color={c.fgMuted} />
           </Pressable>
           <ThemedText style={styles.headerTitle}>
             {editMode ? 'Edit Cookbook' : 'Create Cookbook'}
@@ -139,7 +142,7 @@ export function CreateCookbookModal({
           <TextInput
             style={[styles.input, { color: textColor }]}
             placeholder="My Favorite Recipes"
-            placeholderTextColor="#999"
+            placeholderTextColor={c.fgSubtle}
             value={cookbookName}
             onChangeText={setCookbookName}
             autoFocus
@@ -185,7 +188,7 @@ export function CreateCookbookModal({
                             ]}
                           >
                           <View style={styles.dragHandle}>
-                            <Ionicons name="menu" size={20} color="#666" />
+                            <Ionicons name="menu" size={20} color={c.fgMuted} />
                           </View>
                           
                           {item.image_url || item.imageUrl ? (
@@ -196,7 +199,7 @@ export function CreateCookbookModal({
                             />
                           ) : (
                             <View style={styles.selectedRecipePlaceholder}>
-                              <Ionicons name="restaurant" size={20} color="#ccc" />
+                              <Ionicons name="restaurant" size={20} color={c.fgSubtle} />
                             </View>
                           )}
                           
@@ -208,7 +211,7 @@ export function CreateCookbookModal({
                             onPress={() => toggleRecipe(item.id)}
                             style={styles.removeButton}
                           >
-                            <Ionicons name="close-circle" size={24} color="#ff4444" />
+                            <Ionicons name="close-circle" size={24} color={c.danger} />
                           </Pressable>
                         </Pressable>
                       </ScaleDecorator>
@@ -246,12 +249,12 @@ export function CreateCookbookModal({
                               />
                             ) : (
                               <View style={styles.placeholderImage}>
-                                <Ionicons name="restaurant" size={32} color="#ccc" />
+                                <Ionicons name="restaurant" size={32} color={c.fgSubtle} />
                               </View>
                             )}
                             
                             <View style={styles.checkbox}>
-                              <Ionicons name="add" size={16} color="#666" />
+                              <Ionicons name="add" size={16} color={c.fgMuted} />
                             </View>
                           </View>
 
@@ -272,9 +275,12 @@ export function CreateCookbookModal({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: c.bg,
   },
   header: {
     flexDirection: 'row',
@@ -283,20 +289,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: c.border,
   },
   headerButton: {
     padding: 8,
     minWidth: 60,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    ...theme.type.h3,
   },
   doneText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#E07856',
+    ...theme.type.button,
+    color: c.accent,
   },
   doneTextDisabled: {
     opacity: 0.3,
@@ -304,7 +308,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: c.border,
   },
   inputLabel: {
     fontSize: 12,
@@ -316,17 +320,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     paddingVertical: 8,
-    color: '#000',
+    color: c.fg,
   },
   selectedCountContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    backgroundColor: c.accentMuted,
   },
   selectedCount: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#E07856',
+    color: c.accent,
   },
   loadingContainer: {
     flex: 1,
@@ -358,15 +362,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
+    borderColor: c.border,
   },
   draggingItem: {
     opacity: 0.7,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    ...theme.shadow.lg,
   },
   dragHandle: {
     padding: 4,
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 8,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: c.bgMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
   placeholderImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: c.bgMuted,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(76, 175, 80, 0.3)',
+    backgroundColor: c.accentMuted,
   },
   checkbox: {
     position: 'absolute',
@@ -438,9 +438,9 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: c.bgElevated,
     borderWidth: 2,
-    borderColor: '#E07856',
+    borderColor: c.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -449,4 +449,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-});
+  });
+}

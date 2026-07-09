@@ -8,9 +8,14 @@ import { fetchCookbookRecipes, Cookbook } from '@/services/cookbook-service';
 import { Recipe } from '@/services/recipe-service';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 export default function CookbookDetailScreen() {
   const router = useRouter();
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
   const { id } = useLocalSearchParams();
   const [cookbook, setCookbook] = useState<Cookbook | null>(null);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -95,7 +100,7 @@ export default function CookbookDetailScreen() {
           style={styles.backButton} 
           onPress={() => router.push('/(drawer)/(tabs)/explore' as any)}
         >
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color={c.fg} />
         </Pressable>
 
         {/* Page navigation group */}
@@ -107,7 +112,7 @@ export default function CookbookDetailScreen() {
             disabled={currentPage === 0}
           >
             {currentPage > 0 && (
-              <Ionicons name="chevron-back" size={24} color="#666" />
+              <Ionicons name="chevron-back" size={24} color={c.fgMuted} />
             )}
           </Pressable>
 
@@ -123,7 +128,7 @@ export default function CookbookDetailScreen() {
             disabled={currentPage === totalPages - 1}
           >
             {currentPage < totalPages - 1 && (
-              <Ionicons name="chevron-forward" size={24} color="#666" />
+              <Ionicons name="chevron-forward" size={24} color={c.fgMuted} />
             )}
           </Pressable>
         </View>
@@ -265,9 +270,12 @@ export default function CookbookDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: c.bg,
   },
   centered: {
     flex: 1,
@@ -281,7 +289,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#ff4444',
+    color: c.danger,
     textAlign: 'center',
   },
   header: {
@@ -289,7 +297,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: c.bgMuted,
   },
   backButton: {
     width: 40,
@@ -398,7 +406,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     borderRadius: 12,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: c.bgMuted,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
@@ -456,7 +464,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   viewFullButton: {
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -466,6 +474,7 @@ const styles = StyleSheet.create({
   viewFullButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: c.accentFg,
   },
-});
+  });
+}

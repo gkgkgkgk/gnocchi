@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { WavyDecoration } from '@/components/wavy-decoration';
 import { RecipeCard } from '@/components/recipe-card';
 import { FloatingActionButton } from '@/components/floating-action-button';
@@ -98,15 +99,12 @@ export default function HomeScreen() {
           <Text variant="body" color="danger">{error}</Text>
         </View>
       ) : recipes.length === 0 ? (
-        <View style={styles.centered}>
-          <WavyDecoration variant="blob" width={180} height={110} opacity={0.14} />
-          <Text variant="h2" style={{ marginTop: theme.spacing.lg, textAlign: 'center' }}>
-            Your cookbook awaits
-          </Text>
-          <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, textAlign: 'center' }}>
-            Import from a website, paste a photo, or type one in.
-          </Text>
-        </View>
+        <EmptyState
+          doodle="bowl"
+          title="Your cookbook awaits"
+          line="Import from a website, paste a photo, or type one in."
+          action={<Button onPress={() => setShowAddModal(true)}>Add your first recipe</Button>}
+        />
       ) : (
         <FlatList
           data={recipes}

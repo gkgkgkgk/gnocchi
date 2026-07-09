@@ -8,7 +8,8 @@ import { IngredientPickerModal } from '@/components/ingredient-picker-modal';
 import { Unit, fetchUnits } from '@/services/unit-service';
 import { Ingredient } from '@/services/ingredient-service';
 import { updateRecipe, fetchRecipeById } from '@/services/recipe-service';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 export default function EditRecipeScreen() {
   const router = useRouter();
@@ -32,9 +33,12 @@ export default function EditRecipeScreen() {
   const [selectedIngredientIndex, setSelectedIngredientIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   
-  const backgroundColor = useThemeColor({}, 'background');
-  const borderColor = useThemeColor({ light: 'rgba(0,0,0,0.2)', dark: 'rgba(255,255,255,0.2)' }, 'text');
-  const textColor = useThemeColor({}, 'text');
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
+  const backgroundColor = c.bgElevated;
+  const borderColor = c.border;
+  const textColor = c.fg;
 
   // Load recipe data
   useEffect(() => {
@@ -253,7 +257,7 @@ export default function EditRecipeScreen() {
         <ThemedText style={styles.headerTitle}>Edit Recipe</ThemedText>
         <Pressable onPress={handleSave} style={styles.saveButton} disabled={saving}>
           {saving ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={c.accentFg} />
           ) : (
             <ThemedText style={styles.saveButtonText}>Save</ThemedText>
           )}
@@ -270,7 +274,7 @@ export default function EditRecipeScreen() {
             value={formData.title}
             onChangeText={(text) => setFormData({ ...formData, title: text })}
             placeholder="Enter recipe title"
-            placeholderTextColor="rgba(128,128,128,0.5)"
+            placeholderTextColor={c.fgSubtle}
           />
 
           <ThemedText style={styles.label}>Image URL</ThemedText>
@@ -279,7 +283,7 @@ export default function EditRecipeScreen() {
             value={formData.imageUrl}
             onChangeText={(text) => setFormData({ ...formData, imageUrl: text })}
             placeholder="https://example.com/image.jpg"
-            placeholderTextColor="rgba(128,128,128,0.5)"
+            placeholderTextColor={c.fgSubtle}
           />
 
           <ThemedText style={styles.label}>Description</ThemedText>
@@ -288,7 +292,7 @@ export default function EditRecipeScreen() {
             value={formData.description}
             onChangeText={(text) => setFormData({ ...formData, description: text })}
             placeholder="Add notes or description"
-            placeholderTextColor="rgba(128,128,128,0.5)"
+            placeholderTextColor={c.fgSubtle}
             multiline
             numberOfLines={4}
           />
@@ -301,7 +305,7 @@ export default function EditRecipeScreen() {
                 value={formData.prepTime}
                 onChangeText={(text) => setFormData({ ...formData, prepTime: text })}
                 placeholder="30"
-                placeholderTextColor="rgba(128,128,128,0.5)"
+                placeholderTextColor={c.fgSubtle}
                 keyboardType="numeric"
               />
             </View>
@@ -312,7 +316,7 @@ export default function EditRecipeScreen() {
                 value={formData.cookTime}
                 onChangeText={(text) => setFormData({ ...formData, cookTime: text })}
                 placeholder="45"
-                placeholderTextColor="rgba(128,128,128,0.5)"
+                placeholderTextColor={c.fgSubtle}
                 keyboardType="numeric"
               />
             </View>
@@ -323,7 +327,7 @@ export default function EditRecipeScreen() {
                 value={formData.servings}
                 onChangeText={(text) => setFormData({ ...formData, servings: text })}
                 placeholder="4"
-                placeholderTextColor="rgba(128,128,128,0.5)"
+                placeholderTextColor={c.fgSubtle}
                 keyboardType="numeric"
               />
             </View>
@@ -343,7 +347,7 @@ export default function EditRecipeScreen() {
                   setFormData({ ...formData, ingredients: newIngredients });
                 }}
                 placeholder="Qty"
-                placeholderTextColor="rgba(128,128,128,0.5)"
+                placeholderTextColor={c.fgSubtle}
                 keyboardType="numeric"
               />
               <Pressable
@@ -395,7 +399,7 @@ export default function EditRecipeScreen() {
                   setFormData({ ...formData, steps: newSteps });
                 }}
                 placeholder="Enter instruction step"
-                placeholderTextColor="rgba(128,128,128,0.5)"
+                placeholderTextColor={c.fgSubtle}
                 multiline
               />
               <Pressable
@@ -427,9 +431,12 @@ export default function EditRecipeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: c.bg,
   },
   header: {
     flexDirection: 'row',
@@ -445,25 +452,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   backButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
+    ...theme.type.bodyMedium,
+    color: c.accent,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...theme.type.h3,
   },
   saveButton: {
     paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: '#E07856',
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    backgroundColor: c.accent,
+    borderRadius: theme.radius.md,
     minWidth: 60,
     alignItems: 'center',
   },
   saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    ...theme.type.button,
+    color: c.accentFg,
   },
   scrollView: {
     flex: 1,
@@ -471,28 +476,27 @@ const styles = StyleSheet.create({
   section: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: c.border,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    ...theme.type.h2,
     marginBottom: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...theme.type.label,
+    color: c.fgMuted,
     marginBottom: 8,
     marginTop: 12,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     padding: 12,
     fontSize: 16,
   },
   textArea: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     padding: 12,
     fontSize: 16,
     minHeight: 100,
@@ -513,7 +517,7 @@ const styles = StyleSheet.create({
   },
   ingredientInput: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     padding: 12,
     justifyContent: 'center',
   },
@@ -527,30 +531,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   unitText: {
-    fontSize: 14,
+    ...theme.type.small,
   },
   ingredientText: {
-    fontSize: 14,
+    ...theme.type.small,
   },
   removeButton: {
     padding: 8,
   },
   removeButtonText: {
     fontSize: 20,
-    color: '#ff3b30',
+    color: c.danger,
   },
   addButton: {
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E07856',
-    borderRadius: 8,
+    borderColor: c.accent,
+    borderRadius: theme.radius.md,
     alignItems: 'center',
     marginTop: 8,
   },
   addButtonText: {
-    color: '#E07856',
-    fontSize: 16,
-    fontWeight: '600',
+    ...theme.type.button,
+    color: c.accent,
   },
   stepRow: {
     flexDirection: 'row',
@@ -559,14 +562,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   stepNumber: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...theme.type.bodyMedium,
     paddingTop: 12,
   },
   stepInput: {
     flex: 1,
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: theme.radius.md,
     padding: 12,
     fontSize: 16,
     minHeight: 80,
@@ -579,7 +581,8 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   loadingText: {
-    fontSize: 16,
-    opacity: 0.7,
+    ...theme.type.body,
+    color: c.fgMuted,
   },
-});
+  });
+}

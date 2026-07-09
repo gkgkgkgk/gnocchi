@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { WavyDecoration } from '@/components/wavy-decoration';
 import { CookbookCard } from '@/components/cookbook-card';
 import { FloatingActionButton } from '@/components/floating-action-button';
@@ -91,15 +92,12 @@ export default function CookbooksScreen() {
       ) : error ? (
         <View style={styles.centered}><Text variant="body" color="danger">{error}</Text></View>
       ) : cookbooks.length === 0 ? (
-        <View style={styles.centered}>
-          <WavyDecoration variant="blob" width={180} height={110} opacity={0.14} color={c.secondary} />
-          <Text variant="h2" style={{ marginTop: theme.spacing.lg, textAlign: 'center' }}>
-            No cookbooks yet
-          </Text>
-          <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, textAlign: 'center' }}>
-            Group your recipes — weeknight dinners, holiday baking, whatever.
-          </Text>
-        </View>
+        <EmptyState
+          doodle="book"
+          title="No cookbooks yet"
+          line="Group your recipes — weeknight dinners, holiday baking, whatever."
+          action={<Button onPress={() => setShowCreateModal(true)}>Create a cookbook</Button>}
+        />
       ) : (
         <FlatList
           data={cookbooks}

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, Modal, Pressable, TextInput, ActivityIndicator, Animated } from 'react-native';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 interface Question {
   id: string;
@@ -53,11 +54,13 @@ export function ProfileQuestionnaireModal({ visible, onComplete }: ProfileQuesti
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(1));
-  const colorScheme = useColorScheme();
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
 
   const currentQuestion = QUESTIONS[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === QUESTIONS.length - 1;
-  const textColor = colorScheme === 'dark' ? '#fff' : '#000';
+  const textColor = c.fg;
 
   // No user auth in this build; default the display-name suggestion to "Chef".
   useEffect(() => {
@@ -189,7 +192,7 @@ export function ProfileQuestionnaireModal({ visible, onComplete }: ProfileQuesti
                 value={currentAnswer}
                 onChangeText={setCurrentAnswer}
                 placeholder={currentQuestion.isDisplayName ? "Your name" : "Type your answer..."}
-                placeholderTextColor="#999"
+                placeholderTextColor={c.fgSubtle}
                 multiline={!currentQuestion.isDisplayName}
                 autoFocus
               />
@@ -236,7 +239,7 @@ export function ProfileQuestionnaireModal({ visible, onComplete }: ProfileQuesti
               disabled={!canProceed() || submitting}
             >
               {submitting ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={c.accentFg} />
               ) : (
                 <ThemedText style={styles.nextButtonText}>
                   {isLastQuestion ? 'Complete' : 'Next →'}
@@ -250,10 +253,12 @@ export function ProfileQuestionnaireModal({ visible, onComplete }: ProfileQuesti
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -263,11 +268,7 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     borderRadius: 16,
     padding: 24,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    ...theme.shadow.lg,
   },
   header: {
     alignItems: 'center',
@@ -300,26 +301,27 @@ const styles = StyleSheet.create({
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: c.border,
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     minHeight: 100,
     textAlignVertical: 'top',
+    backgroundColor: c.bgElevated,
   },
   optionsContainer: {
     gap: 12,
   },
   optionButton: {
     borderWidth: 2,
-    borderColor: '#ddd',
+    borderColor: c.border,
     borderRadius: 12,
     padding: 16,
     backgroundColor: 'transparent',
   },
   optionButtonSelected: {
-    borderColor: '#E07856',
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderColor: c.accent,
+    backgroundColor: c.accentMuted,
   },
   optionText: {
     fontSize: 16,
@@ -327,7 +329,7 @@ const styles = StyleSheet.create({
   },
   optionTextSelected: {
     fontWeight: '600',
-    color: '#E07856',
+    color: c.accent,
   },
   navigationButtons: {
     flexDirection: 'row',
@@ -338,7 +340,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: c.border,
     alignItems: 'center',
   },
   backButtonText: {
@@ -347,7 +349,7 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     flex: 2,
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -361,6 +363,7 @@ const styles = StyleSheet.create({
   nextButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#fff',
+    color: c.accentFg,
   },
-});
+  });
+}

@@ -7,6 +7,8 @@ import { ThemedView } from './themed-view';
 import { pickImage } from '@/services/image-service';
 import { uploadRecipePhoto } from '@/services/recipe-service';
 import { api } from '@/lib/api';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -18,6 +20,9 @@ interface RecipePhotoGalleryProps {
 }
 
 export function RecipePhotoGallery({ recipeId, images, chosenImage, onUpdate }: RecipePhotoGalleryProps) {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -150,7 +155,7 @@ export function RecipePhotoGallery({ recipeId, images, chosenImage, onUpdate }: 
           style={styles.addButton}
           onPress={() => setShowAddMenu(!showAddMenu)}
         >
-          <Ionicons name="add-circle" size={28} color="#E07856" />
+          <Ionicons name="add-circle" size={28} color={c.accent} />
         </Pressable>
       </View>
 
@@ -163,7 +168,7 @@ export function RecipePhotoGallery({ recipeId, images, chosenImage, onUpdate }: 
               value={urlInput}
               onChangeText={setUrlInput}
               placeholder="Paste image URL..."
-              placeholderTextColor="#999"
+              placeholderTextColor={c.fgSubtle}
             />
             <Pressable style={styles.addUrlButton} onPress={handleAddFromUrl}>
               <ThemedText style={styles.addUrlButtonText}>Add</ThemedText>
@@ -178,10 +183,10 @@ export function RecipePhotoGallery({ recipeId, images, chosenImage, onUpdate }: 
             disabled={uploading}
           >
             {uploading ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={c.accentFg} />
             ) : (
               <>
-                <Ionicons name="cloud-upload" size={20} color="#fff" />
+                <Ionicons name="cloud-upload" size={20} color={c.accentFg} />
                 <ThemedText style={styles.uploadButtonText}>Upload from Device</ThemedText>
               </>
             )}
@@ -192,7 +197,7 @@ export function RecipePhotoGallery({ recipeId, images, chosenImage, onUpdate }: 
       {/* Photo Grid */}
       {images.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="images-outline" size={48} color="#ccc" />
+          <Ionicons name="images-outline" size={48} color={c.fgSubtle} />
           <ThemedText style={styles.emptyText}>No photos yet</ThemedText>
           <ThemedText style={styles.emptySubtext}>Add photos to showcase this recipe</ThemedText>
         </View>
@@ -380,7 +385,9 @@ export function RecipePhotoGallery({ recipeId, images, chosenImage, onUpdate }: 
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   container: {
     padding: 16,
     borderRadius: 12,
@@ -402,7 +409,7 @@ const styles = StyleSheet.create({
   addMenu: {
     marginBottom: 16,
     padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    backgroundColor: c.bgMuted,
     borderRadius: 8,
   },
   urlInputContainer: {
@@ -413,20 +420,22 @@ const styles = StyleSheet.create({
   urlInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.2)',
+    borderColor: c.border,
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
+    color: c.fg,
+    backgroundColor: c.bgElevated,
   },
   addUrlButton: {
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
     justifyContent: 'center',
   },
   addUrlButtonText: {
-    color: '#fff',
+    color: c.accentFg,
     fontWeight: '600',
   },
   orText: {
@@ -438,13 +447,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2196F3',
+    backgroundColor: c.accent,
     padding: 12,
     borderRadius: 8,
     gap: 8,
   },
   uploadButtonText: {
-    color: '#fff',
+    color: c.accentFg,
     fontWeight: '600',
   },
   emptyState: {
@@ -570,7 +579,7 @@ const styles = StyleSheet.create({
   },
   confirmOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -605,19 +614,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: c.bgMuted,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: c.fg,
   },
   deleteButton: {
-    backgroundColor: '#ff3b30',
+    backgroundColor: c.danger,
   },
   deleteButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: c.dangerFg,
   },
-});
+  });
+}

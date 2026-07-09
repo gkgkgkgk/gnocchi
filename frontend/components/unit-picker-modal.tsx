@@ -3,7 +3,8 @@ import { Modal, View, StyleSheet, Pressable, TextInput, FlatList, ActivityIndica
 import { ThemedView } from './themed-view';
 import { ThemedText } from './themed-text';
 import { fetchUnits, Unit } from '@/services/unit-service';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 
 interface UnitPickerModalProps {
   visible: boolean;
@@ -22,11 +23,14 @@ export function UnitPickerModal({
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const backgroundColor = useThemeColor({}, 'background');
-  const textColor = useThemeColor({}, 'text');
-  const borderColor = useThemeColor({ light: 'rgba(0,0,0,0.2)', dark: 'rgba(255,255,255,0.2)' }, 'text');
-  const placeholderColor = useThemeColor({ light: '#999', dark: '#666' }, 'text');
+
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const c = theme.colors;
+  const backgroundColor = c.bgElevated;
+  const textColor = c.fg;
+  const borderColor = c.border;
+  const placeholderColor = c.fgSubtle;
 
   useEffect(() => {
     if (visible) {
@@ -131,7 +135,7 @@ export function UnitPickerModal({
             {/* Units List */}
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#E07856" />
+                <ActivityIndicator size="large" color={c.accent} />
               </View>
             ) : (
               <>
@@ -171,10 +175,12 @@ export function UnitPickerModal({
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -187,12 +193,8 @@ const styles = StyleSheet.create({
   modal: {
     borderRadius: 16,
     padding: 24,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
     maxHeight: '100%',
+    ...theme.shadow.lg,
   },
   header: {
     flexDirection: 'row',
@@ -236,11 +238,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   unitItemSelected: {
-    borderColor: '#E07856',
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    borderColor: c.accent,
+    backgroundColor: c.accentMuted,
   },
   customUnitButton: {
-    borderColor: '#E07856',
+    borderColor: c.accent,
     borderStyle: 'dashed',
     marginBottom: 8,
   },
@@ -258,7 +260,7 @@ const styles = StyleSheet.create({
   },
   checkmark: {
     fontSize: 20,
-    color: '#E07856',
+    color: c.accent,
     fontWeight: 'bold',
   },
   loadingContainer: {
@@ -274,4 +276,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     opacity: 0.6,
   },
-});
+  });
+}
