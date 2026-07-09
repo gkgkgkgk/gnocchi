@@ -455,7 +455,7 @@ const styles = StyleSheet.create({
   saveButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     borderRadius: 8,
     minWidth: 60,
     alignItems: 'center',
@@ -542,13 +542,13 @@ const styles = StyleSheet.create({
   addButton: {
     padding: 12,
     borderWidth: 1,
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 8,
   },
   addButtonText: {
-    color: '#4CAF50',
+    color: '#E07856',
     fontSize: 16,
     fontWeight: '600',
   },

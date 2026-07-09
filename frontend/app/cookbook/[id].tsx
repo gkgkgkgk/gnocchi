@@ -145,7 +145,7 @@ export default function CookbookDetailScreen() {
         style={styles.scrollView}
       >
         {/* Page 1: Table of Contents */}
-        <View style={[styles.page, { width, backgroundColor: cookbook.cover_color || '#4CAF50' }]}>
+        <View style={[styles.page, { width, backgroundColor: cookbook.cover_color || '#E07856' }]}>
           <View style={styles.pageContent}>
             <ThemedText style={styles.tocTitle}>{cookbook.name}</ThemedText>
             {cookbook.description && (
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   viewFullButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',

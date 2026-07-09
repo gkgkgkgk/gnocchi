@@ -415,53 +415,49 @@ export default function RecipeDetailScreen() {
           />
 
           {/* Easy Recipe Viewer Button */}
-          <Pressable 
-            style={styles.easyViewButton}
-            onPress={() => router.push(`/easy-recipe/${id}` as any)}
-          >
-            <ThemedText style={styles.easyViewButtonText}>
-              📖 Open Recipe Reader
-            </ThemedText>
-            <ThemedText style={styles.easyViewButtonSubtext}>
-              Clean view for cooking
-            </ThemedText>
-          </Pressable>
+          <View style={{ marginTop: theme.spacing.xl }}>
+            <Button
+              variant="secondary"
+              fullWidth
+              size="lg"
+              icon={<Ionicons name="book-outline" size={18} color={c.fg} />}
+              iconRight={<Ionicons name="arrow-forward" size={18} color={c.fg} />}
+              onPress={() => router.push(`/easy-recipe/${id}` as any)}
+            >
+              Open kitchen reader
+            </Button>
+          </View>
 
           {/* Notes Section */}
           {notes && (
             <View style={styles.section}>
-              <ThemedText style={styles.sectionTitle}>Notes</ThemedText>
-              <View style={styles.sectionContent}>
-                <ThemedText style={styles.notesText}>{notes}</ThemedText>
-              </View>
+              <Text variant="h2" style={{ marginBottom: theme.spacing.md }}>Notes</Text>
+              <Text variant="body" color="fgMuted" style={{ lineHeight: 22 }}>{notes}</Text>
             </View>
           )}
 
           {/* Recipe Multiplier Slider */}
-          <View style={styles.section}>
-            <View style={styles.multiplierContainer}>
-              <View style={styles.multiplierHeader}>
-                <ThemedText style={styles.multiplierLabel}>Recipe Size:</ThemedText>
-                <View style={styles.multiplierValueContainer}>
-                  <ThemedText style={styles.multiplierValue}>{getMultiplierLabel(multiplier)}×</ThemedText>
-                </View>
+          <View style={[styles.section, { backgroundColor: c.bgMuted, borderRadius: theme.radius.lg, padding: theme.spacing.lg, marginTop: theme.spacing.xl }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md }}>
+              <Text variant="label" color="fgMuted">Recipe size</Text>
+              <View style={{ backgroundColor: c.accent, paddingHorizontal: theme.spacing.md, paddingVertical: 4, borderRadius: theme.radius.pill }}>
+                <Text style={{ color: c.accentFg, fontWeight: '700', fontSize: 15 }}>{getMultiplierLabel(multiplier)}×</Text>
               </View>
-              
-              <View style={styles.sliderRow}>
-                <ThemedText style={styles.sliderEndLabel}>1/2×</ThemedText>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={0.5}
-                  maximumValue={4}
-                  value={multiplier}
-                  onValueChange={handleSliderChange}
-                  minimumTrackTintColor={tintColor}
-                  maximumTrackTintColor="rgba(0,0,0,0.1)"
-                  thumbTintColor={tintColor}
-                  step={0.01}
-                />
-                <ThemedText style={styles.sliderEndLabel}>4×</ThemedText>
-              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
+              <Text variant="caption" color="fgSubtle">½×</Text>
+              <Slider
+                style={{ flex: 1, height: 40 }}
+                minimumValue={0.5}
+                maximumValue={4}
+                value={multiplier}
+                onValueChange={handleSliderChange}
+                minimumTrackTintColor={c.accent}
+                maximumTrackTintColor={c.border}
+                thumbTintColor={c.accent}
+                step={0.01}
+              />
+              <Text variant="caption" color="fgSubtle">4×</Text>
             </View>
           </View>
 
@@ -469,22 +465,30 @@ export default function RecipeDetailScreen() {
           <View style={styles.section}>
             <View style={styles.flipCardContainer}>
               {/* Tab Headers */}
-              <View style={styles.tabHeaders}>
+              <View style={[styles.tabHeaders, { backgroundColor: c.bgMuted, borderRadius: theme.radius.pill, padding: 4 }]}>
                 <Pressable
-                  style={[styles.tabHeader, showIngredients && styles.tabHeaderActive]}
+                  style={[
+                    styles.tabHeader,
+                    { borderRadius: theme.radius.pill },
+                    showIngredients && { backgroundColor: c.bgElevated, ...theme.shadow.sm },
+                  ]}
                   onPress={() => setShowIngredients(true)}
                 >
-                  <ThemedText style={[styles.tabHeaderText, showIngredients && styles.tabHeaderTextActive]}>
-                    📝 Ingredients
-                  </ThemedText>
+                  <Text variant="bodyMedium" color={showIngredients ? 'fg' : 'fgMuted'}>
+                    Ingredients
+                  </Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.tabHeader, !showIngredients && styles.tabHeaderActive]}
+                  style={[
+                    styles.tabHeader,
+                    { borderRadius: theme.radius.pill },
+                    !showIngredients && { backgroundColor: c.bgElevated, ...theme.shadow.sm },
+                  ]}
                   onPress={() => setShowIngredients(false)}
                 >
-                  <ThemedText style={[styles.tabHeaderText, !showIngredients && styles.tabHeaderTextActive]}>
-                    👨‍🍳 Instructions
-                  </ThemedText>
+                  <Text variant="bodyMedium" color={!showIngredients ? 'fg' : 'fgMuted'}>
+                    Instructions
+                  </Text>
                 </Pressable>
               </View>
 
@@ -742,9 +746,11 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   ingredientBullet: {
-    fontSize: 18,
+    fontSize: 24,
     marginRight: 12,
-    marginTop: 2,
+    marginTop: -6,
+    color: '#E07856',
+    fontWeight: '700',
   },
   ingredientText: {
     fontSize: 16,
@@ -758,14 +764,14 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   stepNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#4CAF50',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#E07856',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-    marginTop: 2,
+    marginRight: 14,
+    marginTop: 0,
   },
   stepNumberText: {
     fontSize: 16,
@@ -898,42 +904,20 @@ const styles = StyleSheet.create({
   },
   tabHeader: {
     flex: 1,
-    padding: 16,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingVertical: 10,
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  tabHeaderActive: {
-    backgroundColor: 'transparent',
-    borderBottomColor: '#4CAF50',
-  },
-  tabHeaderText: {
-    fontSize: 16,
-    fontWeight: '600',
-    opacity: 0.6,
-  },
-  tabHeaderTextActive: {
-    opacity: 1,
-    color: '#4CAF50',
   },
   flipCard: {
-    borderRadius: 12,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+    borderRadius: 16,
     padding: 20,
     minHeight: 300,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    marginTop: 12,
   },
   cardContent: {
     flex: 1,
   },
   easyViewButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     padding: 20,
     borderRadius: 12,
     alignItems: 'center',
@@ -982,7 +966,7 @@ const styles = StyleSheet.create({
   multiplierValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#E07856',
   },
   sliderRow: {
     flexDirection: 'row',

@@ -98,7 +98,7 @@ export function ToolExecutionModal({
             ) : loading ? (
               // Loading state
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#4CAF50" />
+                <ActivityIndicator size="large" color="#E07856" />
                 <ThemedText style={styles.loadingText}>
                   Creating your modified recipe...
                 </ThemedText>
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
   },
   primaryButtonText: {
     fontSize: 16,

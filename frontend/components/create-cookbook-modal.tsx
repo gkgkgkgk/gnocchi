@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   doneText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#E07856',
   },
   doneTextDisabled: {
     opacity: 0.3,
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   selectedCount: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#E07856',
   },
   loadingContainer: {
     flex: 1,
@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
     justifyContent: 'center',
     alignItems: 'center',
   },

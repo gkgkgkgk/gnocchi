@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   importButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',

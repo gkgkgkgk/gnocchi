@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#E07856',
   },
   loadingContainer: {
     flex: 1,
@@ -270,7 +270,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 8,
     borderBottomWidth: 2,
-    borderBottomColor: '#4CAF50',
+    borderBottomColor: '#E07856',
   },
   ingredientsList: {
     gap: 8,
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   multiplierValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#4CAF50',
+    color: '#E07856',
   },
   sliderRow: {
     flexDirection: 'row',

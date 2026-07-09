@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
   saveButton: {
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     borderRadius: 8,
   },
   saveButtonText: {
@@ -93,8 +93,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,0,0,0.2)',
   },
   optionalToggleActive: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: '#E07856',
+    borderColor: '#E07856',
   },
   optionalToggleText: {
     fontSize: 11,
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -246,12 +246,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   timelineCircleActive: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#4CAF50',
+    borderColor: '#E07856',
+    backgroundColor: '#E07856',
   },
   timelineCircleCompleted: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#4CAF50',
+    borderColor: '#E07856',
+    backgroundColor: '#E07856',
   },
   timelineNumber: {
     fontSize: 16,
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     zIndex: -1,
   },
   timelineLineCompleted: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
   },
   navigationContainer: {
     flexDirection: 'row',
@@ -298,8 +298,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,0,0,0.2)',
   },
   navButtonPrimary: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: '#E07856',
+    borderColor: '#E07856',
   },
   navButtonText: {
     fontSize: 16,
@@ -1080,7 +1080,7 @@ export default function NewRecipeScreen() {
       {saving && (
         <View style={styles.loadingOverlay}>
           <ThemedView style={styles.loadingCard}>
-            <ActivityIndicator size="large" color="#4CAF50" />
+            <ActivityIndicator size="large" color="#E07856" />
             <ThemedText style={styles.loadingText}>Saving recipe...</ThemedText>
           </ThemedView>
         </View>

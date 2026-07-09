@@ -601,7 +601,7 @@ export default function PlanningScreen() {
           ]}
           style={[
             styles.calendarContainer,
-            Platform.OS === 'web' && { scrollbarColor: '#4CAF50 rgba(0,0,0,0.1)' } as any
+            Platform.OS === 'web' && { scrollbarColor: '#E07856 rgba(0,0,0,0.1)' } as any
           ]}
         >
           {weekPlan.map((day, dayIndex) => {
@@ -630,8 +630,8 @@ export default function PlanningScreen() {
                 style={{
                   borderWidth: draggedRecipe ? 3 : 2,
                   borderColor: draggedRecipe 
-                    ? '#4CAF50' 
-                    : isToday ? '#4CAF50' : 'rgba(0,0,0,0.08)',
+                    ? '#E07856' 
+                    : isToday ? '#E07856' : 'rgba(0,0,0,0.08)',
                   borderRadius: 16,
                   backgroundColor: draggedRecipe ? 'rgba(76, 175, 80, 0.1)' : undefined,
                   width: calculatedWidth,
@@ -841,7 +841,7 @@ export default function PlanningScreen() {
               <View>
                 {(generatingShoppingList || loadingShoppingList) && (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#4CAF50" />
+                    <ActivityIndicator size="small" color="#E07856" />
                     <ThemedText style={styles.loadingText}>
                       {generatingShoppingList ? 'Generating shopping list...' : 'Loading shopping list...'}
                     </ThemedText>
@@ -879,7 +879,7 @@ export default function PlanningScreen() {
                         <Ionicons
                           name={item.checked ? "checkmark-circle" : "checkmark-circle-outline"}
                           size={24}
-                          color={item.checked ? "#4CAF50" : "rgba(0,0,0,0.3)"}
+                          color={item.checked ? "#E07856" : "rgba(0,0,0,0.3)"}
                         />
                       </Pressable>
                       <ThemedText
@@ -1086,7 +1086,7 @@ export default function PlanningScreen() {
               <ThemedView style={styles.recipeDetailContent}>
                 {loadingRecipeDetail ? (
                   <View style={styles.recipeDetailLoading}>
-                    <ActivityIndicator size="large" color="#4CAF50" />
+                    <ActivityIndicator size="large" color="#E07856" />
                     <ThemedText style={styles.loadingText}>Loading recipe...</ThemedText>
                   </View>
                 ) : selectedRecipeDetail ? (
@@ -1117,7 +1117,7 @@ export default function PlanningScreen() {
                       <View style={styles.recipeDetailMeta}>
                         {selectedRecipeDetail.servings && (
                           <View style={styles.recipeDetailMetaItem}>
-                            <Ionicons name="people" size={18} color="#4CAF50" />
+                            <Ionicons name="people" size={18} color="#E07856" />
                             <ThemedText style={styles.recipeDetailMetaText}>
                               {selectedRecipeDetail.servings} servings
                             </ThemedText>
@@ -1125,7 +1125,7 @@ export default function PlanningScreen() {
                         )}
                         {(selectedRecipeDetail.cook_time || selectedRecipeDetail.cookTime) && (
                           <View style={styles.recipeDetailMetaItem}>
-                            <Ionicons name="time" size={18} color="#4CAF50" />
+                            <Ionicons name="time" size={18} color="#E07856" />
                             <ThemedText style={styles.recipeDetailMetaText}>
                               {selectedRecipeDetail.cook_time || selectedRecipeDetail.cookTime} min
                             </ThemedText>
@@ -1260,7 +1260,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   dayCardToday: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     transform: [{ scale: 1.05 }],
   },
   dayCardWithRecipes: {
@@ -1354,7 +1354,7 @@ const styles = StyleSheet.create({
   },
   recipeChipDragging: {
     backgroundColor: 'rgba(76, 175, 80, 0.3)',
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
     borderWidth: 2,
   },
   recipeChipTop: {
@@ -1422,10 +1422,10 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
   },
   generateButtonText: {
     fontSize: 14,
@@ -1460,7 +1460,7 @@ const styles = StyleSheet.create({
   shoppingListItemDragging: {
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
     borderLeftWidth: 4,
-    borderLeftColor: '#4CAF50',
+    borderLeftColor: '#E07856',
   },
   cancelShoppingDragButton: {
     flexDirection: 'row',
@@ -1485,7 +1485,7 @@ const styles = StyleSheet.create({
   },
   shoppingListItemSourcesText: {
     fontSize: 12,
-    color: '#4CAF50',
+    color: '#E07856',
     fontWeight: '500',
   },
   placeholderText: {
@@ -1669,7 +1669,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   dayCardDropTarget: {
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
     borderWidth: 3,
   },
   shortListCardDragging: {
@@ -1835,7 +1835,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     marginTop: 7,
     marginRight: 12,
   },
@@ -1853,7 +1853,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1890,7 +1890,7 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
   },
   recipeDetailButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',

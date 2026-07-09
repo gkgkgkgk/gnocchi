@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   tagItemSelected: {
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
   },
   tagItemDisabled: {
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkboxSelected: {
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
   },
   actions: {
     flexDirection: 'row',
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   saveButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
   },
   saveButtonText: {
     fontSize: 16,

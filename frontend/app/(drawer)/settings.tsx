@@ -14,7 +14,7 @@ const AVAILABLE_ICONS = [
 
 // Color palette for tags
 const AVAILABLE_COLORS = [
-  '#FF9800', '#4CAF50', '#F44336', '#8BC34A', '#E91E63', '#FF5722',
+  '#FF9800', '#E07856', '#F44336', '#8BC34A', '#E91E63', '#FF5722',
   '#2196F3', '#9C27B0', '#00BCD4', '#FFC107', '#795548', '#607D8B',
 ];
 
@@ -315,7 +315,7 @@ export default function SettingsScreen() {
           <View style={styles.sectionHeader}>
             <ThemedText style={styles.sectionTitle}>Recipe Tags</ThemedText>
             <Pressable style={styles.addButton} onPress={openAddModal}>
-              <Ionicons name="add-circle" size={24} color="#4CAF50" />
+              <Ionicons name="add-circle" size={24} color="#E07856" />
             </Pressable>
           </View>
           <ThemedText style={styles.sectionDescription}>
@@ -703,7 +703,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   iconOptionSelected: {
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
     backgroundColor: '#e8f5e9',
   },
   previewSection: {
@@ -741,7 +741,7 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   saveButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
   },
   saveButtonText: {
     fontSize: 16,

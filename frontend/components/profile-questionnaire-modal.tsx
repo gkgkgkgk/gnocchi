@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   optionButtonSelected: {
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
   },
   optionText: {
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   },
   optionTextSelected: {
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#E07856',
   },
   navigationButtons: {
     flexDirection: 'row',
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     flex: 2,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',

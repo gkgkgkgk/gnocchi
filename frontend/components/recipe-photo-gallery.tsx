@@ -150,7 +150,7 @@ export function RecipePhotoGallery({ recipeId, images, chosenImage, onUpdate }: 
           style={styles.addButton}
           onPress={() => setShowAddMenu(!showAddMenu)}
         >
-          <Ionicons name="add-circle" size={28} color="#4CAF50" />
+          <Ionicons name="add-circle" size={28} color="#E07856" />
         </Pressable>
       </View>
 
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   addUrlButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#E07856',
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,

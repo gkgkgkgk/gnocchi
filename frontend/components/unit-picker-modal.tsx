@@ -131,7 +131,7 @@ export function UnitPickerModal({
             {/* Units List */}
             {loading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#4CAF50" />
+                <ActivityIndicator size="large" color="#E07856" />
               </View>
             ) : (
               <>
@@ -236,11 +236,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   unitItemSelected: {
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
     backgroundColor: 'rgba(76, 175, 80, 0.1)',
   },
   customUnitButton: {
-    borderColor: '#4CAF50',
+    borderColor: '#E07856',
     borderStyle: 'dashed',
     marginBottom: 8,
   },
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   },
   checkmark: {
     fontSize: 20,
-    color: '#4CAF50',
+    color: '#E07856',
     fontWeight: 'bold',
   },
   loadingContainer: {
