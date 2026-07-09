@@ -525,11 +525,10 @@ export default function RecipeDetailScreen() {
                   <View style={styles.cardContent}>
                     {recipe.ingredients && recipe.ingredients.length > 0 ? (
                       recipe.ingredients.map((item, index) => {
-                        let displayText = item.text;
-                        const ingredientName = item.ingredient?.name || 'Unknown ingredient';
+                        const ingredientName = item.ingredient?.name || item.text || 'Unknown ingredient';
                         const unitName = item.unit?.name;
                         const quantity = item.quantity * multiplier; // Apply multiplier
-                        displayText = formatIngredientLine(quantity, unitName, displayText);
+                        let displayText = formatIngredientLine(quantity, unitName, ingredientName);
                         // Convert decimals to fractions for display
                         displayText = convertDecimalsToFractions(displayText);
                         return (

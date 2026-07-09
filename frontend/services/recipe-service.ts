@@ -128,6 +128,26 @@ function parseQuantity(q: string | number | undefined | null): number {
   return isNaN(n) ? 0 : n;
 }
 
+/**
+ * Strip a leading quantity + unit from an ingredient's raw text so
+ * downstream formatters can prepend them without doubling up.
+ * "1 pound salmon" + (qty=1, unit=pound) → "salmon"
+ * "salmon" + (qty=1, unit=pound) → "salmon"
+ */
+function cleanIngredientName(text: string, quantity: number, unit: string): string {
+  let name = (text ?? '').trim();
+  if (!name) return '';
+  const qStr = quantity ? String(quantity) : '';
+  if (qStr && name.startsWith(qStr)) name = name.slice(qStr.length).trimStart();
+  if (unit) {
+    // Match "unit" or "units" as a whole word.
+    const re = new RegExp(`^${unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b\\s*`, 'i');
+    name = name.replace(re, '');
+  }
+  name = name.replace(/^of\s+/i, '');
+  return name.trim() || (text ?? '').trim();
+}
+
 function parseIntOrNull(v: any): number | null {
   if (v == null || v === '') return null;
   const n = typeof v === 'number' ? v : parseInt(String(v), 10);
@@ -152,17 +172,23 @@ function adaptForUI(r: any): Recipe {
     ...r,
     ingredients: (r.ingredients ?? []).map((i: any) => {
       const unitStr = i.unit ?? '';
+      const qty = typeof i.quantity === 'number' ? i.quantity : parseQuantity(i.quantity);
+      const cleanName = cleanIngredientName(i.text ?? '', qty, unitStr);
       return {
         text: i.text ?? '',
-        quantity: typeof i.quantity === 'number' ? i.quantity : parseQuantity(i.quantity),
+        quantity: qty,
         // The old screens read `.name` and `.abbreviation`; new code reads
         // `.unit` as a plain string. Make it an object with a toString so
         // both patterns work (String(unitObj) → unit string).
         unit: unitStr
           ? Object.assign({ name: unitStr, abbreviation: unitStr }, { toString: () => unitStr })
           : { name: '', abbreviation: '' },
-        // Fake shapes for old screens.
-        ingredient: { name: i.text ?? '' },
+        // Legacy shape read by the recipe view: it does
+        //   formatIngredientLine(qty, unit.name, item.text)
+        // where the third arg is the ingredient name — NOT the full text.
+        // `cleanName` strips the leading qty/unit so the formatter doesn't
+        // double up.
+        ingredient: { name: cleanName },
         unit_id: unitStr,
         ingredient_id: '',
         id: '',

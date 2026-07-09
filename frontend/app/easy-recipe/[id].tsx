@@ -141,10 +141,10 @@ export default function EasyRecipeViewer() {
               <View style={styles.ingredientsList}>
                 {recipe.ingredients && recipe.ingredients.length > 0 ? (
                   recipe.ingredients.map((item, index) => {
-                    let displayText = item.text;
+                    const ingredientName = item.ingredient?.name || item.text || 'Unknown';
                     const unitName = item.unit?.name;
                     const quantity = item.quantity * multiplier; // Apply multiplier
-                    displayText = formatIngredientLine(quantity, unitName, displayText);
+                    let displayText = formatIngredientLine(quantity, unitName, ingredientName);
                     displayText = convertDecimalsToFractions(displayText);
                     
                     return (
