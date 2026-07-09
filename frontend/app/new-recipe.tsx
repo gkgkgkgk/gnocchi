@@ -81,6 +81,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
+  errorField: {
+    borderColor: '#ff3b30',
+    borderWidth: 2,
+  },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
@@ -570,6 +574,53 @@ export default function NewRecipeScreen() {
 
   const stepTitles = ['Basic Info', 'Ingredients', 'Instructions', 'Details'];
 
+  // --- Inline validation state -----------------------------------------
+  // Field IDs used: 'title', 'ingredient-{i}-quantity',
+  // 'ingredient-{i}-name', 'step-{i}'.
+  const [errors, setErrors] = useState<Set<string>>(new Set());
+
+  const clearError = (id: string) => {
+    setErrors(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const errorsForStep = (step: number, data = formData): string[] => {
+    const out: string[] = [];
+    if (step === 0) {
+      if (!data.title.trim()) out.push('title');
+    }
+    if (step === 1) {
+      // A row counts as "started" if either field has content. A started
+      // row must have BOTH quantity and name; if not, the missing fields
+      // are errors. Additionally, at least one row must be complete —
+      // if none is, mark row 0's empty fields.
+      let anyComplete = false;
+      data.ingredients.forEach((ing, i) => {
+        const hasQty = ing.quantity.trim();
+        const hasName = !!ing.ingredientName;
+        if (hasQty && hasName) anyComplete = true;
+        if ((hasQty || hasName) && !(hasQty && hasName)) {
+          if (!hasQty) out.push(`ingredient-${i}-quantity`);
+          if (!hasName) out.push(`ingredient-${i}-name`);
+        }
+      });
+      if (!anyComplete) {
+        // Force at least the first row's fields to be flagged.
+        if (!data.ingredients[0]?.quantity.trim()) out.push('ingredient-0-quantity');
+        if (!data.ingredients[0]?.ingredientName) out.push('ingredient-0-name');
+      }
+    }
+    if (step === 2) {
+      const anyFilled = data.steps.some(s => s.trim());
+      if (!anyFilled) out.push('step-0');
+    }
+    return out;
+  };
+
   // Helper function to build ingredient text from components
   const buildIngredientText = (quantity: string, unit: string, name: string): string => {
     const parts = [];
@@ -581,6 +632,7 @@ export default function NewRecipeScreen() {
 
   const updateFormData = (field: keyof RecipeFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    if (field === 'title') clearError('title');
   };
 
   const addIngredient = () => {
@@ -605,6 +657,8 @@ export default function NewRecipeScreen() {
         return ing;
       })
     }));
+    if (field === 'quantity' && value.trim()) clearError(`ingredient-${index}-quantity`);
+    if (field === 'ingredientName' && value) clearError(`ingredient-${index}-name`);
   };
 
   const handleUnitSelect = (unit: Unit) => {
@@ -630,6 +684,7 @@ export default function NewRecipeScreen() {
             : ing
         )
       }));
+      if (ingredient.name) clearError(`ingredient-${selectedIngredientIndex}-name`);
     }
   };
 
@@ -662,6 +717,7 @@ export default function NewRecipeScreen() {
       ...prev,
       steps: prev.steps.map((step, i) => i === index ? value : step)
     }));
+    if (value.trim()) clearError(`step-${index}`);
   };
 
   const removeStep = (index: number) => {
@@ -672,6 +728,12 @@ export default function NewRecipeScreen() {
   };
 
   const handleNext = () => {
+    const errs = errorsForStep(currentStep);
+    if (errs.length) {
+      setErrors(new Set(errs));
+      return;
+    }
+    setErrors(new Set());
     if (currentStep < stepTitles.length - 1) {
       setCurrentStep(currentStep + 1);
     }
@@ -704,12 +766,17 @@ export default function NewRecipeScreen() {
   };
 
   const handleSave = async () => {
-    // Validate the recipe
-    const validationError = validateRecipe();
-    if (validationError) {
-      notify('Validation Error', validationError);
-      return;
+    // Run per-step validation; jump to the first bad step so the user sees
+    // exactly which fields are red instead of an alert box.
+    for (let s = 0; s <= 2; s++) {
+      const errs = errorsForStep(s);
+      if (errs.length) {
+        setCurrentStep(s);
+        setErrors(new Set(errs));
+        return;
+      }
     }
+    setErrors(new Set());
 
     setSaving(true);
     try {
@@ -784,7 +851,7 @@ export default function NewRecipeScreen() {
       <View style={styles.fieldGroup}>
         <ThemedText style={styles.label}>Recipe Title *</ThemedText>
         <TextInput
-          style={styles.textInput}
+          style={[styles.textInput, errors.has('title') && styles.errorField]}
           value={formData.title}
           onChangeText={(value) => updateFormData('title', value)}
           placeholder="Enter recipe name..."
@@ -831,7 +898,10 @@ export default function NewRecipeScreen() {
       {formData.ingredients.map((ingredient, index) => (
         <View key={index} style={styles.ingredientRow}>
           <TextInput
-            style={styles.ingredientInput}
+            style={[
+              styles.ingredientInput,
+              errors.has(`ingredient-${index}-quantity`) && styles.errorField,
+            ]}
             value={ingredient.quantity}
             onChangeText={(value) => updateIngredient(index, 'quantity', value)}
             placeholder="2"
@@ -847,7 +917,11 @@ export default function NewRecipeScreen() {
             </ThemedText>
           </Pressable>
           <Pressable
-            style={[styles.ingredientNameInput, { backgroundColor, borderColor }]}
+            style={[
+              styles.ingredientNameInput,
+              { backgroundColor, borderColor },
+              errors.has(`ingredient-${index}-name`) && styles.errorField,
+            ]}
             onPress={() => openIngredientPicker(index)}
           >
             <ThemedText style={ingredient.ingredientName ? styles.selectedText : styles.placeholderText}>
@@ -875,7 +949,7 @@ export default function NewRecipeScreen() {
         <View key={index} style={styles.stepContainer}>
           <ThemedText style={styles.stepNumber}>{index + 1}</ThemedText>
           <TextInput
-            style={styles.stepInput}
+            style={[styles.stepInput, errors.has(`step-${index}`) && styles.errorField]}
             value={step}
             onChangeText={(value) => updateStep(index, value)}
             placeholder={`Step ${index + 1}...`}
