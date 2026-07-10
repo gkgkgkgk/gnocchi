@@ -8,6 +8,7 @@ import { Chip } from '@/components/ui/Chip';
 import { Text } from '@/components/ui/Text';
 import { Sheet } from '@/components/ui/Sheet';
 import { Button } from '@/components/ui/Button';
+import { StarRating } from '@/components/ui/StarRating';
 import { EditRecipeTagsModal } from './edit-recipe-tags-modal';
 import { updateRecipeTags } from '@/services/recipe-service';
 import { RecipeTag } from '@/services/profile-service';
@@ -20,6 +21,7 @@ interface RecipeCardProps {
   image_url?: string;
   metadata?: any;
   ingredients?: any[];
+  rating?: number | null;
   tags?: string[];
   userTags?: RecipeTag[];
   onPress?: () => void;
@@ -36,6 +38,7 @@ export function RecipeCard(props: RecipeCardProps) {
     image_url,
     metadata,
     ingredients,
+    rating,
     tags = [],
     userTags = [],
     onPress,
@@ -127,6 +130,12 @@ export function RecipeCard(props: RecipeCardProps) {
                   <Text variant="caption" color="fgMuted">{numIngredients} items</Text>
                 </View>
               )}
+            </View>
+          )}
+
+          {!!rating && rating > 0 && (
+            <View style={{ marginTop: theme.spacing.xs }}>
+              <StarRating value={rating} size={13} gap={1} />
             </View>
           )}
 

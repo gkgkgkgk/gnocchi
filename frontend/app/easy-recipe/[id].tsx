@@ -1,14 +1,42 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, ActivityIndicator, Pressable, useWindowDimensions } from 'react-native';
-import Slider from '@react-native-community/slider';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
+import { CookTimers, TimerSuggestion } from '@/components/cook-timers';
 import { fetchRecipeById, Recipe } from '@/services/recipe-service';
 import { convertDecimalsToFractions } from '@/utils/fraction-formatter';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
 import { type Theme } from '@/constants/theme';
+
+const VERB_RE = /\b(bake|roast|simmer|boil|cook|fry|sauté|saute|steam|chill|rest|marinate|proof|rise|grill|braise|poach|refrigerate|freeze|knead|whisk|reduce|toast|broil|steep|soak)\b/i;
+const TIME_RE = /(\d+)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)/gi;
+
+/** Pull "cook for 20 minutes"-style durations out of steps into quick-add
+ *  timer chips. First number of a range wins; deduped by duration. */
+function deriveTimerSuggestions(steps: string[]): TimerSuggestion[] {
+  const out: TimerSuggestion[] = [];
+  const seen = new Set<number>();
+  steps.forEach((step, i) => {
+    if (!step) return;
+    TIME_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = TIME_RE.exec(step)) !== null) {
+      const n = parseInt(m[1], 10);
+      if (!n) continue;
+      const unit = m[2].toLowerCase();
+      const seconds = unit.startsWith('h') ? n * 3600 : unit.startsWith('m') ? n * 60 : n;
+      if (seconds < 30 || seconds > 6 * 3600 || seen.has(seconds)) continue;
+      seen.add(seconds);
+      const verb = step.match(VERB_RE)?.[1];
+      const label = verb ? verb[0].toUpperCase() + verb.slice(1).toLowerCase() : `Step ${i + 1}`;
+      out.push({ label, seconds });
+    }
+  });
+  return out.slice(0, 5);
+}
 
 export default function EasyRecipeViewer() {
   const { id } = useLocalSearchParams();
@@ -21,9 +49,11 @@ export default function EasyRecipeViewer() {
   const [multiplier, setMultiplier] = useState(1);
   const { width } = useWindowDimensions();
   const tintColor = c.accent;
-  
+
   // Use side-by-side layout if width is >= 768px (tablet landscape or desktop)
   const useSideBySide = width >= 768;
+
+  const timerSuggestions = useMemo(() => deriveTimerSuggestions(recipe?.steps ?? []), [recipe?.steps]);
 
   // Multiplier options
   const multiplierOptions = [0.5, 0.75, 1, 1.25, 1.333, 1.5, 1.75, 2, 2.5, 3, 3.5, 4];
@@ -34,21 +64,15 @@ export default function EasyRecipeViewer() {
     return index >= 0 ? multiplierLabels[index] : value.toFixed(2);
   };
 
-  const handleSliderChange = (value: number) => {
-    // Find closest snap point
-    let closestIndex = 0;
-    let minDiff = Math.abs(value - multiplierOptions[0]);
-    
-    for (let i = 1; i < multiplierOptions.length; i++) {
-      const diff = Math.abs(value - multiplierOptions[i]);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestIndex = i;
-      }
-    }
-    
-    setMultiplier(multiplierOptions[closestIndex]);
+  // Step through the snap points with the − / + buttons on the ingredients header.
+  const stepSize = (dir: -1 | 1) => {
+    const idx = multiplierOptions.findIndex((o) => Math.abs(o - multiplier) < 0.01);
+    const cur = idx >= 0 ? idx : multiplierOptions.indexOf(1);
+    const next = Math.min(multiplierOptions.length - 1, Math.max(0, cur + dir));
+    setMultiplier(multiplierOptions[next]);
   };
+  const atMin = Math.abs(multiplier - multiplierOptions[0]) < 0.01;
+  const atMax = Math.abs(multiplier - multiplierOptions[multiplierOptions.length - 1]) < 0.01;
 
   useEffect(() => {
     loadRecipe();
@@ -111,37 +135,38 @@ export default function EasyRecipeViewer() {
             </ThemedText>
           )}
 
-          {/* Recipe Multiplier Slider */}
-          <View style={styles.multiplierContainer}>
-            <View style={styles.multiplierHeader}>
-              <ThemedText style={styles.multiplierLabel}>Recipe Size:</ThemedText>
-              <View style={styles.multiplierValueContainer}>
-                <ThemedText style={styles.multiplierValue}>{getMultiplierLabel(multiplier)}×</ThemedText>
-              </View>
-            </View>
-            
-            <View style={styles.sliderRow}>
-              <ThemedText style={styles.sliderEndLabel}>1/2×</ThemedText>
-              <Slider
-                style={styles.slider}
-                minimumValue={0.5}
-                maximumValue={4}
-                value={multiplier}
-                onValueChange={handleSliderChange}
-                minimumTrackTintColor={tintColor}
-                maximumTrackTintColor={c.border}
-                thumbTintColor={tintColor}
-                step={0.01}
-              />
-              <ThemedText style={styles.sliderEndLabel}>4×</ThemedText>
-            </View>
+          {/* Cook-along timers — start/stop named timers that beep when done
+              and keep the screen awake while they run. */}
+          <View style={styles.timersWrap}>
+            <CookTimers suggestions={timerSuggestions} />
           </View>
 
           {/* Main Content - Side by Side or Stacked */}
           <View style={useSideBySide ? styles.sideBySideContainer : styles.stackedContainer}>
             {/* Ingredients Section */}
             <View style={[styles.section, useSideBySide && styles.sectionSideBySide]}>
-              <ThemedText style={styles.sectionTitle}>Ingredients</ThemedText>
+              <View style={styles.ingredientsHeader}>
+                <ThemedText style={styles.sectionTitleInline}>Ingredients</ThemedText>
+                <View style={styles.sizeStepper}>
+                  <Pressable
+                    onPress={() => stepSize(-1)}
+                    disabled={atMin}
+                    hitSlop={6}
+                    style={[styles.stepBtn, { backgroundColor: c.bgElevated }, atMin && { opacity: 0.4 }]}
+                  >
+                    <Ionicons name="remove" size={18} color={c.fg} />
+                  </Pressable>
+                  <ThemedText style={styles.sizeLabel}>{getMultiplierLabel(multiplier)}×</ThemedText>
+                  <Pressable
+                    onPress={() => stepSize(1)}
+                    disabled={atMax}
+                    hitSlop={6}
+                    style={[styles.stepBtn, { backgroundColor: c.bgElevated }, atMax && { opacity: 0.4 }]}
+                  >
+                    <Ionicons name="add" size={18} color={c.fg} />
+                  </Pressable>
+                </View>
+              </View>
               <View style={styles.ingredientsList}>
                 {recipe.ingredients && recipe.ingredients.length > 0 ? (
                   recipe.ingredients.map((item, index) => {
@@ -252,8 +277,14 @@ function makeStyles(theme: Theme) {
   servings: {
     fontSize: 18,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
     opacity: 0.7,
+  },
+  timersWrap: {
+    maxWidth: 520,
+    width: '100%',
+    alignSelf: 'center',
+    marginBottom: 28,
   },
   sideBySideContainer: {
     flexDirection: 'row',
@@ -277,6 +308,42 @@ function makeStyles(theme: Theme) {
     paddingBottom: 8,
     borderBottomWidth: 2,
     borderBottomColor: c.accent,
+  },
+  ingredientsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: c.accent,
+  },
+  sectionTitleInline: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  sizeStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: c.bgMuted,
+    borderRadius: theme.radius.pill,
+    padding: 4,
+  },
+  stepBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...theme.shadow.sm,
+  },
+  sizeLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    minWidth: 44,
+    textAlign: 'center',
+    color: c.accent,
   },
   ingredientsList: {
     gap: 8,

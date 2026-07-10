@@ -13,7 +13,8 @@ import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Sheet } from '@/components/ui/Sheet';
-import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags } from '@/services/recipe-service';
+import { StarRating } from '@/components/ui/StarRating';
+import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags, setRecipeRating } from '@/services/recipe-service';
 import { executeAITool, AITool } from '@/services/ai-tools-service';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
@@ -151,6 +152,18 @@ export default function RecipeDetailScreen() {
   const handleEdit = () => {
     setShowMenu(false);
     router.push(`/new-recipe?id=${id}` as any);
+  };
+
+  const handleRate = async (value: number | null) => {
+    if (!recipe) return;
+    const prev = recipe.rating;
+    setRecipe({ ...recipe, rating: value }); // optimistic
+    try {
+      await setRecipeRating(id as string, value);
+    } catch (error) {
+      console.error('Failed to set rating:', error);
+      setRecipe((r) => (r ? { ...r, rating: prev } : r));
+    }
   };
 
   const handleDelete = async () => {
@@ -453,6 +466,12 @@ export default function RecipeDetailScreen() {
             </View>
           )}
 
+          {/* Rating */}
+          <View style={styles.ratingRow}>
+            <Text variant="label" color="fgMuted">Your rating</Text>
+            <StarRating value={recipe.rating} onChange={handleRate} size={26} gap={4} />
+          </View>
+
           {/* AI Insights Banner */}
           <AIInsightsBanner
             insight={recipe.ai_insight?.text === '__GENERATING__' ? 'Chef Gnocchi is analyzing this recipe...' : recipe.ai_insight?.text}
@@ -697,6 +716,12 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 20,
   },
   contentWide: {
     width: '100%',

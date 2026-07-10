@@ -8,9 +8,8 @@ import { useTheme } from '@/hooks/use-theme';
 interface AddRecipeModalProps {
   visible: boolean;
   onClose: () => void;
-  onAddFromPinterest: () => void;
+  onImportLink: () => void;
   onAddManually: () => void;
-  onAddFromWebsite: () => void;
   onScanPhoto: () => void;
 }
 
@@ -24,19 +23,17 @@ interface Option {
 export function AddRecipeModal({
   visible,
   onClose,
-  onAddFromPinterest,
+  onImportLink,
   onAddManually,
-  onAddFromWebsite,
   onScanPhoto,
 }: AddRecipeModalProps) {
   const theme = useTheme();
   const c = theme.colors;
 
   const options: Option[] = [
-    { icon: 'globe-outline',    title: 'From a website',  subtitle: 'Paste any recipe URL',              onPress: onAddFromWebsite },
-    { icon: 'logo-pinterest',   title: 'From Pinterest',  subtitle: 'Import a saved pin',                onPress: onAddFromPinterest },
-    { icon: 'camera-outline',   title: 'Scan a photo',    subtitle: 'From your camera or gallery',       onPress: onScanPhoto },
-    { icon: 'create-outline',   title: 'Type it in',      subtitle: 'Build a recipe from scratch',       onPress: onAddManually },
+    { icon: 'link-outline',     title: 'Paste a link',    subtitle: 'Pinterest, Instagram, or any recipe site', onPress: onImportLink },
+    { icon: 'camera-outline',   title: 'Scan a photo',    subtitle: 'From your camera or gallery',              onPress: onScanPhoto },
+    { icon: 'create-outline',   title: 'Type it in',      subtitle: 'Build a recipe from scratch',              onPress: onAddManually },
   ];
 
   return (

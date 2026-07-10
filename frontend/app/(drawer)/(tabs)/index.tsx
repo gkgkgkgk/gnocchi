@@ -242,9 +242,8 @@ export default function HomeScreen() {
       <AddRecipeModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
-        onAddFromPinterest={() => { setShowAddModal(false); router.push('/import-pinterest' as any); }}
+        onImportLink={() => { setShowAddModal(false); router.push('/import' as any); }}
         onAddManually={() => { setShowAddModal(false); router.push('/new-recipe' as any); }}
-        onAddFromWebsite={() => { setShowAddModal(false); router.push('/import-website' as any); }}
         onScanPhoto={() => { setShowAddModal(false); router.push('/scan-photo' as any); }}
       />
 
