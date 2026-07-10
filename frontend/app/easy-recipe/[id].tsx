@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, ActivityIndicator, Pressable, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { CookTimers, TimerSuggestion } from '@/components/cook-timers';
@@ -43,6 +44,7 @@ function deriveTimerSuggestions(steps: string[]): TimerSuggestion[] {
 export default function EasyRecipeViewer() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const theme = useTheme();
   const styles = makeStyles(theme);
   const c = theme.colors;
@@ -121,7 +123,7 @@ export default function EasyRecipeViewer() {
   return (
     <ThemedView style={styles.container}>
       {/* Back to Recipe Button */}
-      <View style={styles.headerButtons}>
+      <View style={[styles.headerButtons, { paddingTop: insets.top + 12 }]}>
         <Pressable 
           onPress={() => router.push(`/recipe/${id}` as any)}
           style={styles.backButton}
@@ -243,7 +245,6 @@ function makeStyles(theme: Theme) {
   },
   headerButtons: {
     padding: 16,
-    paddingTop: 48,
     borderBottomWidth: 1,
     borderBottomColor: c.border,
   },

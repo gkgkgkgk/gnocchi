@@ -75,8 +75,16 @@ export function formatIngredientLine(
   unitName: string | undefined,
   ingredientName: string
 ): string {
+  // No (or zero) quantity — the ingredient was entered without an amount
+  // (e.g. "brown sugar", "salt to taste"). Show just the name rather than a
+  // meaningless "0 brown sugar".
+  const numQuantity = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
+  if (!numQuantity || Number.isNaN(numQuantity) || numQuantity <= 0) {
+    return ingredientName;
+  }
+
   const formattedQuantity = decimalToFraction(quantity);
-  
+
   if (!unitName || unitName.trim() === '') {
     // No unit, just quantity and ingredient
     return `${formattedQuantity} ${ingredientName}`;

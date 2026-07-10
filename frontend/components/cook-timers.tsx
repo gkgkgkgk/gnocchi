@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
+
+const TIMER_DONE_SOUND = require('@/assets/sounds/timer-done.wav');
 
 import { Text } from './ui/Text';
 import { Button } from './ui/Button';
@@ -49,10 +52,20 @@ export function CookTimers({ suggestions = [] }: CookTimersProps) {
   const [seconds, setSeconds] = useState('');
 
   const audioRef = useRef<AudioContext | null>(null);
+  // Native audio: a real chime plays when a timer finishes (Web Audio handles
+  // the web case below). Included in Expo Go, so no dev build needed.
+  const player = useAudioPlayer(TIMER_DONE_SOUND);
   const anyRunning = timers.some((t) => t.running);
 
   // Keep the screen on while a timer is counting down.
   useWakeLock(anyRunning);
+
+  // Let the chime play even when the phone's ringer is on silent.
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    }
+  }, []);
 
   const commit = (next: CookTimer[]) => {
     timersRef.current = next;
@@ -74,34 +87,73 @@ export function CookTimers({ suggestions = [] }: CookTimersProps) {
     }
   };
 
-  const playAlarm = () => {
-    if (Platform.OS === 'web' && audioRef.current) {
-      const ctx = audioRef.current;
-      const beep = (offset: number) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = 'sine';
-        osc.frequency.value = 880;
-        const t0 = ctx.currentTime + offset;
-        gain.gain.setValueAtTime(0.0001, t0);
-        gain.gain.exponentialRampToValueAtTime(0.4, t0 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
-        osc.start(t0);
-        osc.stop(t0 + 0.42);
-      };
+  // One triple-beep (web only — uses the primed AudioContext).
+  const webBeep = () => {
+    const ctx = audioRef.current;
+    if (!ctx) return;
+    const beep = (offset: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      const t0 = ctx.currentTime + offset;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.4, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.4);
+      osc.start(t0);
+      osc.stop(t0 + 0.42);
+    };
+    try { beep(0); beep(0.5); beep(1.0); } catch { /* ignore */ }
+  };
+
+  const beepLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const anyFinished = timers.some((t) => t.finished);
+
+  const stopAlarm = () => {
+    if (beepLoopRef.current) {
+      clearInterval(beepLoopRef.current);
+      beepLoopRef.current = null;
+    }
+    if (Platform.OS !== 'web') {
+      try { player.pause(); player.loop = false; } catch { /* ignore */ }
+    }
+  };
+
+  // Keep the alarm sounding as long as *any* finished timer is unacknowledged.
+  // It stops the moment the user resets, restarts, or removes it.
+  useEffect(() => {
+    if (!anyFinished) {
+      stopAlarm();
+      return;
+    }
+    if (Platform.OS === 'web') {
+      ensureAudio();
+      webBeep(); // immediate
+      if (!beepLoopRef.current) beepLoopRef.current = setInterval(webBeep, 1600);
+    } else {
       try {
-        beep(0);
-        beep(0.5);
-        beep(1.0);
+        player.loop = true;
+        player.seekTo(0);
+        player.play();
       } catch {
         /* ignore */
       }
-    } else if (Platform.OS !== 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
-  };
+    return () => {
+      // Cleanup when the finished-state flips or the component unmounts.
+      if (beepLoopRef.current) {
+        clearInterval(beepLoopRef.current);
+        beepLoopRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyFinished]);
+
+  // Belt-and-suspenders: stop audio if the panel unmounts mid-alarm.
+  useEffect(() => () => stopAlarm(), []);
 
   // Single 1s tick drives every running timer. Uses a ref as the source of
   // truth so the finish beep fires exactly once (not double-invoked like a
@@ -110,18 +162,16 @@ export function CookTimers({ suggestions = [] }: CookTimersProps) {
     const interval = setInterval(() => {
       const prev = timersRef.current;
       if (!prev.some((t) => t.running)) return;
-      let finished = false;
       const next = prev.map((t) => {
         if (!t.running || t.finished) return t;
         const remaining = t.remaining - 1;
         if (remaining <= 0) {
-          finished = true;
+          // Alarm start/stop is handled by the `anyFinished` effect.
           return { ...t, remaining: 0, running: false, finished: true };
         }
         return { ...t, remaining };
       });
       commit(next);
-      if (finished) playAlarm();
     }, 1000);
     return () => clearInterval(interval);
   }, []);

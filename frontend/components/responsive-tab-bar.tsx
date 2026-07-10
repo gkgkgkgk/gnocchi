@@ -1,7 +1,5 @@
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -10,11 +8,13 @@ import { useResponsive } from '@/hooks/use-responsive';
 /** Width of the vertical nav rail shown on tablet / desktop. */
 export const RAIL_WIDTH = 96;
 
+const LOGO = require('@/assets/images/gnocchi_logo.png');
+
 /**
  * Responsive primary navigation. On phones it renders the familiar bottom
  * tab bar; at `isWide` (tablet landscape / desktop) it becomes a left-hand
- * nav rail with a wordmark and a Settings shortcut. The scene is padded via
- * `sceneStyle` in the Tabs layout so content clears the absolute rail.
+ * nav rail (logo on top, Settings pinned at the bottom). The scene is padded
+ * via `sceneStyle` in the Tabs layout so content clears the absolute rail.
  */
 export function ResponsiveTabBar(props: BottomTabBarProps) {
   const { isWide } = useResponsive();
@@ -25,11 +25,21 @@ function tapHaptic() {
   if (Platform.OS === 'ios') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 }
 
+function useTabPress({ navigation, state }: BottomTabBarProps) {
+  return (routeKey: string, routeName: string, focused: boolean) => {
+    tapHaptic();
+    const event = navigation.emit({ type: 'tabPress', target: routeKey, canPreventDefault: true });
+    if (!focused && !event.defaultPrevented) navigation.navigate(routeName);
+  };
+}
+
 // --- Bottom bar (phone) -------------------------------------------------
 
-function BottomBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
+function BottomBar(props: BottomTabBarProps) {
+  const { state, descriptors, insets } = props;
   const theme = useTheme();
   const c = theme.colors;
+  const onPress = useTabPress(props);
 
   return (
     <View
@@ -47,14 +57,12 @@ function BottomBar({ state, descriptors, navigation, insets }: BottomTabBarProps
         const color = focused ? c.accent : c.tabIconDefault;
         const label = (options.title ?? route.name) as string;
 
-        const onPress = () => {
-          tapHaptic();
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
-        };
-
         return (
-          <Pressable key={route.key} onPress={onPress} style={styles.bottomItem} accessibilityRole="button">
+          <Pressable
+            key={route.key}
+            onPress={() => onPress(route.key, route.name, focused)}
+            style={styles.bottomItem}
+            accessibilityRole="button">
             {options.tabBarIcon?.({ focused, color, size: 26 })}
             <Text style={[styles.bottomLabel, { color }]} numberOfLines={1}>
               {label}
@@ -68,9 +76,38 @@ function BottomBar({ state, descriptors, navigation, insets }: BottomTabBarProps
 
 // --- Nav rail (tablet / desktop) ----------------------------------------
 
-function NavRail({ state, descriptors, navigation, insets }: BottomTabBarProps) {
+function NavRail(props: BottomTabBarProps) {
+  const { state, descriptors, insets } = props;
   const theme = useTheme();
   const c = theme.colors;
+  const onPress = useTabPress(props);
+
+  const renderItem = (routeKey: string, index: number) => {
+    const route = state.routes[index];
+    const { options } = descriptors[routeKey];
+    const focused = state.index === index;
+    const color = focused ? c.accent : c.tabIconDefault;
+    const label = (options.title ?? route.name) as string;
+
+    return (
+      <Pressable
+        key={routeKey}
+        onPress={() => onPress(routeKey, route.name, focused)}
+        style={styles.railItem}
+        accessibilityRole="button">
+        <View style={[styles.railIcon, focused && { backgroundColor: c.accentMuted }]}>
+          {options.tabBarIcon?.({ focused, color, size: 24 })}
+        </View>
+        <Text style={[styles.railLabel, { color }]} numberOfLines={1}>
+          {label}
+        </Text>
+      </Pressable>
+    );
+  };
+
+  // Settings is pinned at the bottom; everything else fills the top group.
+  const mainIndexes = state.routes.map((_, i) => i).filter((i) => state.routes[i].name !== 'settings');
+  const settingsIndex = state.routes.findIndex((r) => r.name === 'settings');
 
   return (
     <View
@@ -84,48 +121,13 @@ function NavRail({ state, descriptors, navigation, insets }: BottomTabBarProps) 
           paddingBottom: Math.max(insets.bottom, 12),
         },
       ]}>
-      <Text style={[styles.wordmark, { color: c.accent }]}>gn.</Text>
+      <Image source={LOGO} style={styles.logo} resizeMode="contain" />
 
       <View style={styles.railItems}>
-        {state.routes.map((route, index) => {
-          const { options } = descriptors[route.key];
-          const focused = state.index === index;
-          const color = focused ? c.accent : c.tabIconDefault;
-          const label = (options.title ?? route.name) as string;
-
-          const onPress = () => {
-            tapHaptic();
-            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-            if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
-          };
-
-          return (
-            <Pressable key={route.key} onPress={onPress} style={styles.railItem} accessibilityRole="button">
-              <View style={[styles.railIcon, focused && { backgroundColor: c.accentMuted }]}>
-                {options.tabBarIcon?.({ focused, color, size: 24 })}
-              </View>
-              <Text style={[styles.railLabel, { color }]} numberOfLines={1}>
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {mainIndexes.map((i) => renderItem(state.routes[i].key, i))}
       </View>
 
-      <Pressable
-        onPress={() => {
-          tapHaptic();
-          router.navigate('/(drawer)/settings');
-        }}
-        style={styles.railItem}
-        accessibilityRole="button">
-        <View style={styles.railIcon}>
-          <Ionicons name="settings-outline" size={24} color={c.tabIconDefault} />
-        </View>
-        <Text style={[styles.railLabel, { color: c.tabIconDefault }]} numberOfLines={1}>
-          Settings
-        </Text>
-      </Pressable>
+      {settingsIndex >= 0 && renderItem(state.routes[settingsIndex].key, settingsIndex)}
     </View>
   );
 }
@@ -156,11 +158,10 @@ const styles = StyleSheet.create({
     borderRightWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
   },
-  wordmark: {
-    fontFamily: 'Fraunces_700Bold',
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 24,
+  logo: {
+    width: 48,
+    height: 48,
+    marginBottom: 20,
   },
   railItems: {
     flex: 1,

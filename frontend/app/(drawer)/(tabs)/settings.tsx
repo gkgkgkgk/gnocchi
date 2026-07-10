@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useTheme } from '@/hooks/use-theme';
 import { type Theme } from '@/constants/theme';
 import { useThemePreference, type ThemePreference } from '@/contexts/theme-context';
-import { getUserTags, saveUserTags, RecipeTag, generateUUID, getDietaryRestrictions, saveDietaryRestrictions, getFavoriteFood, saveFavoriteFood } from '@/services/profile-service';
+import { getUserTags, saveUserTags, RecipeTag, generateUUID, getDietaryRestrictions, saveDietaryRestrictions, getFavoriteFood, saveFavoriteFood, getUnitPreference, saveUnitPreference, type UnitPreference } from '@/services/profile-service';
 
 // Available icons for tags
 const AVAILABLE_ICONS = [
@@ -115,6 +117,84 @@ const APPEARANCE_OPTIONS: { value: ThemePreference; label: string; icon: keyof t
   { value: 'light', label: 'Light', icon: 'sunny-outline' },
   { value: 'dark', label: 'Dark', icon: 'moon-outline' },
 ];
+
+const UNIT_OPTIONS: { value: UnitPreference; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { value: 'as_written', label: 'As written', icon: 'create-outline' },
+  { value: 'metric', label: 'Metric', icon: 'flask-outline' },
+  { value: 'imperial', label: 'Imperial', icon: 'beer-outline' },
+];
+
+function UnitsSection() {
+  const theme = useTheme();
+  const styles = makeStyles(theme);
+  const [pref, setPref] = useState<UnitPreference>('as_written');
+
+  useEffect(() => {
+    getUnitPreference().then(setPref).catch(() => {});
+  }, []);
+
+  const choose = (value: UnitPreference) => {
+    const prev = pref;
+    setPref(value);
+    saveUnitPreference(value).catch(() => setPref(prev));
+  };
+
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <ThemedText style={styles.sectionTitle}>Measurement units</ThemedText>
+      </View>
+      <ThemedText style={styles.sectionDescription}>
+        How ingredient amounts are shown. &quot;As written&quot; keeps each recipe&apos;s original
+        units; Metric and Imperial convert where possible (g ↔ oz, ml ↔ cups).
+      </ThemedText>
+
+      <View
+        style={{
+          flexDirection: 'row',
+          gap: theme.spacing.sm,
+          backgroundColor: theme.colors.bgMuted,
+          padding: theme.spacing.xs,
+          borderRadius: theme.radius.lg,
+        }}
+      >
+        {UNIT_OPTIONS.map((opt) => {
+          const active = pref === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => choose(opt.value)}
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: theme.spacing.xs,
+                paddingVertical: theme.spacing.md,
+                borderRadius: theme.radius.md,
+                backgroundColor: active ? theme.colors.accent : 'transparent',
+              }}
+            >
+              <Ionicons
+                name={opt.icon}
+                size={18}
+                color={active ? theme.colors.accentFg : theme.colors.fgMuted}
+              />
+              <Text
+                style={{
+                  ...theme.type.button,
+                  color: active ? theme.colors.accentFg : theme.colors.fgMuted,
+                }}
+              >
+                {opt.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
 
 function AppearanceSection() {
   const theme = useTheme();
@@ -351,10 +431,14 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ThemedView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      <ScreenHeader title="Settings" />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         {/* Appearance Section */}
         <AppearanceSection />
+
+        {/* Measurement units */}
+        <UnitsSection />
 
         {/* Favorite Food Section */}
         <View style={styles.favoriteFoodSection}>
@@ -663,7 +747,7 @@ export default function SettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-    </ThemedView>
+    </SafeAreaView>
   );
 }
 

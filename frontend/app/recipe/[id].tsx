@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, Moda
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { AIInsightsBanner } from '@/components/ai-insights-banner';
@@ -43,6 +44,7 @@ function formatRelative(iso: string): string {
 export default function RecipeDetailScreen() {
   const { id, from, cookbookId } = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -433,7 +435,7 @@ export default function RecipeDetailScreen() {
   return (
     <ThemedView style={[styles.container, { backgroundColor: c.bg }]}>
       {/* Floating nav over the hero */}
-      <View style={styles.navOverlay} pointerEvents="box-none">
+      <View style={[styles.navOverlay, { top: insets.top + 8 }]} pointerEvents="box-none">
         <Pressable onPress={() => router.push('/(drawer)/(tabs)' as any)} style={styles.navButton}>
           <Ionicons name="chevron-back" size={22} color="#fff" />
         </Pressable>

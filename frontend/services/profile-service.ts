@@ -13,10 +13,24 @@ export interface RecipeTag {
   icon: string;
 }
 
+export type UnitPreference = 'metric' | 'imperial' | 'as_written';
+
 export interface Preferences {
   dietary_restrictions: string[];
   favorite_food?: string | null;
   household_size?: number | null;
+  preferred_units?: UnitPreference | null;
+}
+
+export async function getUnitPreference(): Promise<UnitPreference> {
+  const prefs = await getPreferences();
+  return prefs.preferred_units ?? 'as_written';
+}
+
+export async function saveUnitPreference(units: UnitPreference): Promise<boolean> {
+  const prefs = await getPreferences();
+  await savePreferences({ ...prefs, preferred_units: units });
+  return true;
 }
 
 // --- Tags (backed by the /tags endpoint) --------------------------------

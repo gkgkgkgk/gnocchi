@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, ScrollView, Pressable, StyleSheet, TextInput, Modal, Platform, useWindowDimensions, Image, Animated, ActivityIndicator, Alert } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Screen } from '@/components/ui/Screen';
+import { Text } from '@/components/ui/Text';
+import { WavyDecoration } from '@/components/wavy-decoration';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/use-theme';
 import { type Theme } from '@/constants/theme';
@@ -578,24 +581,25 @@ export default function PlanningScreen() {
 
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View>
-              <ThemedText style={styles.title}>Meal Planning</ThemedText>
-              <ThemedText style={styles.subtitle}>
-                Week of {weekPlan[0] && formatDate(weekPlan[0].date)} - {weekPlan[6] && formatDate(weekPlan[6].date)}
-              </ThemedText>
-            </View>
-            <Pressable style={styles.resetButton} onPress={() => setShowDeleteConfirm(true)}>
-              <Ionicons name="refresh-outline" size={20} color={c.danger} />
-              <ThemedText style={styles.resetButtonText}>Reset</ThemedText>
-            </Pressable>
+    <Screen>
+      {/* Header — matches Recipes / Cookbooks (display title + wavy underline) */}
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View>
+            <Text variant="display">Meal Planning</Text>
+            <WavyDecoration variant="line" width={140} height={16} style={{ marginTop: 4 }} />
           </View>
+          <Pressable style={styles.resetButton} onPress={() => setShowDeleteConfirm(true)}>
+            <Ionicons name="refresh-outline" size={20} color={c.danger} />
+            <ThemedText style={styles.resetButtonText}>Reset</ThemedText>
+          </Pressable>
         </View>
+        <ThemedText style={styles.subtitle}>
+          Week of {weekPlan[0] && formatDate(weekPlan[0].date)} - {weekPlan[6] && formatDate(weekPlan[6].date)}
+        </ThemedText>
+      </View>
 
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Horizontal Scrollable Calendar */}
         <ScrollView 
           horizontal 
@@ -1196,7 +1200,7 @@ export default function PlanningScreen() {
             </Pressable>
           </Pressable>
         </Modal>
-    </ThemedView>
+    </Screen>
   );
 }
 
@@ -1210,8 +1214,9 @@ function makeStyles(theme: Theme) {
     flex: 1,
   },
   header: {
-    padding: 20,
-    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   headerTop: {
     flexDirection: 'row',
@@ -1227,6 +1232,7 @@ function makeStyles(theme: Theme) {
   subtitle: {
     fontSize: 14,
     opacity: 0.7,
+    marginTop: 8,
   },
   resetButton: {
     flexDirection: 'row',

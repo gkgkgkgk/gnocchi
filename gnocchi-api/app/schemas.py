@@ -172,6 +172,9 @@ class Preferences(BaseModel):
     dietary_restrictions: list[str] = Field(default_factory=list)
     favorite_food: str | None = None
     household_size: int | None = None
+    # 'metric' | 'imperial' | 'as_written' (or null = as written). Controls how
+    # ingredient quantities are displayed/converted.
+    preferred_units: str | None = None
 
 
 # --- Meal plan ----------------------------------------------------------
