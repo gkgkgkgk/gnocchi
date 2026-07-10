@@ -419,13 +419,13 @@ export default function EditRecipeScreen() {
       <UnitPickerModal
         visible={unitModalVisible}
         onClose={() => setUnitModalVisible(false)}
-        onSelect={handleUnitSelect}
+        onSelectUnit={handleUnitSelect}
       />
 
       <IngredientPickerModal
         visible={ingredientModalVisible}
         onClose={() => setIngredientModalVisible(false)}
-        onSelect={handleIngredientSelect}
+        onSelectIngredient={handleIngredientSelect}
       />
     </ThemedView>
   );

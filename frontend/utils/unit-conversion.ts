@@ -5,6 +5,55 @@
  */
 import { Unit } from '@/services/unit-service';
 
+/**
+ * Units we're willing to *display* a scaled quantity in — the familiar US
+ * home-cooking set plus metric, deliberately excluding fluid ounces / pints /
+ * quarts so scaling lands on cups/tbsp/tsp (per the "2 tbsp → not fl oz" ask).
+ */
+export const DISPLAY_UNIT_IDS = ['tsp', 'tbsp', 'cup', 'ml', 'l', 'g', 'kg', 'oz', 'lb'];
+
+/** Resolve a stored unit string (id, abbreviation, name, or plural) to a
+ *  canonical Unit, case-insensitively. Returns null for free-text units. */
+export function findUnit(units: Unit[], raw: string | null | undefined): Unit | null {
+  if (!raw) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (!s) return null;
+  return (
+    units.find(
+      (u) =>
+        u.id.toLowerCase() === s ||
+        u.abbreviation.toLowerCase() === s ||
+        u.name?.toLowerCase() === s ||
+        u.plural?.toLowerCase() === s,
+    ) ?? null
+  );
+}
+
+/**
+ * Scale a quantity by a multiplier and pick a friendly unit to show it in.
+ * Conservative: only ever rolls *up* into a larger unit (3 tsp → 1 tbsp, 16
+ * tbsp → 1 cup) — never down (¼ cup stays ¼ cup, not 4 tbsp). Falls back to a
+ * plain multiply when the unit is free-text or non-convertible.
+ */
+export function scaleForDisplay(
+  quantity: number,
+  rawUnit: string | null | undefined,
+  multiplier: number,
+  units: Unit[],
+): { quantity: number; unit: string } {
+  const scaled = quantity * multiplier;
+  const resolved = findUnit(units, rawUnit);
+  if (!resolved || resolved.to_base == null) {
+    return { quantity: scaled, unit: rawUnit ? String(rawUnit) : '' };
+  }
+  const norm = normalizeMeasure(scaled, resolved, units, DISPLAY_UNIT_IDS);
+  // Only accept the rolled-up unit if it's the same size or larger.
+  if (norm.unit.to_base != null && resolved.to_base != null && norm.unit.to_base >= resolved.to_base) {
+    return { quantity: norm.quantity, unit: norm.unit.abbreviation };
+  }
+  return { quantity: scaled, unit: resolved.abbreviation };
+}
+
 /** True if `qty` in `from` can be exactly converted to `to`. */
 export function canConvert(from?: Unit | null, to?: Unit | null): boolean {
   return (

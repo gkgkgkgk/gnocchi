@@ -16,6 +16,8 @@ import { Sheet } from '@/components/ui/Sheet';
 import { StarRating } from '@/components/ui/StarRating';
 import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags, setRecipeRating, addCookNote } from '@/services/recipe-service';
 import { executeAITool, AITool } from '@/services/ai-tools-service';
+import { fetchUnits, Unit } from '@/services/unit-service';
+import { scaleForDisplay } from '@/utils/unit-conversion';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsive } from '@/hooks/use-responsive';
@@ -56,6 +58,7 @@ export default function RecipeDetailScreen() {
   const [recipeTags, setRecipeTags] = useState<string[]>([]);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   const [loggingCook, setLoggingCook] = useState(false);
+  const [units, setUnits] = useState<Unit[]>([]);
 
   const theme = useTheme();
   const { isWide } = useResponsive();
@@ -100,6 +103,12 @@ export default function RecipeDetailScreen() {
   useEffect(() => {
     loadRecipe();
   }, [id]);
+
+  // Canonical units power the scale-aware ingredient display (e.g. doubling
+  // 1 tbsp shows 1/8 cup). Loaded once; free-text units just skip conversion.
+  useEffect(() => {
+    fetchUnits().then(setUnits).catch((e) => console.error('Failed to load units:', e));
+  }, []);
 
   // Poll only while an AI insight is actively generating. (Previously this
   // also polled while `annotated_steps === null` — a permanent state for most
@@ -283,10 +292,12 @@ export default function RecipeDetailScreen() {
     if (!recipe) return;
     
     try {
-      // Clear the current insight and set to generating state
+      // Clear the current insight and set to generating state. Include both
+      // the new (insight/recommended_tool) and legacy (text/suggested_tool)
+      // field pairs so it satisfies the AIInsight type and the banner's poll.
       setRecipe({
         ...recipe,
-        ai_insight: { text: '__GENERATING__', suggested_tool: null }
+        ai_insight: { insight: '__GENERATING__', recommended_tool: null, text: '__GENERATING__', suggested_tool: null }
       });
       
       // Import the service functions
@@ -358,9 +369,8 @@ export default function RecipeDetailScreen() {
     }
     return recipe.ingredients.map((item, index) => {
       const ingredientName = item.ingredient?.name || item.text || 'Unknown ingredient';
-      const unitName = item.unit?.name;
-      const quantity = item.quantity * multiplier; // Apply multiplier
-      let displayText = formatIngredientLine(quantity, unitName, ingredientName);
+      const scaled = scaleForDisplay(item.quantity, item.unit?.name, multiplier, units);
+      let displayText = formatIngredientLine(scaled.quantity, scaled.unit, ingredientName);
       const isOptional = (item as any).optional;
       if (isOptional) displayText = `${displayText} (optional)`;
       displayText = convertDecimalsToFractions(displayText);

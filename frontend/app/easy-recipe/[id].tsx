@@ -6,6 +6,8 @@ import { ThemedView } from '@/components/themed-view';
 import { ThemedText } from '@/components/themed-text';
 import { CookTimers, TimerSuggestion } from '@/components/cook-timers';
 import { fetchRecipeById, Recipe } from '@/services/recipe-service';
+import { fetchUnits, Unit } from '@/services/unit-service';
+import { scaleForDisplay } from '@/utils/unit-conversion';
 import { convertDecimalsToFractions } from '@/utils/fraction-formatter';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
@@ -47,6 +49,7 @@ export default function EasyRecipeViewer() {
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [multiplier, setMultiplier] = useState(1);
+  const [units, setUnits] = useState<Unit[]>([]);
   const { width } = useWindowDimensions();
   const tintColor = c.accent;
 
@@ -77,6 +80,10 @@ export default function EasyRecipeViewer() {
   useEffect(() => {
     loadRecipe();
   }, [id]);
+
+  useEffect(() => {
+    fetchUnits().then(setUnits).catch((e) => console.error('Failed to load units:', e));
+  }, []);
 
   const loadRecipe = async () => {
     try {
@@ -171,9 +178,8 @@ export default function EasyRecipeViewer() {
                 {recipe.ingredients && recipe.ingredients.length > 0 ? (
                   recipe.ingredients.map((item, index) => {
                     const ingredientName = item.ingredient?.name || item.text || 'Unknown';
-                    const unitName = item.unit?.name;
-                    const quantity = item.quantity * multiplier; // Apply multiplier
-                    let displayText = formatIngredientLine(quantity, unitName, ingredientName);
+                    const scaled = scaleForDisplay(item.quantity, item.unit?.name, multiplier, units);
+                    let displayText = formatIngredientLine(scaled.quantity, scaled.unit, ingredientName);
                     displayText = convertDecimalsToFractions(displayText);
                     const isOptional = (item as any).optional;
                     if (isOptional) displayText = `${displayText} (optional)`;
