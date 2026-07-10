@@ -19,7 +19,8 @@ import { UnitPickerModal } from '@/components/unit-picker-modal';
 import { IngredientPickerModal } from '@/components/ingredient-picker-modal';
 import { Unit, fetchUnits } from '@/services/unit-service';
 import { Ingredient } from '@/services/ingredient-service';
-import { createRecipe, updateRecipe, fetchRecipeById } from '@/services/recipe-service';
+import { createRecipe, updateRecipe, fetchRecipeById, uploadRecipePhoto, setRecipeCover } from '@/services/recipe-service';
+import { pickImage } from '@/services/image-service';
 import { useTheme } from '@/hooks/use-theme';
 import { type Theme } from '@/constants/theme';
 
@@ -581,8 +582,13 @@ export default function NewRecipeScreen() {
             servings: imported.servings || '',
             ingredients: transformedIngredients,
             steps: imported.steps || [''],
-            imageUrl: imported.imageUrl || '',
+            // A scanned photo comes through as localPhotoUri — show it as the
+            // preview and mark it local so it's uploaded + set as cover on save.
+            imageUrl: imported.imageUrl || imported.localPhotoUri || '',
           });
+          if (imported.localPhotoUri) {
+            setLocalPhotoUri(imported.localPhotoUri);
+          }
         } catch (error) {
           console.error('Failed to parse imported data:', error);
         } finally {
@@ -597,6 +603,9 @@ export default function NewRecipeScreen() {
   const [ingredientModalVisible, setIngredientModalVisible] = useState(false);
   const [selectedIngredientIndex, setSelectedIngredientIndex] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  // A locally-picked image (blob:/file: URI). Can't be saved as a cover URL
+  // directly — it's uploaded after the recipe row exists, then set as cover.
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
 
   const theme = useTheme();
   const styles = makeStyles(theme);
@@ -665,6 +674,19 @@ export default function NewRecipeScreen() {
   const updateFormData = (field: keyof RecipeFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (field === 'title') clearError('title');
+  };
+
+  const handlePickPhoto = async () => {
+    try {
+      const uri = await pickImage();
+      if (uri) {
+        setLocalPhotoUri(uri);
+        updateFormData('imageUrl', uri); // drives the preview
+      }
+    } catch (error: any) {
+      console.error('Failed to pick photo:', error);
+      notify('Error', error.message || 'Failed to pick photo');
+    }
   };
 
   const addIngredient = () => {
@@ -840,22 +862,35 @@ export default function NewRecipeScreen() {
         metadata.servings = formData.servings;
       }
 
+      // A locally-picked image is a blob:/file: URI — not a savable cover
+      // URL. Omit it here and upload it after the recipe row exists.
+      const isLocalPhoto = !!localPhotoUri && formData.imageUrl === localPhotoUri;
+
       const recipeData = {
         title: formData.title,
         ingredients,
         steps,
-        image_url: formData.imageUrl || undefined,
+        image_url: isLocalPhoto ? undefined : (formData.imageUrl || undefined),
         notes: formData.description || undefined,
         metadata,
       };
 
+      const saved = isEditing && recipeId
+        ? await updateRecipe(recipeId, recipeData)
+        : await createRecipe(recipeData);
+      const savedId = isEditing && recipeId ? recipeId : saved.id;
+
+      // Upload the picked photo and set it as the cover. Use setRecipeCover
+      // (a cover-only PATCH) — updateRecipe would re-send empty ingredients/
+      // steps and wipe the recipe we just created.
+      if (isLocalPhoto && savedId) {
+        const photo = await uploadRecipePhoto(savedId, localPhotoUri!);
+        await setRecipeCover(savedId, photo.key);
+      }
+
       if (isEditing && recipeId) {
-        // Update existing recipe
-        await updateRecipe(recipeId, recipeData);
         router.push(`/recipe/${recipeId}` as any);
       } else {
-        // Create new recipe
-        await createRecipe(recipeData);
         router.push('/(drawer)/(tabs)' as any);
       }
     } catch (error) {
@@ -898,7 +933,7 @@ export default function NewRecipeScreen() {
         <ThemedText style={styles.label}>Recipe Photo</ThemedText>
 
         {/* Photo Upload Button */}
-        <Pressable style={styles.photoButton}>
+        <Pressable style={styles.photoButton} onPress={handlePickPhoto}>
           <ThemedText style={styles.photoButtonText}>📷 Upload Photo</ThemedText>
         </Pressable>
 

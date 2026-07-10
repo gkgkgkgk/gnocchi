@@ -16,10 +16,21 @@ export interface ImportResponse {
   source_image: string | null;
 }
 
+/**
+ * The scraper needs an absolute URL. If the user pastes `pinterest.com/...`
+ * (no scheme) the backend's fetch fails with "missing an 'http://' or
+ * 'https://' protocol", so default a bare URL to https.
+ */
+function normalizeUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 export async function importFromPinterest(url: string): Promise<ImportResponse> {
-  return api.post<ImportResponse>('/import/pinterest', { url });
+  return api.post<ImportResponse>('/import/pinterest', { url: normalizeUrl(url) });
 }
 
 export async function importFromWebsite(url: string): Promise<ImportResponse> {
-  return api.post<ImportResponse>('/import/website', { url });
+  return api.post<ImportResponse>('/import/website', { url: normalizeUrl(url) });
 }

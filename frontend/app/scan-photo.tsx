@@ -61,6 +61,9 @@ export default function ScanPhotoScreen() {
         steps: recipeData.steps ?? recipeData.instructions ?? [],
         notes: recipeData.notes ?? '',
         imageUrl: undefined,
+        // Keep the scanned photo so it's saved as the recipe's cover image,
+        // not just used for OCR. new-recipe uploads this on save.
+        localPhotoUri: imageUri,
         prepTime: (recipeData.prep_time ?? 0).toString(),
         cookTime: (recipeData.cook_time ?? 0).toString(),
         servings: (recipeData.servings ?? 1).toString(),

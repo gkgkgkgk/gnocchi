@@ -316,6 +316,15 @@ export async function updateRecipeTags(id: string, tagIds: string[]): Promise<Re
   return adaptForUI(row);
 }
 
+/**
+ * Set only the cover image. Sends a raw PATCH (NOT via adaptForBackend, which
+ * would default ingredients/steps/notes and wipe them on a partial update).
+ */
+export async function setRecipeCover(id: string, coverImage: string): Promise<Recipe> {
+  const row = await api.patch<any>(`/recipes/${id}`, { cover_image: coverImage });
+  return adaptForUI(row);
+}
+
 export async function setRecipeRating(id: string, rating: number | null): Promise<Recipe> {
   const row = await api.patch<any>(`/recipes/${id}/rating`, { rating });
   return adaptForUI(row);

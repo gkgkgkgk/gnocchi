@@ -116,6 +116,15 @@ export const radius = {
   pill: 999,
 };
 
+// Screen-width breakpoints (min-width, in px). Devices we actually run on:
+// phones below `sm`, iPad portrait around `md`, iPad landscape / desktop at
+// `lg` and up (where two-pane layouts kick in).
+export const breakpoints = {
+  sm: 640,   // large phone / small tablet portrait
+  md: 900,   // tablet portrait → landscape threshold
+  lg: 1200,  // desktop / wide tablet landscape
+};
+
 export const shadow = {
   sm: {
     shadowColor: '#000',
