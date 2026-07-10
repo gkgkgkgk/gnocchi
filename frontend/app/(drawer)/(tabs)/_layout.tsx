@@ -3,19 +3,18 @@ import React from 'react';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { ResponsiveTabBar, RAIL_WIDTH } from '@/components/responsive-tab-bar';
+import { useResponsive } from '@/hooks/use-responsive';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { isWide } = useResponsive();
 
   return (
     <Tabs
+      tabBar={(props) => <ResponsiveTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
+        sceneStyle: isWide ? { paddingLeft: RAIL_WIDTH } : undefined,
       }}>
       <Tabs.Screen
         name="index"

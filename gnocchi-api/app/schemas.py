@@ -27,6 +27,12 @@ class RecipePhotoOut(BaseModel):
     ord: int
 
 
+class PhotoReorder(BaseModel):
+    """Desired photo order, given as the full list of photo ids."""
+
+    order: list[uuid.UUID] = Field(default_factory=list)
+
+
 class RecipeBase(BaseModel):
     title: str
     ingredients: list[RecipeIngredient] = Field(default_factory=list)
@@ -253,3 +259,22 @@ class ShoppingListRequest(BaseModel):
 
 class ShoppingListResponse(BaseModel):
     items: list[ShoppingListItem]
+
+
+class SuggestTagsRequest(BaseModel):
+    title: str
+    ingredients: list[str] = Field(default_factory=list)
+    existing_tags: list[str] = Field(default_factory=list)
+
+
+class SuggestTagsResponse(BaseModel):
+    tags: list[str] = Field(default_factory=list)
+
+
+class GenerateRecipeRequest(BaseModel):
+    prompt: str
+    preferences: Preferences | None = None
+
+
+class GenerateRecipeResponse(BaseModel):
+    recipe: AIRecipePayload

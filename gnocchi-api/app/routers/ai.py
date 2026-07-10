@@ -9,7 +9,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app import prompts, schemas
-from app.llm import MODEL_FAST, call_structured
+from app.llm import MODEL_FAST, MODEL_STRONG, call_structured
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -174,4 +174,55 @@ async def shopping_list(body: schemas.ShoppingListRequest):
     )
     return schemas.ShoppingListResponse(
         items=[schemas.ShoppingListItem(name=i.text, sources=i.source) for i in parsed.items]
+    )
+
+
+@router.post("/suggest-tags", response_model=schemas.SuggestTagsResponse)
+async def suggest_tags(body: schemas.SuggestTagsRequest):
+    ingredients_text = "\n".join(f"- {i}" for i in body.ingredients) or "(none listed)"
+    existing = ", ".join(body.existing_tags) or "(none yet)"
+    user = f"RECIPE: {body.title}\n\nINGREDIENTS:\n{ingredients_text}\n\nSuggest tags."
+    return await call_structured(
+        model=MODEL_FAST,
+        system=prompts.suggest_tags_system(existing),
+        user=user,
+        tool_name="record_tags",
+        tool_description="Record 2–5 suggested tags for the recipe.",
+        schema=schemas.SuggestTagsResponse,
+        max_tokens=256,
+    )
+
+
+@router.post("/generate-recipe", response_model=schemas.GenerateRecipeResponse)
+async def generate_recipe(body: schemas.GenerateRecipeRequest):
+    restrictions = (body.preferences.dietary_restrictions if body.preferences else []) or []
+    restrictions_text = ", ".join(restrictions) if restrictions else "None"
+    user = (
+        f"Pitch: {body.prompt}\n\n"
+        f"Household dietary restrictions (must honor): {restrictions_text}\n\n"
+        "Invent one great recipe that fits."
+    )
+    parsed = await call_structured(
+        model=MODEL_STRONG,
+        system=prompts.GENERATE_RECIPE_SYSTEM,
+        user=user,
+        tool_name="record_recipe",
+        tool_description="Record the invented recipe with all fields.",
+        schema=_LLMRecipe,
+    )
+    return schemas.GenerateRecipeResponse(
+        recipe=schemas.AIRecipePayload(
+            title=parsed.title,
+            ingredients=[
+                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional)
+                for i in parsed.ingredients
+            ],
+            instructions=list(parsed.instructions),
+            notes=parsed.notes,
+            metadata={
+                "prep_time": parsed.metadata.prep_time,
+                "cook_time": parsed.metadata.cook_time,
+                "servings": parsed.metadata.servings,
+            },
+        )
     )

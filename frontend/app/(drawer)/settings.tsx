@@ -21,6 +21,12 @@ const AVAILABLE_COLORS = [
   '#2196F3', '#9C27B0', '#00BCD4', '#FFC107', '#795548', '#607D8B',
 ];
 
+// Common dietary presets for one-tap toggling in House preferences.
+const DIETARY_PRESETS = [
+  'Vegetarian', 'Vegan', 'Pescatarian', 'Gluten-free', 'Dairy-free',
+  'Nut-free', 'Egg-free', 'Shellfish-free', 'Low-carb', 'Keto', 'Halal', 'Kosher',
+];
+
 // Helper function to get emoji based on food name
 const getFoodEmoji = (food: string | null): string => {
   if (!food) return '🍽️';
@@ -290,6 +296,20 @@ export default function SettingsScreen() {
     }
   };
 
+  // Case-insensitive membership so "Vegan" preset matches a typed "vegan".
+  const hasRestriction = (name: string) =>
+    dietaryRestrictions.some((r) => r.toLowerCase() === name.toLowerCase());
+
+  const togglePreset = async (name: string) => {
+    const previous = dietaryRestrictions;
+    const updated = hasRestriction(name)
+      ? dietaryRestrictions.filter((r) => r.toLowerCase() !== name.toLowerCase())
+      : [...dietaryRestrictions, name];
+    setDietaryRestrictions(updated);
+    const success = await saveDietaryRestrictions(updated);
+    if (!success) setDietaryRestrictions(previous);
+  };
+
   const handleRemoveRestriction = async (restriction: string) => {
     // Optimistic UI update
     const updated = dietaryRestrictions.filter(r => r !== restriction);
@@ -442,8 +462,28 @@ export default function SettingsScreen() {
             <ThemedText style={styles.sectionTitle}>Dietary Restrictions</ThemedText>
           </View>
           <ThemedText style={styles.sectionDescription}>
-            Add any dietary restrictions or allergies
+            Tap the ones that apply, or add your own. The AI honors these when
+            analyzing recipes and dreaming up new ones.
           </ThemedText>
+
+          {/* Quick-select presets */}
+          <View style={styles.presetContainer}>
+            {DIETARY_PRESETS.map((preset) => {
+              const active = hasRestriction(preset);
+              return (
+                <Pressable
+                  key={preset}
+                  onPress={() => togglePreset(preset)}
+                  style={[styles.presetChip, active && styles.presetChipActive]}
+                >
+                  {active && <Ionicons name="checkmark" size={14} color={c.accentFg} />}
+                  <ThemedText style={[styles.presetChipText, active && styles.presetChipTextActive]}>
+                    {preset}
+                  </ThemedText>
+                </Pressable>
+              );
+            })}
+          </View>
 
           {/* Input for adding new restriction */}
           <View style={styles.chipInputContainer}>
@@ -461,7 +501,7 @@ export default function SettingsScreen() {
           {/* Display chips */}
           <View style={styles.chipsContainer}>
             {dietaryRestrictions.map((restriction, index) => (
-              <ThemedView key={index} lightColor="#e3f2fd" darkColor="#1e3a5f" style={styles.chip}>
+              <ThemedView key={index} lightColor="#D6E1D2" darkColor="#243024" style={styles.chip}>
                 <ThemedText style={styles.chipText}>{restriction}</ThemedText>
                 <Pressable
                   onPress={() => handleRemoveRestriction(restriction)}
@@ -870,6 +910,36 @@ function makeStyles(theme: Theme) {
     fontSize: 16,
     fontWeight: '600',
     color: c.dangerFg,
+  },
+  presetContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  presetChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.bgMuted,
+  },
+  presetChipActive: {
+    backgroundColor: c.accent,
+    borderColor: c.accent,
+  },
+  presetChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: c.fg,
+  },
+  presetChipTextActive: {
+    color: c.accentFg,
   },
   chipInputContainer: {
     marginBottom: 16,

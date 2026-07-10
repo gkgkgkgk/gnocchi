@@ -245,6 +245,7 @@ export default function HomeScreen() {
         onImportLink={() => { setShowAddModal(false); router.push('/import' as any); }}
         onAddManually={() => { setShowAddModal(false); router.push('/new-recipe' as any); }}
         onScanPhoto={() => { setShowAddModal(false); router.push('/scan-photo' as any); }}
+        onPitch={() => { setShowAddModal(false); router.push('/pitch' as any); }}
       />
 
       <ProfileQuestionnaireModal visible={showProfileModal} onComplete={handleProfileComplete} />

@@ -3,9 +3,13 @@ import { View, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedView } from './themed-view';
 import { ThemedText } from './themed-text';
-import { getUserTags, RecipeTag } from '@/services/profile-service';
+import { getUserTags, saveUserTags, generateUUID, RecipeTag } from '@/services/profile-service';
+import { suggestRecipeTags } from '@/services/recipe-service';
 import { useTheme } from '@/hooks/use-theme';
 import { type Theme } from '@/constants/theme';
+
+// Palette used when materializing an AI-suggested tag that doesn't exist yet.
+const SUGGEST_COLORS = ['#E07856', '#7A9B76', '#D89533', '#8BC34A', '#E91E63', '#2196F3', '#9C27B0', '#00BCD4'];
 
 interface EditRecipeTagsModalProps {
   visible: boolean;
@@ -13,6 +17,8 @@ interface EditRecipeTagsModalProps {
   currentTags?: string[]; // Array of tag IDs
   onSave: (tagIds: string[]) => void;
   recipeName?: string;
+  /** Ingredient texts — used to power AI tag suggestions. */
+  ingredients?: string[];
 }
 
 export function EditRecipeTagsModal({
@@ -21,6 +27,7 @@ export function EditRecipeTagsModal({
   currentTags = [],
   onSave,
   recipeName,
+  ingredients = [],
 }: EditRecipeTagsModalProps) {
   const theme = useTheme();
   const styles = makeStyles(theme);
@@ -28,11 +35,15 @@ export function EditRecipeTagsModal({
   const [availableTags, setAvailableTags] = useState<RecipeTag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>(currentTags);
   const [loading, setLoading] = useState(true);
+  const [suggesting, setSuggesting] = useState(false);
+  // AI-suggested tag names that don't match an existing tag yet.
+  const [newSuggestions, setNewSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
     if (visible) {
       loadTags();
       setSelectedTagIds(currentTags);
+      setNewSuggestions([]);
     }
   }, [visible, currentTags]);
 
@@ -58,6 +69,49 @@ export function EditRecipeTagsModal({
       if (currentIds.length < 3) {
         setSelectedTagIds([...currentIds, tagId]);
       }
+    }
+  };
+
+  const handleSuggest = async () => {
+    try {
+      setSuggesting(true);
+      const names = await suggestRecipeTags(
+        recipeName ?? '',
+        ingredients,
+        availableTags.map((t) => t.name),
+      );
+      const selected = [...(selectedTagIds || [])];
+      const unmatched: string[] = [];
+      for (const name of names) {
+        const match = availableTags.find((t) => t.name.toLowerCase() === name.toLowerCase());
+        if (match) {
+          if (!selected.includes(match.id) && selected.length < 3) selected.push(match.id);
+        } else if (!unmatched.some((n) => n.toLowerCase() === name.toLowerCase())) {
+          unmatched.push(name);
+        }
+      }
+      setSelectedTagIds(selected);
+      setNewSuggestions(unmatched);
+    } catch (error) {
+      console.error('Failed to suggest tags:', error);
+    } finally {
+      setSuggesting(false);
+    }
+  };
+
+  // Materialize an AI-suggested new tag into the household catalog + select it.
+  const createFromSuggestion = async (name: string) => {
+    if ((selectedTagIds || []).length >= 3) return;
+    const color = SUGGEST_COLORS[availableTags.length % SUGGEST_COLORS.length];
+    const tag: RecipeTag = { id: generateUUID(), name, color, icon: 'pricetag' };
+    const updated = [...availableTags, tag];
+    setAvailableTags(updated);
+    setSelectedTagIds([...(selectedTagIds || []), tag.id]);
+    setNewSuggestions((prev) => prev.filter((n) => n !== name));
+    try {
+      await saveUserTags(updated);
+    } catch (error) {
+      console.error('Failed to save new tag:', error);
     }
   };
 
@@ -93,9 +147,37 @@ export function EditRecipeTagsModal({
               <ThemedText style={styles.recipeName}>{recipeName}</ThemedText>
             )}
 
-            <ThemedText style={styles.subtitle}>
-              Select up to 3 tags ({(selectedTagIds || []).length}/3)
-            </ThemedText>
+            <View style={styles.subtitleRow}>
+              <ThemedText style={styles.subtitle}>
+                Select up to 3 tags ({(selectedTagIds || []).length}/3)
+              </ThemedText>
+              <Pressable style={styles.suggestButton} onPress={handleSuggest} disabled={suggesting}>
+                <Ionicons
+                  name={suggesting ? 'sync' : 'sparkles'}
+                  size={14}
+                  color={c.accent}
+                />
+                <ThemedText style={styles.suggestButtonText}>
+                  {suggesting ? 'Thinking…' : 'Suggest with AI'}
+                </ThemedText>
+              </Pressable>
+            </View>
+
+            {/* AI-suggested new tags (not in the catalog yet) */}
+            {newSuggestions.length > 0 && (
+              <View style={styles.suggestionChips}>
+                {newSuggestions.map((name) => (
+                  <Pressable
+                    key={name}
+                    style={styles.suggestionChip}
+                    onPress={() => createFromSuggestion(name)}
+                    disabled={(selectedTagIds || []).length >= 3}>
+                    <Ionicons name="add" size={14} color={c.accent} />
+                    <ThemedText style={styles.suggestionChipText}>{name}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
             {/* Tags List */}
             <ScrollView style={styles.tagsList} showsVerticalScrollIndicator={false}>
@@ -202,10 +284,54 @@ function makeStyles(theme: Theme) {
     marginBottom: 12,
     opacity: 0.7,
   },
+  subtitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   subtitle: {
     fontSize: 14,
-    marginBottom: 16,
     opacity: 0.6,
+    flex: 1,
+  },
+  suggestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: c.accent,
+  },
+  suggestButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: c.accent,
+  },
+  suggestionChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 16,
+  },
+  suggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: c.accentMuted,
+    borderWidth: 1,
+    borderColor: c.accent,
+    borderStyle: 'dashed',
+  },
+  suggestionChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: c.fg,
   },
   tagsList: {
     maxHeight: 400,

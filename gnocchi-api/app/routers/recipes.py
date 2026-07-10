@@ -114,6 +114,36 @@ async def upload_photo(
     return photo
 
 
+@router.patch("/{id}/photos/order", response_model=schemas.RecipeOut)
+async def reorder_photos(
+    id: uuid.UUID,
+    body: schemas.PhotoReorder,
+    session: AsyncSession = Depends(get_session),
+):
+    recipe = await _load(session, id)
+    pos = {pid: i for i, pid in enumerate(body.order)}
+    for photo in recipe.photos:
+        if photo.id in pos:
+            photo.ord = pos[photo.id]
+    await session.commit()
+    return await _load(session, id)
+
+
+@router.patch("/{id}/cover/{photo_id}", response_model=schemas.RecipeOut)
+async def set_cover(
+    id: uuid.UUID,
+    photo_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+):
+    recipe = await _load(session, id)
+    photo = next((p for p in recipe.photos if p.id == photo_id), None)
+    if photo is None:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    recipe.cover_image = photo.key
+    await session.commit()
+    return await _load(session, id)
+
+
 @router.delete("/{id}/photos/{photo_id}", status_code=204)
 async def delete_photo(
     id: uuid.UUID,

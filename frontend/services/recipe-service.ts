@@ -344,6 +344,18 @@ export async function deleteRecipePhoto(recipeId: string, photoId: string): Prom
   await api.delete(`/recipes/${recipeId}/photos/${photoId}`);
 }
 
+/** Make one of the recipe's photos its cover image. */
+export async function setPhotoAsCover(recipeId: string, photoId: string): Promise<Recipe> {
+  const row = await api.patch<any>(`/recipes/${recipeId}/cover/${photoId}`, {});
+  return adaptForUI(row);
+}
+
+/** Persist a new photo order (full list of photo ids, first = position 0). */
+export async function reorderRecipePhotos(recipeId: string, orderedIds: string[]): Promise<Recipe> {
+  const row = await api.patch<any>(`/recipes/${recipeId}/photos/order`, { order: orderedIds });
+  return adaptForUI(row);
+}
+
 // --- AI helpers ---------------------------------------------------------
 
 export async function analyzeRecipeInsight(recipe: Recipe): Promise<AIInsight> {
@@ -379,6 +391,33 @@ export async function analyzeRecipeInsight(recipe: Recipe): Promise<AIInsight> {
     text: res.insight,
     suggested_tool: res.recommended_tool,
   };
+}
+
+/** Ask the AI for 2–5 tags given a title + ingredient texts. */
+export async function suggestRecipeTags(
+  title: string,
+  ingredients: string[],
+  existingTags: string[] = [],
+): Promise<string[]> {
+  const res = await api.post<{ tags: string[] }>('/ai/suggest-tags', {
+    title,
+    ingredients,
+    existing_tags: existingTags,
+  });
+  return res.tags ?? [];
+}
+
+/**
+ * "Pitch me a recipe" — generate a full recipe from a free-text pitch.
+ * Honors House preferences (dietary restrictions). Returns an AIRecipePayload
+ * shape (`instructions`, nested `metadata`); pass through `saveModifiedRecipe`
+ * to persist.
+ */
+export async function generateRecipeFromPitch(prompt: string): Promise<any> {
+  const { getPreferences } = await import('./profile-service');
+  const preferences = await getPreferences().catch(() => ({ dietary_restrictions: [] }));
+  const res = await api.post<{ recipe: any }>('/ai/generate-recipe', { prompt, preferences });
+  return res.recipe;
 }
 
 export async function saveRecipeInsight(id: string, insight: AIInsight): Promise<Recipe> {

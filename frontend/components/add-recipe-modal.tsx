@@ -11,6 +11,7 @@ interface AddRecipeModalProps {
   onImportLink: () => void;
   onAddManually: () => void;
   onScanPhoto: () => void;
+  onPitch: () => void;
 }
 
 interface Option {
@@ -26,14 +27,16 @@ export function AddRecipeModal({
   onImportLink,
   onAddManually,
   onScanPhoto,
+  onPitch,
 }: AddRecipeModalProps) {
   const theme = useTheme();
   const c = theme.colors;
 
   const options: Option[] = [
-    { icon: 'link-outline',     title: 'Paste a link',    subtitle: 'Pinterest, Instagram, or any recipe site', onPress: onImportLink },
-    { icon: 'camera-outline',   title: 'Scan a photo',    subtitle: 'From your camera or gallery',              onPress: onScanPhoto },
-    { icon: 'create-outline',   title: 'Type it in',      subtitle: 'Build a recipe from scratch',              onPress: onAddManually },
+    { icon: 'sparkles-outline', title: 'Pitch me a recipe', subtitle: 'Describe a craving — AI invents it',        onPress: onPitch },
+    { icon: 'link-outline',     title: 'Paste a link',      subtitle: 'Pinterest, Instagram, or any recipe site', onPress: onImportLink },
+    { icon: 'camera-outline',   title: 'Scan a photo',      subtitle: 'From your camera or gallery',              onPress: onScanPhoto },
+    { icon: 'create-outline',   title: 'Type it in',        subtitle: 'Build a recipe from scratch',              onPress: onAddManually },
   ];
 
   return (

@@ -685,15 +685,9 @@ export default function RecipeDetailScreen() {
         {/* Photo Gallery */}
         <RecipePhotoGallery
           recipeId={recipe.id}
-          images={recipe.images || (recipe.image_url ? [recipe.image_url] : [])}
-          chosenImage={recipe.image_url || null}
-          onUpdate={(newImages, newChosenImage) => {
-            setRecipe(prev => prev ? { 
-              ...prev, 
-              images: newImages,
-              image_url: newChosenImage || undefined
-            } : null);
-          }}
+          photos={recipe.photos ?? []}
+          coverKey={recipe.cover_image ?? null}
+          onChange={(updated) => setRecipe(updated)}
         />
       </ScrollView>
 
@@ -747,6 +741,7 @@ export default function RecipeDetailScreen() {
           }
         }}
         recipeName={recipe?.title}
+        ingredients={(recipe?.ingredients ?? []).map((i) => i.text)}
       />
     </ThemedView>
   );
