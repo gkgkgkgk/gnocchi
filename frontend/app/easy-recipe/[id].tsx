@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { CookTimers, TimerSuggestion } from '@/components/cook-timers';
 import { fetchRecipeById, Recipe } from '@/services/recipe-service';
 import { fetchUnits, Unit } from '@/services/unit-service';
+import { getUnitPreference, type UnitPreference } from '@/services/profile-service';
 import { scaleForDisplay } from '@/utils/unit-conversion';
 import { convertDecimalsToFractions } from '@/utils/fraction-formatter';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
@@ -52,6 +53,7 @@ export default function EasyRecipeViewer() {
   const [loading, setLoading] = useState(true);
   const [multiplier, setMultiplier] = useState(1);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [unitPref, setUnitPref] = useState<UnitPreference>('as_written');
   const { width } = useWindowDimensions();
   const tintColor = c.accent;
 
@@ -85,6 +87,7 @@ export default function EasyRecipeViewer() {
 
   useEffect(() => {
     fetchUnits().then(setUnits).catch((e) => console.error('Failed to load units:', e));
+    getUnitPreference().then(setUnitPref).catch(() => {});
   }, []);
 
   const loadRecipe = async () => {
@@ -180,7 +183,7 @@ export default function EasyRecipeViewer() {
                 {recipe.ingredients && recipe.ingredients.length > 0 ? (
                   recipe.ingredients.map((item, index) => {
                     const ingredientName = item.ingredient?.name || item.text || 'Unknown';
-                    const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units);
+                    const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units, unitPref);
                     let displayText = formatIngredientLine(scaled.quantity, scaled.unit, ingredientName);
                     displayText = convertDecimalsToFractions(displayText);
                     const isOptional = (item as any).optional;

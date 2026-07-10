@@ -313,6 +313,12 @@ export async function updateRecipeTags(id: string, tagIds: string[]): Promise<Re
   return adaptForUI(row);
 }
 
+/** Set only the free-text notes (raw PATCH — see setRecipeCover note). */
+export async function setRecipeNotes(id: string, notes: string): Promise<Recipe> {
+  const row = await api.patch<any>(`/recipes/${id}`, { notes });
+  return adaptForUI(row);
+}
+
 /**
  * Set only the cover image. Sends a raw PATCH (NOT via adaptForBackend, which
  * would default ingredients/steps/notes and wipe them on a partial update).
@@ -407,17 +413,38 @@ export async function suggestRecipeTags(
   return res.tags ?? [];
 }
 
+export interface PitchChatTurn {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+export interface PitchResult {
+  /** AIRecipePayload shape (`instructions`, nested `metadata`). */
+  recipe: any;
+  /** Conversational message describing what the model created/changed. */
+  reply: string;
+}
+
 /**
- * "Pitch me a recipe" — generate a full recipe from a free-text pitch.
- * Honors House preferences (dietary restrictions). Returns an AIRecipePayload
- * shape (`instructions`, nested `metadata`); pass through `saveModifiedRecipe`
- * to persist.
+ * "Pitch me a recipe" — conversational. On the first turn pass just `prompt`;
+ * on follow-ups pass the `currentRecipe` (so it revises rather than starts
+ * over) and prior `history`. Honors House preferences. Returns the full recipe
+ * plus a chat reply; pass `recipe` through `saveModifiedRecipe` to persist.
  */
-export async function generateRecipeFromPitch(prompt: string): Promise<any> {
+export async function generateRecipeFromPitch(
+  prompt: string,
+  currentRecipe?: any,
+  history: PitchChatTurn[] = [],
+): Promise<PitchResult> {
   const { getPreferences } = await import('./profile-service');
   const preferences = await getPreferences().catch(() => ({ dietary_restrictions: [] }));
-  const res = await api.post<{ recipe: any }>('/ai/generate-recipe', { prompt, preferences });
-  return res.recipe;
+  const res = await api.post<{ recipe: any; reply?: string }>('/ai/generate-recipe', {
+    prompt,
+    preferences,
+    current_recipe: currentRecipe ?? null,
+    history,
+  });
+  return { recipe: res.recipe, reply: res.reply ?? '' };
 }
 
 export async function saveRecipeInsight(id: string, insight: AIInsight): Promise<Recipe> {

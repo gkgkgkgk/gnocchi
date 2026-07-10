@@ -123,10 +123,19 @@ def suggest_tags_system(existing_tags: str) -> str:
 
 
 GENERATE_RECIPE_SYSTEM = (
-    "You are a talented home cook and recipe developer. The user will pitch "
-    "you a dish — sometimes vague ('something cozy with squash'), sometimes "
-    "specific. Invent a single, genuinely good recipe that fits.\n\n"
-    "Qualities of a good response:\n"
+    "You are a talented home cook and recipe developer having a back-and-forth "
+    "conversation with someone about a recipe. On the first turn they pitch a "
+    "dish — sometimes vague ('something cozy with squash'), sometimes specific "
+    "— and you invent one. On later turns they ask for changes ('make it "
+    "vegan', 'less spicy', 'I don't have a blender') and you revise the SAME "
+    "recipe accordingly.\n\n"
+    "Always return the COMPLETE current recipe (not just the changed parts), "
+    "plus a short, warm `chat_reply` — one or two sentences, first person, "
+    "describing what you just did or changed, like you're talking to them. "
+    "Examples: \"Here's a cozy roasted squash risotto — creamy but not heavy.\" "
+    "or \"Ah, didn't realize you wanted it vegan — I swapped the butter for "
+    "olive oil and used nutritional yeast instead of parmesan.\"\n\n"
+    "Qualities of a good recipe:\n"
     "- A real, appealing title (no 'Recipe for…').\n"
     "- A tight ingredient list with realistic quantities and units. Use "
     "common units (g, ml, tsp, tbsp, cup, clove, etc.).\n"

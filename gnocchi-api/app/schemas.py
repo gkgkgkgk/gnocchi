@@ -274,10 +274,23 @@ class SuggestTagsResponse(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class ChatTurn(BaseModel):
+    role: str  # 'user' | 'assistant'
+    text: str
+
+
 class GenerateRecipeRequest(BaseModel):
     prompt: str
     preferences: Preferences | None = None
+    # The recipe produced so far, if this is an iteration rather than a fresh
+    # pitch. When present, the model revises it per the new message.
+    current_recipe: AIRecipePayload | None = None
+    # Prior conversation (most recent last), for context on multi-turn edits.
+    history: list[ChatTurn] = Field(default_factory=list)
 
 
 class GenerateRecipeResponse(BaseModel):
     recipe: AIRecipePayload
+    # A short, friendly message describing what the model did/changed, shown in
+    # the chat thread (e.g. "Made it vegan — swapped butter for olive oil.").
+    reply: str = ""

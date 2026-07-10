@@ -29,23 +29,46 @@ export function findUnit(units: Unit[], raw: string | null | undefined): Unit | 
   );
 }
 
+/** How ingredient quantities should be displayed. Mirrors the House
+ *  preference `preferred_units`. */
+export type UnitSystemPref = 'metric' | 'imperial' | 'as_written';
+
 /**
  * Scale a quantity by a multiplier and pick a friendly unit to show it in.
- * Conservative: only ever rolls *up* into a larger unit (3 tsp → 1 tbsp, 16
- * tbsp → 1 cup) — never down (¼ cup stays ¼ cup, not 4 tbsp). Falls back to a
- * plain multiply when the unit is free-text or non-convertible.
+ *
+ * With `pref` 'as_written' (default): conservative — only ever rolls *up* into
+ * a larger unit (3 tsp → 1 tbsp, 16 tbsp → 1 cup), never down (¼ cup stays
+ * ¼ cup). With 'metric' or 'imperial': fully converts a convertible measure
+ * into the nicest unit of that system (1 cup → 240 ml; 200 g → 7 oz). Falls
+ * back to a plain multiply when the unit is free-text or non-convertible.
  */
 export function scaleForDisplay(
   quantity: number,
   rawUnit: string | null | undefined,
   multiplier: number,
   units: Unit[],
+  pref: UnitSystemPref = 'as_written',
 ): { quantity: number; unit: string } {
   const scaled = quantity * multiplier;
   const resolved = findUnit(units, rawUnit);
   if (!resolved || resolved.to_base == null) {
     return { quantity: scaled, unit: rawUnit ? String(rawUnit) : '' };
   }
+
+  // Explicit system preference: convert into that system's display units,
+  // rolling up OR down to the friendliest one (counts like "clove" have no
+  // system and just pass through the non-convertible branch above).
+  if ((pref === 'metric' || pref === 'imperial') && resolved.system !== 'universal') {
+    const targetIds = DISPLAY_UNIT_IDS.filter((id) => {
+      const u = units.find((x) => x.id === id);
+      return u && u.type === resolved.type && (u.system === pref || u.system === 'universal');
+    });
+    if (targetIds.length) {
+      const norm = normalizeMeasure(scaled, resolved, units, targetIds);
+      return { quantity: norm.quantity, unit: norm.unit.abbreviation };
+    }
+  }
+
   const norm = normalizeMeasure(scaled, resolved, units, DISPLAY_UNIT_IDS);
   // Only accept the rolled-up unit if it's the same size or larger.
   if (norm.unit.to_base != null && resolved.to_base != null && norm.unit.to_base >= resolved.to_base) {

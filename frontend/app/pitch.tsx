@@ -1,57 +1,92 @@
-import { useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { useRef, useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  TextInput,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Chip } from '@/components/ui/Chip';
-import { Card } from '@/components/ui/Card';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { generateRecipeFromPitch } from '@/services/recipe-service';
+import { generateRecipeFromPitch, type PitchChatTurn } from '@/services/recipe-service';
 import { useTheme } from '@/hooks/use-theme';
-import { useResponsive } from '@/hooks/use-responsive';
 
 const EXAMPLES = [
   'A cozy one-pot autumn dinner with squash',
   'Quick weeknight pasta, under 30 minutes',
   'Use up leftover roast chicken',
   'An impressive but easy dinner-party dessert',
-  'Something spicy and vegetarian for lunch',
 ];
+
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  recipe?: any; // AIRecipePayload attached to assistant turns that produced one
+}
+
+function uid() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 export default function PitchScreen() {
   const router = useRouter();
   const theme = useTheme();
   const c = theme.colors;
-  const { isWide } = useResponsive();
-  const [prompt, setPrompt] = useState('');
+  const insets = useSafeAreaInsets();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [recipe, setRecipe] = useState<any | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
-  const handleGenerate = async () => {
-    const trimmed = prompt.trim();
-    if (!trimmed) {
-      Alert.alert('Pitch a dish', 'Describe what you feel like eating and let the chef dream it up.');
-      return;
-    }
+  // The most recent recipe the model produced — what "Edit & save" commits.
+  const latestRecipe = [...messages].reverse().find((m) => m.recipe)?.recipe ?? null;
+  const started = messages.length > 0;
+
+  const scrollToEnd = () => {
+    requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
+  };
+
+  const send = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+
+    const userMsg: ChatMessage = { id: uid(), role: 'user', text: trimmed };
+    const history: PitchChatTurn[] = messages.map((m) => ({ role: m.role, text: m.text }));
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
     setLoading(true);
-    setRecipe(null);
+    scrollToEnd();
+
     try {
-      const result = await generateRecipeFromPitch(trimmed);
-      setRecipe(result);
+      const { recipe, reply } = await generateRecipeFromPitch(trimmed, latestRecipe ?? undefined, history);
+      setMessages((prev) => [
+        ...prev,
+        { id: uid(), role: 'assistant', text: reply || 'Here you go!', recipe },
+      ]);
+      scrollToEnd();
     } catch (error: any) {
-      console.error('Recipe generation failed:', error);
-      Alert.alert('Could not dream that up', error.message || 'Please try again.');
+      console.error('Pitch failed:', error);
+      setMessages((prev) => [
+        ...prev,
+        { id: uid(), role: 'assistant', text: '⚠️ Sorry — I couldn’t come up with that. Try rephrasing?' },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUseRecipe = () => {
-    if (!recipe) return;
+  const useRecipe = (recipe: any) => {
     const md = recipe.metadata ?? {};
     const importData = {
       title: recipe.title,
@@ -73,111 +108,197 @@ export default function PitchScreen() {
     router.push({ pathname: '/new-recipe', params: { fromImport: 'true' } } as any);
   };
 
-  const md = recipe?.metadata ?? {};
-  const ingredientCount = recipe?.ingredients?.length ?? 0;
-  const stepCount = recipe?.instructions?.length ?? 0;
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top }}>
+      <ScreenHeader title="Pitch me a recipe" onBack={() => router.back()} />
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={insets.top + 52}>
+        <ScrollView
+          ref={scrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.thread}
+          onContentSizeChange={scrollToEnd}>
+          {!started && (
+            <View style={styles.intro}>
+              <View style={[styles.introIcon, { backgroundColor: c.accentMuted }]}>
+                <Ionicons name="sparkles" size={26} color={c.accent} />
+              </View>
+              <Text variant="h2" style={{ textAlign: 'center', marginTop: theme.spacing.md }}>
+                What are you in the mood for?
+              </Text>
+              <Text variant="body" color="fgMuted" style={{ textAlign: 'center', marginTop: theme.spacing.sm }}>
+                Pitch a craving, an occasion, or a few ingredients. Then keep chatting to tweak it —
+                &quot;make it vegan&quot;, &quot;less spicy&quot;, &quot;no oven&quot;.
+              </Text>
+              <View style={styles.exampleRow}>
+                {EXAMPLES.map((ex) => (
+                  <Pressable key={ex} onPress={() => send(ex)}>
+                    <Chip size="sm" tone={c.secondary}>{ex}</Chip>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {messages.map((m, i) => {
+            const isLast = i === messages.length - 1;
+            return (
+              <View key={m.id}>
+                {m.role === 'user' ? (
+                  <View style={[styles.bubble, styles.userBubble, { backgroundColor: c.accent }]}>
+                    <Text variant="body" style={{ color: c.accentFg }}>{m.text}</Text>
+                  </View>
+                ) : (
+                  <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: c.bgMuted }]}>
+                    <Text variant="body" style={{ color: c.fg }}>{m.text}</Text>
+                  </View>
+                )}
+
+                {/* Recipe card attached to an assistant turn */}
+                {m.recipe && (
+                  <RecipeCard
+                    recipe={m.recipe}
+                    // Only the newest recipe is committable — older ones are history.
+                    showActions={isLast}
+                    onUse={() => useRecipe(m.recipe)}
+                  />
+                )}
+              </View>
+            );
+          })}
+
+          {loading && (
+            <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: c.bgMuted, flexDirection: 'row', gap: 8 }]}>
+              <ActivityIndicator size="small" color={c.accent} />
+              <Text variant="body" color="fgMuted">
+                {started ? 'Reworking it…' : 'Dreaming up a recipe…'}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Bottom-pinned composer */}
+        <View style={[styles.composer, { backgroundColor: c.bgElevated, borderTopColor: c.border, paddingBottom: Math.max(insets.bottom, 10) }]}>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder={started ? 'Ask for a change…' : 'Pitch a dish…'}
+            placeholderTextColor={c.fgSubtle}
+            style={[styles.composerInput, { backgroundColor: c.bgMuted, color: c.fg }]}
+            multiline
+            editable={!loading}
+            onSubmitEditing={() => send(input)}
+            returnKeyType="send"
+            blurOnSubmit
+          />
+          <Pressable
+            onPress={() => send(input)}
+            disabled={loading || !input.trim()}
+            style={[styles.sendButton, { backgroundColor: input.trim() && !loading ? c.accent : c.border }]}>
+            <Ionicons name="sparkles" size={20} color={input.trim() && !loading ? c.accentFg : c.fgSubtle} />
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+function RecipeCard({ recipe, showActions, onUse }: { recipe: any; showActions: boolean; onUse: () => void }) {
+  const theme = useTheme();
+  const c = theme.colors;
+  const md = recipe.metadata ?? {};
+  const ingredients = recipe.ingredients ?? [];
+  const steps = recipe.instructions ?? recipe.steps ?? [];
   const totalTime = (md.prep_time ?? 0) + (md.cook_time ?? 0);
 
   return (
-    <Screen>
-      <ScreenHeader title="Pitch me a recipe" onBack={() => router.back()} />
+    <View style={[styles.card, { backgroundColor: c.bgElevated, borderColor: c.border }]}>
+      <Text variant="h3">{recipe.title || 'Untitled recipe'}</Text>
 
-      <ScrollView contentContainerStyle={[styles.content, isWide && styles.contentWide]}>
-        <Text variant="body" color="fgMuted">
-          Describe a craving, an occasion, or a few ingredients on hand — the chef will invent a
-          recipe for you, honoring your House preferences.
-        </Text>
+      <View style={styles.metaRow}>
+        <Chip size="sm" icon={<Ionicons name="list-outline" size={13} color={c.fg} />}>
+          {`${ingredients.length} ${ingredients.length === 1 ? 'ingredient' : 'ingredients'}`}
+        </Chip>
+        <Chip size="sm" icon={<Ionicons name="footsteps-outline" size={13} color={c.fg} />}>
+          {`${steps.length} ${steps.length === 1 ? 'step' : 'steps'}`}
+        </Chip>
+        {!!md.servings && (
+          <Chip size="sm" icon={<Ionicons name="people-outline" size={13} color={c.fg} />}>
+            {`${md.servings} servings`}
+          </Chip>
+        )}
+        {totalTime > 0 && (
+          <Chip size="sm" tone={c.accent} icon={<Ionicons name="time-outline" size={13} color={c.accent} />}>
+            {`${totalTime} min`}
+          </Chip>
+        )}
+      </View>
 
-        <View style={{ marginTop: theme.spacing.xl }}>
-          <Text variant="label" color="fgMuted">Your pitch</Text>
-          <Input
-            value={prompt}
-            onChangeText={(t) => { setPrompt(t); if (recipe) setRecipe(null); }}
-            placeholder="Something cozy with butternut squash…"
-            editable={!loading}
-            multiline
-            size="lg"
-            style={{ marginTop: theme.spacing.sm, minHeight: 88 }}
-          />
-        </View>
-
-        <View style={styles.exampleRow}>
-          {EXAMPLES.map((ex) => (
-            <Pressable key={ex} onPress={() => { setPrompt(ex); setRecipe(null); }} disabled={loading}>
-              <Chip size="sm" tone={c.secondary}>{ex}</Chip>
-            </Pressable>
+      {ingredients.length > 0 && (
+        <View style={{ marginTop: theme.spacing.md, gap: 3 }}>
+          {ingredients.map((ing: any, i: number) => (
+            <Text key={i} variant="small" color="fgMuted">
+              {`• ${[ing.quantity, ing.unit, ing.text].filter(Boolean).join(' ')}`}
+            </Text>
           ))}
         </View>
+      )}
 
+      {showActions && (
         <Button
-          onPress={handleGenerate}
-          loading={loading}
-          disabled={loading || !prompt.trim()}
+          onPress={onUse}
           fullWidth
-          size="lg"
-          icon={!loading ? <Ionicons name="restaurant" size={18} color={c.accentFg} /> : undefined}
-          style={{ marginTop: theme.spacing.xl }}
-        >
-          {loading ? 'Dreaming up a recipe…' : 'Dream it up'}
+          style={{ marginTop: theme.spacing.lg }}
+          iconRight={<Ionicons name="arrow-forward" size={18} color={c.accentFg} />}>
+          Edit &amp; save
         </Button>
-
-        {recipe && (
-          <Card inset style={{ marginTop: theme.spacing.xl }}>
-            <Text variant="h2">{recipe.title || 'Untitled recipe'}</Text>
-
-            <View style={styles.metaRow}>
-              <Chip size="sm" icon={<Ionicons name="list-outline" size={13} color={c.fg} />}>
-                {`${ingredientCount} ${ingredientCount === 1 ? 'ingredient' : 'ingredients'}`}
-              </Chip>
-              <Chip size="sm" icon={<Ionicons name="footsteps-outline" size={13} color={c.fg} />}>
-                {`${stepCount} ${stepCount === 1 ? 'step' : 'steps'}`}
-              </Chip>
-              {!!md.servings && (
-                <Chip size="sm" icon={<Ionicons name="people-outline" size={13} color={c.fg} />}>
-                  {`${md.servings} servings`}
-                </Chip>
-              )}
-              {totalTime > 0 && (
-                <Chip size="sm" tone={c.accent} icon={<Ionicons name="time-outline" size={13} color={c.accent} />}>
-                  {`${totalTime} min`}
-                </Chip>
-              )}
-            </View>
-
-            {ingredientCount > 0 && (
-              <View style={{ marginTop: theme.spacing.lg }}>
-                <Text variant="label" color="fgMuted">Ingredients</Text>
-                <View style={{ marginTop: theme.spacing.sm, gap: 4 }}>
-                  {recipe.ingredients.slice(0, 6).map((ing: any, i: number) => (
-                    <Text key={i} variant="small" color="fgMuted">
-                      {`• ${[ing.quantity, ing.unit, ing.text].filter(Boolean).join(' ')}`}
-                    </Text>
-                  ))}
-                  {ingredientCount > 6 && (
-                    <Text variant="small" color="fgSubtle">{`+ ${ingredientCount - 6} more`}</Text>
-                  )}
-                </View>
-              </View>
-            )}
-
-            <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.lg }}>
-              <Button variant="ghost" onPress={handleGenerate} style={{ flex: 1 }} icon={<Ionicons name="refresh" size={16} color={c.fg} />}>
-                Try again
-              </Button>
-              <Button onPress={handleUseRecipe} style={{ flex: 2 }} iconRight={<Ionicons name="arrow-forward" size={18} color={c.accentFg} />}>
-                Edit &amp; save
-              </Button>
-            </View>
-          </Card>
-        )}
-      </ScrollView>
-    </Screen>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 24 },
-  contentWide: { width: '100%', maxWidth: 640, alignSelf: 'center' },
-  exampleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  thread: { padding: 16, gap: 12, flexGrow: 1 },
+  intro: { alignItems: 'center', paddingTop: 32, paddingHorizontal: 12 },
+  introIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  exampleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 20, justifyContent: 'center' },
+  bubble: { maxWidth: '88%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
+  userBubble: { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
+  assistantBubble: { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
+  card: {
+    marginTop: 8,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignSelf: 'stretch',
+  },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  composer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  composerInput: {
+    flex: 1,
+    maxHeight: 120,
+    minHeight: 44,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    fontSize: 16,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

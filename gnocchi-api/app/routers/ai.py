@@ -38,6 +38,11 @@ class _LLMRecipe(BaseModel):
     metadata: _LLMMetadata
 
 
+class _LLMChatRecipe(_LLMRecipe):
+    # A short conversational message describing what was created/changed.
+    chat_reply: str = ""
+
+
 class _RecipeInsight(BaseModel):
     insight: str
     recommended_tool: str | None = None
@@ -193,22 +198,45 @@ async def suggest_tags(body: schemas.SuggestTagsRequest):
     )
 
 
+def _format_recipe_for_prompt(r: schemas.AIRecipePayload) -> str:
+    ings = "\n".join(
+        f"- {' '.join(str(p) for p in [i.quantity or '', i.unit or '', i.text] if p)}"
+        for i in r.ingredients
+    )
+    steps = "\n".join(f"{i+1}. {s}" for i, s in enumerate(r.instructions))
+    md = r.metadata or {}
+    return (
+        f"Title: {r.title}\n\nIngredients:\n{ings}\n\nInstructions:\n{steps}\n\n"
+        f"Prep: {md.get('prep_time', 0)} min · Cook: {md.get('cook_time', 0)} min · "
+        f"Servings: {md.get('servings', 1)}\n"
+        f"Notes: {r.notes or 'None'}"
+    )
+
+
 @router.post("/generate-recipe", response_model=schemas.GenerateRecipeResponse)
 async def generate_recipe(body: schemas.GenerateRecipeRequest):
     restrictions = (body.preferences.dietary_restrictions if body.preferences else []) or []
     restrictions_text = ", ".join(restrictions) if restrictions else "None"
-    user = (
-        f"Pitch: {body.prompt}\n\n"
-        f"Household dietary restrictions (must honor): {restrictions_text}\n\n"
-        "Invent one great recipe that fits."
-    )
+
+    parts = [f"Household dietary restrictions (must honor): {restrictions_text}"]
+    if body.current_recipe is not None:
+        parts.append(
+            "This is an iteration. Here is the CURRENT recipe:\n\n"
+            + _format_recipe_for_prompt(body.current_recipe)
+        )
+        parts.append(f"The person now says:\n\"{body.prompt}\"\n\nRevise the recipe accordingly.")
+    else:
+        parts.append(f"Their pitch:\n\"{body.prompt}\"\n\nInvent one great recipe that fits.")
+
+    user = "\n\n".join(parts)
+
     parsed = await call_structured(
         model=MODEL_STRONG,
         system=prompts.GENERATE_RECIPE_SYSTEM,
         user=user,
         tool_name="record_recipe",
-        tool_description="Record the invented recipe with all fields.",
-        schema=_LLMRecipe,
+        tool_description="Record the complete recipe plus a short chat_reply describing what you did.",
+        schema=_LLMChatRecipe,
     )
     return schemas.GenerateRecipeResponse(
         recipe=schemas.AIRecipePayload(
@@ -224,5 +252,6 @@ async def generate_recipe(body: schemas.GenerateRecipeRequest):
                 "cook_time": parsed.metadata.cook_time,
                 "servings": parsed.metadata.servings,
             },
-        )
+        ),
+        reply=parsed.chat_reply,
     )

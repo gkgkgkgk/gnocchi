@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, Modal, Platform } from 'react-native';
+import { View, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, Modal, Platform, TextInput } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,9 +15,10 @@ import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Sheet } from '@/components/ui/Sheet';
 import { StarRating } from '@/components/ui/StarRating';
-import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags, setRecipeRating, addCookNote } from '@/services/recipe-service';
+import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags, setRecipeRating, addCookNote, setRecipeNotes } from '@/services/recipe-service';
 import { executeAITool, AITool } from '@/services/ai-tools-service';
 import { fetchUnits, Unit } from '@/services/unit-service';
+import { getUnitPreference, type UnitPreference } from '@/services/profile-service';
 import { scaleForDisplay } from '@/utils/unit-conversion';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
@@ -61,6 +62,10 @@ export default function RecipeDetailScreen() {
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   const [loggingCook, setLoggingCook] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [unitPref, setUnitPref] = useState<UnitPreference>('as_written');
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
 
   const theme = useTheme();
   const { isWide } = useResponsive();
@@ -110,6 +115,7 @@ export default function RecipeDetailScreen() {
   // 1 tbsp shows 1/8 cup). Loaded once; free-text units just skip conversion.
   useEffect(() => {
     fetchUnits().then(setUnits).catch((e) => console.error('Failed to load units:', e));
+    getUnitPreference().then(setUnitPref).catch(() => {});
   }, []);
 
   // Poll only while an AI insight is actively generating. (Previously this
@@ -208,6 +214,29 @@ export default function RecipeDetailScreen() {
       setRecipe((prev) => (prev ? { ...prev, cook_history: prevHistory } : prev));
     } finally {
       setLoggingCook(false);
+    }
+  };
+
+  const startEditNotes = () => {
+    setNotesDraft((recipe as any)?.notes || '');
+    setEditingNotes(true);
+  };
+
+  const handleSaveNotes = async () => {
+    if (!recipe || savingNotes) return;
+    setSavingNotes(true);
+    const next = notesDraft.trim();
+    const prev = (recipe as any).notes || '';
+    setRecipe({ ...recipe, notes: next } as Recipe); // optimistic
+    setEditingNotes(false);
+    try {
+      const updated = await setRecipeNotes(id as string, next);
+      setRecipe(updated);
+    } catch (error) {
+      console.error('Failed to save notes:', error);
+      setRecipe((r) => (r ? ({ ...r, notes: prev } as Recipe) : r));
+    } finally {
+      setSavingNotes(false);
     }
   };
 
@@ -371,7 +400,7 @@ export default function RecipeDetailScreen() {
     }
     return recipe.ingredients.map((item, index) => {
       const ingredientName = item.ingredient?.name || item.text || 'Unknown ingredient';
-      const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units);
+      const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units, unitPref);
       let displayText = formatIngredientLine(scaled.quantity, scaled.unit, ingredientName);
       const isOptional = (item as any).optional;
       if (isOptional) displayText = `${displayText} (optional)`;
@@ -591,13 +620,57 @@ export default function RecipeDetailScreen() {
             )}
           </View>
 
-          {/* Notes Section */}
-          {notes && (
-            <View style={styles.section}>
-              <Text variant="h2" style={{ marginBottom: theme.spacing.md }}>Notes</Text>
-              <Text variant="body" color="fgMuted" style={{ lineHeight: 22 }}>{notes}</Text>
+          {/* Notes Section — editable free-text on every recipe */}
+          <View style={styles.section}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md }}>
+              <Text variant="h2">Notes</Text>
+              {!editingNotes && (
+                <Pressable onPress={startEditNotes} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name={notes ? 'create-outline' : 'add'} size={18} color={c.accent} />
+                  <Text variant="smallMedium" style={{ color: c.accent }}>{notes ? 'Edit' : 'Add note'}</Text>
+                </Pressable>
+              )}
             </View>
-          )}
+
+            {editingNotes ? (
+              <View>
+                <TextInput
+                  value={notesDraft}
+                  onChangeText={setNotesDraft}
+                  placeholder="Add your notes — tweaks, substitutions, what you'd change next time…"
+                  placeholderTextColor={c.fgSubtle}
+                  multiline
+                  autoFocus
+                  style={{
+                    minHeight: 100,
+                    borderWidth: 1,
+                    borderColor: c.border,
+                    borderRadius: theme.radius.md,
+                    padding: theme.spacing.md,
+                    color: c.fg,
+                    backgroundColor: c.bgElevated,
+                    fontSize: 16,
+                    lineHeight: 24,
+                    textAlignVertical: 'top',
+                  }}
+                />
+                <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.md }}>
+                  <Button variant="ghost" onPress={() => setEditingNotes(false)} style={{ flex: 1 }}>Cancel</Button>
+                  <Button onPress={handleSaveNotes} loading={savingNotes} style={{ flex: 2 }}>Save notes</Button>
+                </View>
+              </View>
+            ) : notes ? (
+              <Pressable onPress={startEditNotes}>
+                <Text variant="body" color="fgMuted" style={{ lineHeight: 22 }}>{notes}</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={startEditNotes}>
+                <Text variant="body" color="fgSubtle" style={{ fontStyle: 'italic' }}>
+                  No notes yet. Tap to jot down tweaks or reminders.
+                </Text>
+              </Pressable>
+            )}
+          </View>
 
           {/* Recipe Multiplier Slider */}
           <View style={[styles.section, { backgroundColor: c.bgMuted, borderRadius: theme.radius.lg, padding: theme.spacing.lg, marginTop: theme.spacing.xl }]}>
