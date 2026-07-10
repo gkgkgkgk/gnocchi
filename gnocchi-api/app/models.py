@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -96,6 +96,37 @@ class Tag(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     color: Mapped[str] = mapped_column(String(16), nullable=False)
     icon: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class Unit(Base):
+    """Canonical measurement units. `to_base` is the multiplier into the base
+    unit of its `type` (volume→ml, weight→g, count→1), which lets the frontend
+    convert and roll up quantities (e.g. 2 tbsp → 1/8 cup) without hardcoding
+    factors. Units with a null `to_base` (e.g. 'clove', 'can') don't convert."""
+
+    __tablename__ = "units"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    abbreviation: Mapped[str] = mapped_column(String, nullable=False)
+    plural: Mapped[str | None] = mapped_column(String)
+    system: Mapped[str] = mapped_column(String(16), nullable=False)  # metric|imperial|universal
+    type: Mapped[str] = mapped_column(String(16), nullable=False)    # volume|weight|count
+    to_base: Mapped[float | None] = mapped_column(Float)
+    ord: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class IngredientCatalog(Base):
+    """Curated list of common ingredients for autocomplete. Recipes still store
+    ingredients inline as free text; this only powers the picker — anything not
+    here can be typed freely."""
+
+    __tablename__ = "ingredient_catalog"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    category: Mapped[str | None] = mapped_column(String(32))
+    ord: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
 class AITool(Base):

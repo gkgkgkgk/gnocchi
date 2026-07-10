@@ -14,13 +14,29 @@ import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Sheet } from '@/components/ui/Sheet';
 import { StarRating } from '@/components/ui/StarRating';
-import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags, setRecipeRating } from '@/services/recipe-service';
+import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags, setRecipeRating, addCookNote } from '@/services/recipe-service';
 import { executeAITool, AITool } from '@/services/ai-tools-service';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsive } from '@/hooks/use-responsive';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { convertDecimalsToFractions } from '@/utils/fraction-formatter';
+
+function formatCookDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  return formatCookDate(iso);
+}
 
 export default function RecipeDetailScreen() {
   const { id, from, cookbookId } = useLocalSearchParams();
@@ -39,6 +55,7 @@ export default function RecipeDetailScreen() {
   const [showEditTags, setShowEditTags] = useState(false);
   const [recipeTags, setRecipeTags] = useState<string[]>([]);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
+  const [loggingCook, setLoggingCook] = useState(false);
 
   const theme = useTheme();
   const { isWide } = useResponsive();
@@ -163,6 +180,23 @@ export default function RecipeDetailScreen() {
     } catch (error) {
       console.error('Failed to set rating:', error);
       setRecipe((r) => (r ? { ...r, rating: prev } : r));
+    }
+  };
+
+  const handleCookedIt = async () => {
+    if (!recipe || loggingCook) return;
+    setLoggingCook(true);
+    const entry = { date: new Date().toISOString(), note: '' };
+    const prevHistory = recipe.cook_history || [];
+    setRecipe({ ...recipe, cook_history: [...prevHistory, entry] }); // optimistic
+    try {
+      const updated = await addCookNote(id as string, entry);
+      setRecipe(updated);
+    } catch (error) {
+      console.error('Failed to log cook:', error);
+      setRecipe((prev) => (prev ? { ...prev, cook_history: prevHistory } : prev));
+    } finally {
+      setLoggingCook(false);
     }
   };
 
@@ -506,6 +540,45 @@ export default function RecipeDetailScreen() {
             </Button>
           </View>
 
+          {/* Cook log */}
+          <View style={[styles.section, { marginTop: theme.spacing.xl }]}>
+            <View style={styles.cookLogHeader}>
+              <View style={{ flex: 1 }}>
+                <Text variant="h2">Cook log</Text>
+                <Text variant="small" color="fgMuted" style={{ marginTop: 2 }}>
+                  {recipe.cook_history && recipe.cook_history.length > 0
+                    ? `Made ${recipe.cook_history.length} ${recipe.cook_history.length === 1 ? 'time' : 'times'} · last ${formatRelative(recipe.cook_history[recipe.cook_history.length - 1].date)}`
+                    : 'Not cooked yet — log it the next time you make it.'}
+                </Text>
+              </View>
+              <Button
+                size="sm"
+                loading={loggingCook}
+                onPress={handleCookedIt}
+                icon={!loggingCook ? <Ionicons name="restaurant-outline" size={16} color={c.accentFg} /> : undefined}
+              >
+                I cooked this
+              </Button>
+            </View>
+
+            {recipe.cook_history && recipe.cook_history.length > 0 && (
+              <View style={{ marginTop: theme.spacing.lg, gap: theme.spacing.sm }}>
+                {[...recipe.cook_history].reverse().slice(0, 6).map((entry, i) => (
+                  <View key={i} style={styles.cookLogRow}>
+                    <View style={[styles.cookLogDot, { backgroundColor: c.accent }]} />
+                    <Text variant="bodyMedium">{formatCookDate(entry.date)}</Text>
+                    {!!entry.note && <Text variant="body" color="fgMuted"> — {entry.note}</Text>}
+                  </View>
+                ))}
+                {recipe.cook_history.length > 6 && (
+                  <Text variant="small" color="fgSubtle" style={{ marginLeft: 18 }}>
+                    + {recipe.cook_history.length - 6} more
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+
           {/* Notes Section */}
           {notes && (
             <View style={styles.section}>
@@ -722,6 +795,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginTop: 20,
+  },
+  cookLogHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cookLogRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cookLogDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 10,
   },
   contentWide: {
     width: '100%',

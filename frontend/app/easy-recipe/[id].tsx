@@ -145,7 +145,7 @@ export default function EasyRecipeViewer() {
           <View style={useSideBySide ? styles.sideBySideContainer : styles.stackedContainer}>
             {/* Ingredients Section */}
             <View style={[styles.section, useSideBySide && styles.sectionSideBySide]}>
-              <View style={styles.ingredientsHeader}>
+              <View style={styles.sectionHeaderRow}>
                 <ThemedText style={styles.sectionTitleInline}>Ingredients</ThemedText>
                 <View style={styles.sizeStepper}>
                   <Pressable
@@ -197,7 +197,9 @@ export default function EasyRecipeViewer() {
 
             {/* Instructions Section */}
             <View style={[styles.section, useSideBySide && styles.sectionSideBySide]}>
-              <ThemedText style={styles.sectionTitle}>Instructions</ThemedText>
+              <View style={styles.sectionHeaderRow}>
+                <ThemedText style={styles.sectionTitleInline}>Instructions</ThemedText>
+              </View>
               <View style={styles.instructionsList}>
                 {recipe.steps && recipe.steps.length > 0 ? (
                   recipe.steps.map((step, index) => (
@@ -309,10 +311,13 @@ function makeStyles(theme: Theme) {
     borderBottomWidth: 2,
     borderBottomColor: c.accent,
   },
-  ingredientsHeader: {
+  // Shared by both column headers so the accent underline lines up across
+  // Ingredients (which carries the size stepper) and Instructions.
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    minHeight: 50,
     marginBottom: 16,
     paddingBottom: 8,
     borderBottomWidth: 2,

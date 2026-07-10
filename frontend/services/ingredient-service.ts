@@ -1,27 +1,45 @@
 /**
- * Legacy shim. In the new backend, ingredients are stored inline on each
- * recipe as `{text, quantity, unit}`; there is no shared ingredients table.
- * These functions are kept only so existing screens that referenced them
- * keep compiling — they return empty results and are safe no-ops.
+ * Curated ingredient catalog, backed by the /ingredients endpoint. Powers the
+ * ingredient picker's autocomplete. Recipes still store ingredients inline as
+ * free text — anything not in the catalog can be typed freely via
+ * `createIngredient`, which just returns a local (unsaved) entry.
  */
+import { api } from '@/lib/api';
 
 export interface Ingredient {
   id: string;
   name: string;
+  category?: string | null;
+  ord?: number;
 }
+
+let _cache: Ingredient[] | null = null;
 
 export async function fetchIngredients(): Promise<Ingredient[]> {
-  return [];
+  if (_cache) return _cache;
+  _cache = await api.get<Ingredient[]>('/ingredients');
+  return _cache;
 }
 
-export async function fetchIngredientById(): Promise<Ingredient | null> {
-  return null;
+export function invalidateIngredientsCache() {
+  _cache = null;
 }
 
-export async function fetchIngredientsByIds(): Promise<Ingredient[]> {
-  return [];
+export async function fetchIngredientById(id: string): Promise<Ingredient | null> {
+  if (!id) return null;
+  const ingredients = await fetchIngredients();
+  return ingredients.find((i) => i.id === id) ?? null;
 }
 
+export async function fetchIngredientsByIds(ids: string[]): Promise<Ingredient[]> {
+  const ingredients = await fetchIngredients();
+  return ids
+    .map((id) => ingredients.find((i) => i.id === id))
+    .filter((i): i is Ingredient => !!i);
+}
+
+/** Free-text ingredient the user typed that isn't in the catalog. Not persisted
+ *  to the catalog — it lives inline on the recipe like any other ingredient. */
 export async function createIngredient(name: string): Promise<Ingredient> {
   return { id: `local-${Date.now()}`, name };
 }

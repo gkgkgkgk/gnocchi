@@ -1,7 +1,19 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import ai, ai_tools, cookbooks, health, images, imports, recipes, singletons, tags
+from app.routers import (
+    ai,
+    ai_tools,
+    cookbooks,
+    health,
+    images,
+    imports,
+    ingredients,
+    recipes,
+    singletons,
+    tags,
+    units,
+)
 
 app = FastAPI(title="Gnocchi API", version="1.0.1")
 
@@ -20,6 +32,8 @@ app.include_router(health.router)
 app.include_router(recipes.router)
 app.include_router(cookbooks.router)
 app.include_router(tags.router)
+app.include_router(units.router)
+app.include_router(ingredients.router)
 app.include_router(singletons.router)
 app.include_router(ai_tools.router)
 app.include_router(imports.router)

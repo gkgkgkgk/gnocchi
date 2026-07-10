@@ -121,6 +121,31 @@ class TagIO(BaseModel):
     icon: str
 
 
+# --- Units & ingredient catalog ----------------------------------------
+
+
+class UnitOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    abbreviation: str
+    plural: str | None = None
+    system: str
+    type: str
+    to_base: float | None = None
+    ord: int = 0
+
+
+class IngredientOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    category: str | None = None
+    ord: int = 0
+
+
 # --- AI Tools -----------------------------------------------------------
 
 
