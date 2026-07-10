@@ -11,7 +11,7 @@ import { useTheme } from '@/hooks/use-theme';
 interface CookbookCardProps {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   cover_color?: string;
   recipe_count?: number;
   onPress: () => void;

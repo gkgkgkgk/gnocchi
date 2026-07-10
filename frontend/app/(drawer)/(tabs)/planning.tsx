@@ -3,9 +3,10 @@ import { View, ScrollView, Pressable, StyleSheet, TextInput, Modal, Platform, us
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { useTheme } from '@/hooks/use-theme';
+import { type Theme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
-import { fetchRecipes, Recipe, fetchRecipeById } from '@/services/recipe-service';
+import { fetchRecipes, Recipe, fetchRecipeById, unitToString } from '@/services/recipe-service';
 import { saveMealPlan, fetchMealPlan, MealPlanStructure } from '@/services/meal-plan-service';
 import { api } from '@/lib/api';
 
@@ -53,10 +54,13 @@ const initializeEmptyWeek = (): DayPlan[] => {
 };
 
 export default function PlanningScreen() {
-  const tintColor = useThemeColor({}, 'tint');
+  const theme = useTheme();
+  const c = theme.colors;
+  const styles = makeStyles(theme);
+  const tintColor = c.accent;
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const menuBackgroundColor = useThemeColor({}, 'background');
+  const menuBackgroundColor = c.bg;
   
   const [weekPlan, setWeekPlan] = useState<DayPlan[]>(initializeEmptyWeek());
   const [showAddRecipeModal, setShowAddRecipeModal] = useState(false);
@@ -165,7 +169,7 @@ export default function PlanningScreen() {
                 />
               ) : (
                 <View style={styles.recipeChipImage}>
-                  <Ionicons name="restaurant" size={22} color="#fff" />
+                  <Ionicons name="restaurant" size={22} color={c.secondary} />
                 </View>
               )}
             </View>
@@ -293,10 +297,10 @@ export default function PlanningScreen() {
                 id: `${Date.now()}-${Math.random()}`,
                 recipeId: recipe.id,
                 recipeName: recipe.title,
-                servings: recipe.servings,
-                cookTime: recipe.cook_time || recipe.cookTime,
+                servings: recipe.servings ?? undefined,
+                cookTime: recipe.cook_time || recipe.cookTime || undefined,
                 completed: false,
-                imageUrl: recipe.image_url || recipe.imageUrl,
+                imageUrl: recipe.image_url || recipe.imageUrl || undefined,
               });
             }
           } catch (err) {
@@ -318,10 +322,10 @@ export default function PlanningScreen() {
               id: `${Date.now()}-${Math.random()}`,
               recipeId: recipe.id,
               recipeName: recipe.title,
-              servings: recipe.servings,
-              cookTime: recipe.cook_time || recipe.cookTime,
+              servings: recipe.servings ?? undefined,
+              cookTime: recipe.cook_time || recipe.cookTime || undefined,
               completed: false,
-              imageUrl: recipe.image_url || recipe.imageUrl,
+              imageUrl: recipe.image_url || recipe.imageUrl || undefined,
             });
           }
         } catch (err) {
@@ -366,10 +370,10 @@ export default function PlanningScreen() {
       id: `${Date.now()}-${Math.random()}`,
       recipeId: recipe.id,
       recipeName: recipe.title,
-      servings: recipe.servings,
-      cookTime: recipe.cook_time || recipe.cookTime,
+      servings: recipe.servings ?? undefined,
+      cookTime: recipe.cook_time || recipe.cookTime || undefined,
       completed: false,
-      imageUrl: recipe.image_url || recipe.imageUrl,
+      imageUrl: recipe.image_url || recipe.imageUrl || undefined,
     };
 
     let updatedWeekPlan = weekPlan;
@@ -509,7 +513,8 @@ export default function PlanningScreen() {
         ingredients: (recipe.ingredients ?? []).map(ing => ({
           text: ing.text,
           quantity: ing.quantity,
-          unit: ing.unit ?? '',
+          // adaptForUI wraps unit as an object; the API expects a plain string.
+          unit: unitToString(ing.unit),
         })),
         instructions: recipe.steps || [],
         notes: recipe.notes || '',
@@ -585,7 +590,7 @@ export default function PlanningScreen() {
               </ThemedText>
             </View>
             <Pressable style={styles.resetButton} onPress={() => setShowDeleteConfirm(true)}>
-              <Ionicons name="refresh-outline" size={20} color="#fff" />
+              <Ionicons name="refresh-outline" size={20} color={c.danger} />
               <ThemedText style={styles.resetButtonText}>Reset</ThemedText>
             </Pressable>
           </View>
@@ -601,7 +606,7 @@ export default function PlanningScreen() {
           ]}
           style={[
             styles.calendarContainer,
-            Platform.OS === 'web' && { scrollbarColor: '#E07856 rgba(0,0,0,0.1)' } as any
+            Platform.OS === 'web' && ({ scrollbarColor: `${c.accent} ${c.border}` } as any)
           ]}
         >
           {weekPlan.map((day, dayIndex) => {
@@ -630,10 +635,10 @@ export default function PlanningScreen() {
                 style={{
                   borderWidth: draggedRecipe ? 3 : 2,
                   borderColor: draggedRecipe 
-                    ? '#E07856' 
-                    : isToday ? '#E07856' : 'rgba(0,0,0,0.08)',
+                    ? c.accent 
+                    : isToday ? c.accent : c.border,
                   borderRadius: 16,
-                  backgroundColor: draggedRecipe ? 'rgba(76, 175, 80, 0.1)' : undefined,
+                  backgroundColor: draggedRecipe ? c.secondaryMuted : undefined,
                   width: calculatedWidth,
                 }}
               >
@@ -702,7 +707,7 @@ export default function PlanningScreen() {
                     }
                   }}
                 >
-                  <Ionicons name="add-circle" size={20} color={isToday ? '#fff' : 'rgba(255,255,255,0.7)'} />
+                  <Ionicons name="add-circle" size={20} color={isToday ? c.accent : c.fgMuted} />
                   <ThemedText style={[styles.addRecipeButtonText, isToday && styles.addRecipeButtonTextToday]}>
                     Add Recipe
                   </ThemedText>
@@ -717,13 +722,13 @@ export default function PlanningScreen() {
         <View
           style={{
             borderWidth: draggedRecipe && draggedRecipe.fromDay !== null ? 3 : 2,
-            borderColor: draggedRecipe && draggedRecipe.fromDay !== null ? '#FF9800' : 'rgba(255, 193, 7, 0.2)',
+            borderColor: draggedRecipe && draggedRecipe.fromDay !== null ? c.accent : c.borderStrong,
             margin: 20,
             marginTop: 0,
             padding: 16,
-            backgroundColor: draggedRecipe && draggedRecipe.fromDay !== null 
-              ? 'rgba(255, 152, 0, 0.15)' 
-              : 'rgba(255, 193, 7, 0.05)',
+            backgroundColor: draggedRecipe && draggedRecipe.fromDay !== null
+              ? c.accentMuted
+              : c.bgMuted,
             borderRadius: 12,
             minHeight: 180,
           }}
@@ -787,7 +792,7 @@ export default function PlanningScreen() {
                         />
                       ) : (
                         <View style={styles.recipeChipImage}>
-                          <Ionicons name="restaurant" size={22} color="#fff" />
+                          <Ionicons name="restaurant" size={22} color={c.secondary} />
                         </View>
                       )}
                     </View>
@@ -828,7 +833,7 @@ export default function PlanningScreen() {
               style={styles.generateButton}
               onPress={generateShoppingList}
             >
-              <Ionicons name="refresh-outline" size={20} color="#fff" />
+              <Ionicons name="refresh-outline" size={20} color={c.accentFg} />
               <ThemedText style={styles.generateButtonText}>Generate</ThemedText>
             </Pressable>
           </View>
@@ -841,7 +846,7 @@ export default function PlanningScreen() {
               <View>
                 {(generatingShoppingList || loadingShoppingList) && (
                   <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#E07856" />
+                    <ActivityIndicator size="small" color={c.accent} />
                     <ThemedText style={styles.loadingText}>
                       {generatingShoppingList ? 'Generating shopping list...' : 'Loading shopping list...'}
                     </ThemedText>
@@ -879,7 +884,7 @@ export default function PlanningScreen() {
                         <Ionicons
                           name={item.checked ? "checkmark-circle" : "checkmark-circle-outline"}
                           size={24}
-                          color={item.checked ? "#E07856" : "rgba(0,0,0,0.3)"}
+                          color={item.checked ? c.accent : c.fgSubtle}
                         />
                       </Pressable>
                       <ThemedText
@@ -905,7 +910,7 @@ export default function PlanningScreen() {
                     style={styles.cancelShoppingDragButton}
                     onPress={() => setDraggedShoppingItem(null)}
                   >
-                    <Ionicons name="close-circle" size={32} color="#fff" />
+                    <Ionicons name="close-circle" size={32} color={c.bg} />
                     <ThemedText style={styles.cancelShoppingDragText}>Cancel</ThemedText>
                   </Pressable>
                 )}
@@ -931,13 +936,13 @@ export default function PlanningScreen() {
               }
             </ThemedText>
             <Pressable onPress={() => setShowAddRecipeModal(false)}>
-              <Ionicons name="close" size={28} color="#000" />
+              <Ionicons name="close" size={28} color={c.fg} />
             </Pressable>
           </View>
 
           {/* Search Bar */}
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="rgba(0,0,0,0.4)" style={styles.searchIcon} />
+            <Ionicons name="search" size={20} color={c.fgSubtle} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search recipes..."
@@ -948,7 +953,7 @@ export default function PlanningScreen() {
             />
             {searchQuery.length > 0 && (
               <Pressable onPress={() => setSearchQuery('')} style={styles.clearButton}>
-                <Ionicons name="close-circle" size={20} color="rgba(0,0,0,0.4)" />
+                <Ionicons name="close-circle" size={20} color={c.fgSubtle} />
               </Pressable>
             )}
           </View>
@@ -962,7 +967,7 @@ export default function PlanningScreen() {
               </View>
             ) : filteredRecipes.length === 0 ? (
               <View style={styles.emptyContainer}>
-                <Ionicons name="restaurant-outline" size={64} color="rgba(0,0,0,0.2)" />
+                <Ionicons name="restaurant-outline" size={64} color={c.fgSubtle} />
                 <ThemedText style={styles.emptyText}>
                   {searchQuery ? 'No recipes found' : 'No recipes yet'}
                 </ThemedText>
@@ -980,12 +985,12 @@ export default function PlanningScreen() {
                   >
                     {recipe.image_url || recipe.imageUrl ? (
                       <Image
-                        source={{ uri: recipe.image_url || recipe.imageUrl }}
+                        source={{ uri: recipe.image_url || recipe.imageUrl || undefined }}
                         style={styles.recipeListImage}
                       />
                     ) : (
                       <View style={[styles.recipeListImage, styles.recipeListImagePlaceholder]}>
-                        <Ionicons name="image-outline" size={32} color="rgba(0,0,0,0.2)" />
+                        <Ionicons name="image-outline" size={32} color={c.fgSubtle} />
                       </View>
                     )}
                     <View style={styles.recipeListInfo}>
@@ -993,13 +998,13 @@ export default function PlanningScreen() {
                       <View style={styles.recipeListMeta}>
                         {recipe.servings && (
                           <View style={styles.recipeMetaItem}>
-                            <Ionicons name="people-outline" size={14} color="rgba(0,0,0,0.5)" />
+                            <Ionicons name="people-outline" size={14} color={c.fgMuted} />
                             <ThemedText style={styles.recipeMetaText}>{recipe.servings}</ThemedText>
                           </View>
                         )}
                         {(recipe.cook_time || recipe.cookTime) && (
                           <View style={styles.recipeMetaItem}>
-                            <Ionicons name="time-outline" size={14} color="rgba(0,0,0,0.5)" />
+                            <Ionicons name="time-outline" size={14} color={c.fgMuted} />
                             <ThemedText style={styles.recipeMetaText}>
                               {recipe.cook_time || recipe.cookTime} min
                             </ThemedText>
@@ -1020,7 +1025,7 @@ export default function PlanningScreen() {
       {draggedRecipe && (
         <View style={styles.dragOverlay}>
           <Pressable style={styles.cancelDragButton} onPress={cancelDrag}>
-            <Ionicons name="close-circle" size={60} color="#fff" />
+            <Ionicons name="close-circle" size={60} color={c.bg} />
             <ThemedText style={styles.cancelDragText}>Cancel</ThemedText>
           </Pressable>
         </View>
@@ -1086,14 +1091,14 @@ export default function PlanningScreen() {
               <ThemedView style={styles.recipeDetailContent}>
                 {loadingRecipeDetail ? (
                   <View style={styles.recipeDetailLoading}>
-                    <ActivityIndicator size="large" color="#E07856" />
+                    <ActivityIndicator size="large" color={c.accent} />
                     <ThemedText style={styles.loadingText}>Loading recipe...</ThemedText>
                   </View>
                 ) : selectedRecipeDetail ? (
                   <>
                     {/* Close Button */}
                     <Pressable style={styles.recipeDetailClose} onPress={closeRecipeDetail}>
-                      <Ionicons name="close" size={28} color="#666" />
+                      <Ionicons name="close" size={28} color={c.fgMuted} />
                     </Pressable>
 
                     <ScrollView 
@@ -1117,7 +1122,7 @@ export default function PlanningScreen() {
                       <View style={styles.recipeDetailMeta}>
                         {selectedRecipeDetail.servings && (
                           <View style={styles.recipeDetailMetaItem}>
-                            <Ionicons name="people" size={18} color="#E07856" />
+                            <Ionicons name="people" size={18} color={c.accent} />
                             <ThemedText style={styles.recipeDetailMetaText}>
                               {selectedRecipeDetail.servings} servings
                             </ThemedText>
@@ -1125,7 +1130,7 @@ export default function PlanningScreen() {
                         )}
                         {(selectedRecipeDetail.cook_time || selectedRecipeDetail.cookTime) && (
                           <View style={styles.recipeDetailMetaItem}>
-                            <Ionicons name="time" size={18} color="#E07856" />
+                            <Ionicons name="time" size={18} color={c.accent} />
                             <ThemedText style={styles.recipeDetailMetaText}>
                               {selectedRecipeDetail.cook_time || selectedRecipeDetail.cookTime} min
                             </ThemedText>
@@ -1182,7 +1187,7 @@ export default function PlanningScreen() {
                         <ThemedText style={styles.recipeDetailButtonText}>
                           View Full Recipe
                         </ThemedText>
-                        <Ionicons name="arrow-forward" size={20} color="#fff" />
+                        <Ionicons name="arrow-forward" size={20} color={c.accentFg} />
                       </Pressable>
                     </View>
                   </>
@@ -1195,7 +1200,9 @@ export default function PlanningScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -1227,15 +1234,15 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(255, 59, 48, 0.15)',
+    backgroundColor: c.dangerMuted,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 59, 48, 0.3)',
+    borderColor: c.danger,
   },
   resetButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#FF3B30',
+    color: c.danger,
   },
   calendarContainer: {
     marginBottom: 20,
@@ -1248,7 +1255,7 @@ const styles = StyleSheet.create({
   dayCard: {
     flex: 1,
     height: 420, // Increased height: header (~60px) + 2.5 rows of recipes (~280px) + button (~50px) + padding
-    backgroundColor: '#2C3E50',
+    backgroundColor: c.bgMuted,
     borderRadius: 16,
     padding: 16,
     position: 'relative',
@@ -1260,11 +1267,11 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   dayCardToday: {
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     transform: [{ scale: 1.05 }],
   },
   dayCardWithRecipes: {
-    backgroundColor: '#34495E',
+    backgroundColor: c.secondaryMuted,
   },
   dayCardHeader: {
     marginBottom: 16,
@@ -1273,24 +1280,24 @@ const styles = StyleSheet.create({
   dayCardDay: {
     fontSize: 11,
     fontWeight: '700',
-    color: 'rgba(255,255,255,0.7)',
+    color: c.fgMuted,
     letterSpacing: 1,
   },
   dayCardDate: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#fff',
+    color: c.fg,
     marginTop: 4,
     lineHeight: 40,
   },
   todayText: {
-    color: '#fff',
+    color: c.accent,
   },
   todayDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#fff',
+    backgroundColor: c.accent,
     marginTop: 8,
   },
   dayCardContent: {
@@ -1305,19 +1312,19 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: c.bgHover,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: c.borderStrong,
     borderStyle: 'dashed',
   },
   addRecipeButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(255,255,255,0.7)',
+    color: c.fgMuted,
   },
   addRecipeButtonTextToday: {
-    color: '#fff',
+    color: c.accent,
   },
   emptyDay: {
     flex: 1,
@@ -1327,11 +1334,11 @@ const styles = StyleSheet.create({
   emptyDayText: {
     fontSize: 12,
     marginTop: 8,
-    color: 'rgba(255,255,255,0.5)',
+    color: c.fgSubtle,
     textAlign: 'center',
   },
   emptyDayTextToday: {
-    color: '#fff',
+    color: c.accent,
     fontWeight: '600',
   },
   recipesContainer: {
@@ -1346,15 +1353,15 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-between', // Space between top and bottom
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: c.bgElevated,
     borderRadius: 8,
     padding: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: c.border,
   },
   recipeChipDragging: {
-    backgroundColor: 'rgba(76, 175, 80, 0.3)',
-    borderColor: '#E07856',
+    backgroundColor: c.secondaryMuted,
+    borderColor: c.accent,
     borderWidth: 2,
   },
   recipeChipTop: {
@@ -1373,7 +1380,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(76, 175, 80, 0.3)',
+    backgroundColor: c.secondaryMuted,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -1381,7 +1388,7 @@ const styles = StyleSheet.create({
   recipeChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#fff',
+    color: c.fg,
     lineHeight: 16,
     textAlign: 'center',
   },
@@ -1393,17 +1400,17 @@ const styles = StyleSheet.create({
   },
   chipRemoveText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.5)',
+    color: c.fgSubtle,
     fontWeight: '500',
   },
   shoppingListSection: {
     margin: 20,
     marginTop: 0,
     padding: 20,
-    backgroundColor: 'rgba(76, 175, 80, 0.05)',
+    backgroundColor: c.secondaryMuted,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: 'rgba(76, 175, 80, 0.2)',
+    borderColor: c.secondary,
   },
   shoppingListHeader: {
     flexDirection: 'row',
@@ -1422,15 +1429,15 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E07856',
+    borderColor: c.accent,
   },
   generateButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: c.accentFg,
   },
   shoppingListContent: {
     paddingLeft: 36,
@@ -1441,7 +1448,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: c.border,
   },
   shoppingListItemLeft: {
     flexDirection: 'row',
@@ -1458,9 +1465,9 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   shoppingListItemDragging: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    backgroundColor: c.secondaryMuted,
     borderLeftWidth: 4,
-    borderLeftColor: '#E07856',
+    borderLeftColor: c.accent,
   },
   cancelShoppingDragButton: {
     flexDirection: 'row',
@@ -1469,23 +1476,23 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 16,
     padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: c.fg,
     borderRadius: 8,
   },
   cancelShoppingDragText: {
-    color: '#fff',
+    color: c.bg,
     fontSize: 14,
     fontWeight: '600',
   },
   shoppingListItemSources: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    backgroundColor: c.secondaryMuted,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
   shoppingListItemSourcesText: {
     fontSize: 12,
-    color: '#E07856',
+    color: c.accent,
     fontWeight: '500',
   },
   placeholderText: {
@@ -1503,7 +1510,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: c.border,
   },
   modalTitle: {
     fontSize: 24,
@@ -1515,7 +1522,7 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: c.bgMuted,
     borderRadius: 12,
     margin: 16,
     paddingHorizontal: 12,
@@ -1568,12 +1575,12 @@ const styles = StyleSheet.create({
   recipeListItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: c.bgMuted,
     borderRadius: 12,
     padding: 12,
     gap: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderColor: c.border,
   },
   recipeListImage: {
     width: 60,
@@ -1581,7 +1588,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   recipeListImagePlaceholder: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: c.bgHover,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1592,7 +1599,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
-    color: '#000',
+    color: c.fg,
   },
   recipeListMeta: {
     flexDirection: 'row',
@@ -1606,16 +1613,16 @@ const styles = StyleSheet.create({
   recipeMetaText: {
     fontSize: 13,
     opacity: 0.6,
-    color: '#000',
+    color: c.fg,
   },
   shortListSection: {
     margin: 20,
     marginTop: 0,
     padding: 16,
-    backgroundColor: 'rgba(255, 193, 7, 0.05)',
+    backgroundColor: c.bgMuted,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: 'rgba(255, 193, 7, 0.2)',
+    borderColor: c.borderStrong,
   },
   shortListHeader: {
     flexDirection: 'row',
@@ -1641,7 +1648,7 @@ const styles = StyleSheet.create({
   },
   shortListCard: {
     width: 160,
-    backgroundColor: '#FF9800',
+    backgroundColor: c.accent,
     borderRadius: 12,
     padding: 12,
     minHeight: 100,
@@ -1650,7 +1657,7 @@ const styles = StyleSheet.create({
   shortListCardTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: c.accentFg,
     marginBottom: 8,
   },
   shortListCardMeta: {
@@ -1658,7 +1665,7 @@ const styles = StyleSheet.create({
   },
   shortListCardMetaText: {
     fontSize: 11,
-    color: 'rgba(255,255,255,0.9)',
+    color: c.accentFg,
   },
   shortListCardActions: {
     flexDirection: 'row',
@@ -1669,16 +1676,16 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   dayCardDropTarget: {
-    borderColor: '#E07856',
+    borderColor: c.accent,
     borderWidth: 3,
   },
   shortListCardDragging: {
     opacity: 0.5,
-    borderColor: '#fff',
+    borderColor: c.accentFg,
     borderWidth: 2,
   },
   shortListDropTarget: {
-    borderColor: '#FF9800',
+    borderColor: c.accent,
     borderWidth: 3,
   },
   dragOverlay: {
@@ -1688,7 +1695,7 @@ const styles = StyleSheet.create({
     zIndex: 1000,
   },
   cancelDragButton: {
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: c.fg,
     borderRadius: 50,
     padding: 20,
     alignItems: 'center',
@@ -1700,14 +1707,14 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   cancelDragText: {
-    color: '#fff',
+    color: c.bg,
     fontSize: 14,
     fontWeight: 'bold',
     marginTop: 8,
   },
   confirmOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -1742,24 +1749,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#e0e0e0',
+    backgroundColor: c.bgMuted,
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: c.fg,
   },
   deleteButton: {
-    backgroundColor: '#ff3b30',
+    backgroundColor: c.danger,
   },
   deleteButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
+    color: c.dangerFg,
   },
   recipeDetailOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: c.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -1788,7 +1795,7 @@ const styles = StyleSheet.create({
     top: 16,
     right: 16,
     zIndex: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: c.bgElevated,
     borderRadius: 20,
     padding: 4,
   },
@@ -1835,7 +1842,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     marginTop: 7,
     marginRight: 12,
   },
@@ -1853,13 +1860,13 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   recipeDetailStepNumberText: {
-    color: '#fff',
+    color: c.accentFg,
     fontSize: 14,
     fontWeight: 'bold',
   },
@@ -1890,7 +1897,7 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
   },
   recipeDetailButton: {
-    backgroundColor: '#E07856',
+    backgroundColor: c.accent,
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -1904,8 +1911,9 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   recipeDetailButtonText: {
-    color: '#fff',
+    color: c.accentFg,
     fontSize: 16,
     fontWeight: 'bold',
   },
-});
+  });
+}

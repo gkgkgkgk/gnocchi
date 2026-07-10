@@ -7,7 +7,7 @@ import { UnitPickerModal } from '@/components/unit-picker-modal';
 import { IngredientPickerModal } from '@/components/ingredient-picker-modal';
 import { Unit, fetchUnits } from '@/services/unit-service';
 import { Ingredient } from '@/services/ingredient-service';
-import { updateRecipe, fetchRecipeById } from '@/services/recipe-service';
+import { updateRecipe, fetchRecipeById, unitToString } from '@/services/recipe-service';
 import { useTheme } from '@/hooks/use-theme';
 import { type Theme } from '@/constants/theme';
 
@@ -66,9 +66,9 @@ export default function EditRecipeScreen() {
         if (ing.unit_id) {
           matchedUnit = allUnits.find(u => u.id === ing.unit_id);
         } else if (ing.unit) {
-          // Try fuzzy matching if we have unit object
-          const unitName = ing.unit.name || '';
-          matchedUnit = allUnits.find(u => 
+          const unitName = unitToString(ing.unit);
+          matchedUnit = allUnits.find(u =>
+            u.id.toLowerCase() === unitName.toLowerCase() ||
             u.name?.toLowerCase() === unitName.toLowerCase() ||
             u.abbreviation?.toLowerCase() === unitName.toLowerCase()
           );
@@ -78,7 +78,7 @@ export default function EditRecipeScreen() {
         let ingredientName = ing.text || '';
         if (ing.quantity && ing.unit) {
           const quantityStr = ing.quantity.toString();
-          const unitStr = ing.unit.name || ing.unit.abbreviation || '';
+          const unitStr = unitToString(ing.unit);
           ingredientName = ing.text
             .replace(new RegExp(`^${quantityStr}\\s*${unitStr}\\s*`, 'i'), '')
             .replace(/^of\s+/i, '')
@@ -90,7 +90,7 @@ export default function EditRecipeScreen() {
           ingredientName: ingredientName || ing.ingredient?.name || '',
           quantity: ing.quantity?.toString() || '',
           unitId: matchedUnit?.id || ing.unit_id || '',
-          unitAbbreviation: matchedUnit?.abbreviation || ing.unit?.abbreviation || '',
+          unitAbbreviation: matchedUnit?.abbreviation || unitToString(ing.unit) || '',
           text: ing.text || '',
         };
       }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '' }];

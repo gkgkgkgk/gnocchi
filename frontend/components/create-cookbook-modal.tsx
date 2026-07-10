@@ -193,7 +193,7 @@ export function CreateCookbookModal({
                           
                           {item.image_url || item.imageUrl ? (
                             <Image
-                              source={{ uri: item.image_url || item.imageUrl }}
+                              source={{ uri: item.image_url || item.imageUrl || undefined }}
                               style={styles.selectedRecipeImage}
                               contentFit="cover"
                             />
@@ -243,7 +243,7 @@ export function CreateCookbookModal({
                           <View style={styles.imageContainer}>
                             {recipe.image_url || recipe.imageUrl ? (
                               <Image
-                                source={{ uri: recipe.image_url || recipe.imageUrl }}
+                                source={{ uri: recipe.image_url || recipe.imageUrl || undefined }}
                                 style={styles.recipeImage}
                                 contentFit="cover"
                               />

@@ -178,7 +178,7 @@ export default function EasyRecipeViewer() {
                 {recipe.ingredients && recipe.ingredients.length > 0 ? (
                   recipe.ingredients.map((item, index) => {
                     const ingredientName = item.ingredient?.name || item.text || 'Unknown';
-                    const scaled = scaleForDisplay(item.quantity, item.unit?.name, multiplier, units);
+                    const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units);
                     let displayText = formatIngredientLine(scaled.quantity, scaled.unit, ingredientName);
                     displayText = convertDecimalsToFractions(displayText);
                     const isOptional = (item as any).optional;

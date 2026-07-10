@@ -17,8 +17,8 @@ import { useTheme } from '@/hooks/use-theme';
 interface RecipeCardProps {
   id: string;
   title: string;
-  imageUrl?: string;
-  image_url?: string;
+  imageUrl?: string | null;
+  image_url?: string | null;
   metadata?: any;
   ingredients?: any[];
   rating?: number | null;

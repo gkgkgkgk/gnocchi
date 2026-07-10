@@ -186,7 +186,7 @@ export default function CookbookDetailScreen() {
               {/* Recipe image */}
               {(recipe.image_url || recipe.imageUrl) ? (
                 <Image
-                  source={{ uri: recipe.image_url || recipe.imageUrl }}
+                  source={{ uri: recipe.image_url || recipe.imageUrl || undefined }}
                   style={styles.recipeImage}
                   contentFit="cover"
                 />
@@ -201,22 +201,22 @@ export default function CookbookDetailScreen() {
 
               {/* Metadata */}
               <View style={styles.metadata}>
-                {recipe.metadata?.prepTime > 0 && (
+                {Number(recipe.metadata?.prepTime) > 0 && (
                   <View style={styles.metadataItem}>
                     <ThemedText style={styles.metadataLabel}>Prep:</ThemedText>
-                    <ThemedText style={styles.metadataValue}>{recipe.metadata.prepTime} min</ThemedText>
+                    <ThemedText style={styles.metadataValue}>{recipe.metadata?.prepTime} min</ThemedText>
                   </View>
                 )}
-                {recipe.metadata?.cookTime > 0 && (
+                {Number(recipe.metadata?.cookTime) > 0 && (
                   <View style={styles.metadataItem}>
                     <ThemedText style={styles.metadataLabel}>Cook:</ThemedText>
-                    <ThemedText style={styles.metadataValue}>{recipe.metadata.cookTime} min</ThemedText>
+                    <ThemedText style={styles.metadataValue}>{recipe.metadata?.cookTime} min</ThemedText>
                   </View>
                 )}
-                {recipe.metadata?.servings > 0 && (
+                {Number(recipe.metadata?.servings) > 0 && (
                   <View style={styles.metadataItem}>
                     <ThemedText style={styles.metadataLabel}>Servings:</ThemedText>
-                    <ThemedText style={styles.metadataValue}>{recipe.metadata.servings}</ThemedText>
+                    <ThemedText style={styles.metadataValue}>{recipe.metadata?.servings}</ThemedText>
                   </View>
                 )}
               </View>

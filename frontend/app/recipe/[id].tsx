@@ -343,7 +343,7 @@ export default function RecipeDetailScreen() {
       let fullText = ingredientText;
       if (matchingIngredient) {
         const quantity = (matchingIngredient.quantity || 0) * multiplier; // Apply multiplier
-        const unit = matchingIngredient.unit?.name || matchingIngredient.unit?.abbreviation || '';
+        const unit = matchingIngredient.unit || '';
         const ingredientName = matchingIngredient.ingredient?.name || matchingIngredient.text || '';
         
         // Format: "2 cups all-purpose flour" or "2 large eggs"
@@ -369,7 +369,7 @@ export default function RecipeDetailScreen() {
     }
     return recipe.ingredients.map((item, index) => {
       const ingredientName = item.ingredient?.name || item.text || 'Unknown ingredient';
-      const scaled = scaleForDisplay(item.quantity, item.unit?.name, multiplier, units);
+      const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units);
       let displayText = formatIngredientLine(scaled.quantity, scaled.unit, ingredientName);
       const isOptional = (item as any).optional;
       if (isOptional) displayText = `${displayText} (optional)`;

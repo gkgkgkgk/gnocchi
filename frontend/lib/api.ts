@@ -47,7 +47,16 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const text = await res.text();
   const parsed = text ? safeJson(text) : undefined;
   if (!res.ok) {
-    const detail = (parsed && (parsed as any).detail) ?? res.statusText;
+    const rawDetail = (parsed && (parsed as any).detail) ?? res.statusText;
+    // FastAPI validation errors come back as an array of {loc, msg, type};
+    // stringifying it directly yields "[object Object],..." — flatten instead.
+    const detail = Array.isArray(rawDetail)
+      ? rawDetail
+          .map((e: any) =>
+            e && e.msg ? `${Array.isArray(e.loc) ? e.loc.join('.') + ': ' : ''}${e.msg}` : String(e),
+          )
+          .join('; ')
+      : rawDetail;
     throw new ApiError(res.status, `${res.status} ${detail}`, parsed);
   }
   return parsed as T;

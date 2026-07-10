@@ -82,7 +82,7 @@ export function Button({
               style={[
                 theme.type.button,
                 { color: fg, fontSize },
-                (icon || iconRight) && { marginHorizontal: theme.spacing.xs },
+                !!(icon || iconRight) && { marginHorizontal: theme.spacing.xs },
               ]}
             >
               {children}

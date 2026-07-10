@@ -109,7 +109,7 @@ export default function CookbooksScreen() {
             <View style={{ flex: 1 / numColumns, minWidth: 0 }}>
               <CookbookCard
                 {...item}
-                cover_color={item.cover_color}
+                cover_color={item.cover_color ?? undefined}
                 onPress={() => router.push(`/cookbook/${item.id}` as any)}
                 onEdit={() => handleEditPress(item.id)}
                 onDelete={() => handleDelete(item.id)}

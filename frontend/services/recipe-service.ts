@@ -5,10 +5,10 @@ import { api } from '@/lib/api';
 export interface RecipeIngredient {
   text: string;
   quantity: number;
-  // Loose during Phase 1.5: old screens read this as `{name, abbreviation}`,
-  // new code treats it as a plain string. Use `unitToString(i.unit)` when
-  // you need a definite string. Cleaned up in Phase 3.
-  unit: any;
+  // The unit is a plain string (e.g. "tbsp", "cup"). It used to be wrapped as
+  // `{name, abbreviation}` for old screens — that ambiguity caused API payload
+  // bugs (an object where a string was expected), so it's normalized here.
+  unit: string;
   optional?: boolean;
   ingredient?: { id?: string; name: string };
   unit_id?: string;
@@ -16,7 +16,8 @@ export interface RecipeIngredient {
   id?: string;
 }
 
-/** Extract the unit as a plain string whether given a string or `{name,abbreviation}`. */
+/** Extract the unit as a plain string whether given a string or a legacy
+ *  `{name, abbreviation}` object (defensive — inputs can still be either). */
 export function unitToString(u: any): string {
   if (!u) return '';
   if (typeof u === 'string') return u;
@@ -172,19 +173,15 @@ function adaptForUI(r: any): Recipe {
   return {
     ...r,
     ingredients: (r.ingredients ?? []).map((i: any) => {
-      const unitStr = i.unit ?? '';
+      const unitStr = unitToString(i.unit);
       const qty = typeof i.quantity === 'number' ? i.quantity : parseQuantity(i.quantity);
       const cleanName = cleanIngredientName(i.text ?? '', qty, unitStr);
       return {
         text: i.text ?? '',
         quantity: qty,
         optional: !!i.optional,
-        // The old screens read `.name` and `.abbreviation`; new code reads
-        // `.unit` as a plain string. Make it an object with a toString so
-        // both patterns work (String(unitObj) → unit string).
-        unit: unitStr
-          ? Object.assign({ name: unitStr, abbreviation: unitStr }, { toString: () => unitStr })
-          : { name: '', abbreviation: '' },
+        // Plain string — see RecipeIngredient.unit. '' when absent.
+        unit: unitStr,
         // Legacy shape read by the recipe view: it does
         //   formatIngredientLine(qty, unit.name, item.text)
         // where the third arg is the ingredient name — NOT the full text.

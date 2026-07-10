@@ -1,6 +1,6 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Drawer } from 'expo-router/drawer';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -20,7 +20,7 @@ export default function DrawerLayout() {
             drawerLabel: 'Home',
             title: 'Home',
             drawerIcon: ({ color, size }) => (
-              <IconSymbol size={size} name="house.fill" color={color} />
+              <Ionicons size={size} name="home" color={color} />
             ),
           }}
         />
@@ -30,7 +30,7 @@ export default function DrawerLayout() {
             drawerLabel: 'Settings',
             title: 'Settings',
             drawerIcon: ({ color, size }) => (
-              <IconSymbol size={size} name="gearshape.fill" color={color} />
+              <Ionicons size={size} name="settings" color={color} />
             ),
           }}
         />
