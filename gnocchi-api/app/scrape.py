@@ -94,6 +94,37 @@ async def scrape_website(url: str) -> dict[str, Any]:
     return {"raw_text": _extract_recipe_text(soup), "source_image": cover, "source_url": url}
 
 
+async def scrape_instagram(url: str) -> dict[str, Any]:
+    """Instagram posts don't embed JSON-LD recipes; the recipe (if any) lives
+    in the caption. We read it from og:description / og:title meta tags, which
+    Instagram populates even without login, and hand the text to the LLM."""
+    html = await _fetch(url)
+    soup = BeautifulSoup(html, "html.parser")
+
+    def _meta(prop: str) -> str | None:
+        tag = soup.find("meta", property=prop) or soup.find("meta", attrs={"name": prop})
+        return tag.get("content") if tag else None
+
+    cover = _meta("og:image")
+    caption = _meta("og:description") or ""
+    title = _meta("og:title") or ""
+
+    # og:description is usually: '123 likes, 4 comments - user on Date: "CAPTION"'
+    # Pull the quoted caption when present, else use the whole thing.
+    import re
+
+    m = re.search(r'[:\-]\s*"(.+)"\s*$', caption, re.S)
+    text = (m.group(1) if m else caption).strip()
+    if len(text) < 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Couldn't read a caption from that Instagram post. It may be private, or the recipe isn't in the caption.",
+        )
+
+    combined = f"{title}\n\n{text}" if title else text
+    return {"raw_text": combined, "source_image": cover, "source_url": url}
+
+
 async def scrape_pinterest(url: str) -> dict[str, Any]:
     """Follow a pin's outbound link to the actual recipe site, then scrape it."""
     html = await _fetch(url)

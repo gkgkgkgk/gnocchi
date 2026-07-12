@@ -9,6 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { AIInsightsBanner } from '@/components/ai-insights-banner';
 import { ToolExecutionModal } from '@/components/tool-execution-modal';
 import { RecipePhotoGallery } from '@/components/recipe-photo-gallery';
+import { RecipeChatPanel } from '@/components/recipe-chat-panel';
 import { EditRecipeTagsModal } from '@/components/edit-recipe-tags-modal';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
@@ -19,7 +20,8 @@ import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipe
 import { executeAITool, AITool } from '@/services/ai-tools-service';
 import { fetchUnits, Unit } from '@/services/unit-service';
 import { getUnitPreference, type UnitPreference } from '@/services/profile-service';
-import { scaleForDisplay } from '@/utils/unit-conversion';
+import { scaleForDisplay, toggleMeasureType, findUnit } from '@/utils/unit-conversion';
+import { densityFor } from '@/utils/ingredient-density';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsive } from '@/hooks/use-responsive';
@@ -60,12 +62,15 @@ export default function RecipeDetailScreen() {
   const [showEditTags, setShowEditTags] = useState(false);
   const [recipeTags, setRecipeTags] = useState<string[]>([]);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
+  // Ingredient indices the user flipped between weight/volume (density-based).
+  const [flippedUnits, setFlippedUnits] = useState<Set<number>>(new Set());
   const [loggingCook, setLoggingCook] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
   const [unitPref, setUnitPref] = useState<UnitPreference>('as_written');
   const [editingNotes, setEditingNotes] = useState(false);
   const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   const theme = useTheme();
   const { isWide } = useResponsive();
@@ -73,6 +78,14 @@ export default function RecipeDetailScreen() {
 
   const toggleIngredient = (index: number) => {
     setCheckedIngredients((prev) => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  };
+
+  const toggleUnitFlip = (index: number) => {
+    setFlippedUnits((prev) => {
       const next = new Set(prev);
       next.has(index) ? next.delete(index) : next.add(index);
       return next;
@@ -401,7 +414,27 @@ export default function RecipeDetailScreen() {
     return recipe.ingredients.map((item, index) => {
       const ingredientName = item.ingredient?.name || item.text || 'Unknown ingredient';
       const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units, unitPref);
-      let displayText = formatIngredientLine(scaled.quantity, scaled.unit, ingredientName);
+
+      // Weight↔volume flip: offer it only when we know this ingredient's
+      // density and its unit is a convertible weight/volume unit.
+      const density = densityFor(ingredientName);
+      const scaledUnit = findUnit(units, scaled.unit);
+      const flipped = flippedUnits.has(index);
+      let shownQty = scaled.quantity;
+      let shownUnit = scaled.unit;
+      let canFlip = false;
+      if (density && scaledUnit && (scaledUnit.type === 'weight' || scaledUnit.type === 'volume')) {
+        const alt = toggleMeasureType(scaled.quantity, scaledUnit, units, density);
+        if (alt) {
+          canFlip = true;
+          if (flipped) {
+            shownQty = alt.quantity;
+            shownUnit = alt.unit;
+          }
+        }
+      }
+
+      let displayText = formatIngredientLine(shownQty, shownUnit, ingredientName);
       const isOptional = (item as any).optional;
       if (isOptional) displayText = `${displayText} (optional)`;
       displayText = convertDecimalsToFractions(displayText);
@@ -426,6 +459,23 @@ export default function RecipeDetailScreen() {
           >
             {displayText}
           </Text>
+          {canFlip && (() => {
+            const nativeType = scaledUnit!.type; // 'weight' | 'volume'
+            // Tapping switches TO: native when currently flipped, else the opposite.
+            const targetType = flipped ? nativeType : (nativeType === 'weight' ? 'volume' : 'weight');
+            return (
+              <Pressable
+                onPress={(e) => { e.stopPropagation(); toggleUnitFlip(index); }}
+                hitSlop={8}
+                style={[styles.flipButton, { borderColor: c.border }, flipped && { backgroundColor: c.accentMuted, borderColor: c.accent }]}
+              >
+                <Ionicons name="swap-horizontal" size={14} color={flipped ? c.accent : c.fgSubtle} />
+                <Text variant="caption" style={{ color: flipped ? c.accent : c.fgSubtle }}>
+                  {targetType === 'weight' ? 'wt' : 'vol'}
+                </Text>
+              </Pressable>
+            );
+          })()}
         </Pressable>
       );
     });
@@ -481,6 +531,12 @@ export default function RecipeDetailScreen() {
               onPress={() => { setShowMenu(false); router.push(`/easy-recipe/${id}` as any); }}
             >
               <Text variant="bodyMedium">Easy view</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.menuItem, { borderBottomColor: c.border }]}
+              onPress={() => { setShowMenu(false); setShowChat(true); }}
+            >
+              <Text variant="bodyMedium">Ask AI</Text>
             </Pressable>
             <Pressable style={[styles.menuItem, { borderBottomColor: c.border }]} onPress={handleEdit}>
               <Text variant="bodyMedium">Edit</Text>
@@ -766,6 +822,24 @@ export default function RecipeDetailScreen() {
         />
       </ScrollView>
 
+      {/* Floating "Ask AI" button */}
+      <Pressable
+        onPress={() => setShowChat(true)}
+        style={[styles.askAiFab, { backgroundColor: c.accent, bottom: insets.bottom + 20, ...theme.shadow.lg }]}
+      >
+        <Ionicons name="sparkles" size={20} color={c.accentFg} />
+        <Text variant="button" style={{ color: c.accentFg }}>Ask AI</Text>
+      </Pressable>
+
+      {recipe && (
+        <RecipeChatPanel
+          visible={showChat}
+          recipe={recipe}
+          onClose={() => setShowChat(false)}
+          onApplied={(updated) => setRecipe(updated)}
+        />
+      )}
+
       {/* Tool Execution Modal */}
       <ToolExecutionModal
         visible={showToolModal}
@@ -849,6 +923,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
+  askAiFab: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 18,
+    height: 48,
+    borderRadius: 24,
+  },
   scrollView: {
     flex: 1,
   },
@@ -916,6 +1000,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
     marginBottom: 14,
+  },
+  flipButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginTop: 1,
   },
   checkbox: {
     width: 22,

@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from app import prompts, schemas
 from app.llm import MODEL_FAST, call_structured
-from app.scrape import scrape_pinterest, scrape_website
+from app.scrape import scrape_instagram, scrape_pinterest, scrape_website
 
 router = APIRouter(prefix="/import", tags=["import"])
 
@@ -180,6 +180,13 @@ async def import_pinterest(body: schemas.UrlImportRequest):
         return _to_imported(_from_jsonld(scraped["jsonld"]), scraped["source_url"], scraped["source_image"], "pinterest")
     parsed = await _extract_via_llm(scraped["raw_text"])
     return _to_imported(parsed, scraped["source_url"], scraped["source_image"], "pinterest")
+
+
+@router.post("/instagram", response_model=schemas.ImportedRecipe)
+async def import_instagram(body: schemas.UrlImportRequest):
+    scraped = await scrape_instagram(body.url)
+    parsed = await _extract_via_llm(scraped["raw_text"])
+    return _to_imported(parsed, scraped["source_url"], scraped["source_image"], "instagram")
 
 
 @router.post("/photo", response_model=schemas.ImportedRecipe)

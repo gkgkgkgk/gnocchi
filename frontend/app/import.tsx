@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { Chip } from '@/components/ui/Chip';
 import { Card } from '@/components/ui/Card';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { importFromPinterest, importFromWebsite, ImportResponse } from '@/services/pinterest-service';
+import { importFromPinterest, importFromWebsite, importFromInstagram, ImportResponse } from '@/services/pinterest-service';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsive } from '@/hooks/use-responsive';
 
@@ -49,12 +49,13 @@ export default function ImportScreen() {
     setLoading(true);
     setPreview(null);
     try {
-      // Instagram has no dedicated endpoint yet (Phase 5) — fall back to the
-      // generic website scraper, which still catches og:tags / JSON-LD.
+      const src = detectSource(trimmed);
       const result =
-        detectSource(trimmed) === 'pinterest'
+        src === 'pinterest'
           ? await importFromPinterest(trimmed)
-          : await importFromWebsite(trimmed);
+          : src === 'instagram'
+            ? await importFromInstagram(trimmed)
+            : await importFromWebsite(trimmed);
       setPreview(result);
     } catch (error: any) {
       console.error('Import preview failed:', error);
@@ -126,7 +127,8 @@ export default function ImportScreen() {
 
         {source === 'instagram' && (
           <Text variant="small" color="fgSubtle" style={{ marginTop: theme.spacing.sm }}>
-            Instagram imports are best-effort for now — we read the caption if the post has one.
+            We read the recipe from the post&apos;s caption — works best for public posts that
+            spell out the ingredients and steps.
           </Text>
         )}
 

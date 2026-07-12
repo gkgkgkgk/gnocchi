@@ -34,3 +34,7 @@ export async function importFromPinterest(url: string): Promise<ImportResponse> 
 export async function importFromWebsite(url: string): Promise<ImportResponse> {
   return api.post<ImportResponse>('/import/website', { url: normalizeUrl(url) });
 }
+
+export async function importFromInstagram(url: string): Promise<ImportResponse> {
+  return api.post<ImportResponse>('/import/instagram', { url: normalizeUrl(url) });
+}

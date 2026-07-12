@@ -294,3 +294,18 @@ class GenerateRecipeResponse(BaseModel):
     # A short, friendly message describing what the model did/changed, shown in
     # the chat thread (e.g. "Made it vegan — swapped butter for olive oil.").
     reply: str = ""
+
+
+class RecipeChatRequest(BaseModel):
+    recipe: AIRecipePayload
+    message: str
+    history: list[ChatTurn] = Field(default_factory=list)
+    preferences: Preferences | None = None
+
+
+class RecipeChatResponse(BaseModel):
+    reply: str
+    # True when the message asked for a change (vs. a plain question). When
+    # true, `recipe` holds the proposed revision for the UI to offer applying.
+    changed: bool = False
+    recipe: AIRecipePayload

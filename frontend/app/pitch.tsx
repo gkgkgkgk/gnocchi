@@ -18,6 +18,7 @@ import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { AiRecipePreviewCard } from '@/components/ai-recipe-preview-card';
 import { generateRecipeFromPitch, type PitchChatTurn } from '@/services/recipe-service';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -159,11 +160,20 @@ export default function PitchScreen() {
 
                 {/* Recipe card attached to an assistant turn */}
                 {m.recipe && (
-                  <RecipeCard
+                  <AiRecipePreviewCard
                     recipe={m.recipe}
-                    // Only the newest recipe is committable — older ones are history.
-                    showActions={isLast}
-                    onUse={() => useRecipe(m.recipe)}
+                    footer={
+                      // Only the newest recipe is committable — older ones are history.
+                      isLast ? (
+                        <Button
+                          onPress={() => useRecipe(m.recipe)}
+                          fullWidth
+                          style={{ marginTop: theme.spacing.lg }}
+                          iconRight={<Ionicons name="arrow-forward" size={18} color={c.accentFg} />}>
+                          Edit &amp; save
+                        </Button>
+                      ) : null
+                    }
                   />
                 )}
               </View>
@@ -206,60 +216,6 @@ export default function PitchScreen() {
   );
 }
 
-function RecipeCard({ recipe, showActions, onUse }: { recipe: any; showActions: boolean; onUse: () => void }) {
-  const theme = useTheme();
-  const c = theme.colors;
-  const md = recipe.metadata ?? {};
-  const ingredients = recipe.ingredients ?? [];
-  const steps = recipe.instructions ?? recipe.steps ?? [];
-  const totalTime = (md.prep_time ?? 0) + (md.cook_time ?? 0);
-
-  return (
-    <View style={[styles.card, { backgroundColor: c.bgElevated, borderColor: c.border }]}>
-      <Text variant="h3">{recipe.title || 'Untitled recipe'}</Text>
-
-      <View style={styles.metaRow}>
-        <Chip size="sm" icon={<Ionicons name="list-outline" size={13} color={c.fg} />}>
-          {`${ingredients.length} ${ingredients.length === 1 ? 'ingredient' : 'ingredients'}`}
-        </Chip>
-        <Chip size="sm" icon={<Ionicons name="footsteps-outline" size={13} color={c.fg} />}>
-          {`${steps.length} ${steps.length === 1 ? 'step' : 'steps'}`}
-        </Chip>
-        {!!md.servings && (
-          <Chip size="sm" icon={<Ionicons name="people-outline" size={13} color={c.fg} />}>
-            {`${md.servings} servings`}
-          </Chip>
-        )}
-        {totalTime > 0 && (
-          <Chip size="sm" tone={c.accent} icon={<Ionicons name="time-outline" size={13} color={c.accent} />}>
-            {`${totalTime} min`}
-          </Chip>
-        )}
-      </View>
-
-      {ingredients.length > 0 && (
-        <View style={{ marginTop: theme.spacing.md, gap: 3 }}>
-          {ingredients.map((ing: any, i: number) => (
-            <Text key={i} variant="small" color="fgMuted">
-              {`• ${[ing.quantity, ing.unit, ing.text].filter(Boolean).join(' ')}`}
-            </Text>
-          ))}
-        </View>
-      )}
-
-      {showActions && (
-        <Button
-          onPress={onUse}
-          fullWidth
-          style={{ marginTop: theme.spacing.lg }}
-          iconRight={<Ionicons name="arrow-forward" size={18} color={c.accentFg} />}>
-          Edit &amp; save
-        </Button>
-      )}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   thread: { padding: 16, gap: 12, flexGrow: 1 },
   intro: { alignItems: 'center', paddingTop: 32, paddingHorizontal: 12 },
@@ -268,14 +224,6 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: '88%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   userBubble: { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
   assistantBubble: { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
-  card: {
-    marginTop: 8,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    alignSelf: 'stretch',
-  },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',

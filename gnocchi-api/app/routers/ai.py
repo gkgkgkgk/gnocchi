@@ -43,6 +43,12 @@ class _LLMChatRecipe(_LLMRecipe):
     chat_reply: str = ""
 
 
+class _LLMRecipeChat(_LLMRecipe):
+    # Conversational answer + whether the recipe was actually changed.
+    reply: str = ""
+    changed: bool = False
+
+
 class _RecipeInsight(BaseModel):
     insight: str
     recommended_tool: str | None = None
@@ -254,4 +260,49 @@ async def generate_recipe(body: schemas.GenerateRecipeRequest):
             },
         ),
         reply=parsed.chat_reply,
+    )
+
+
+@router.post("/recipe-chat", response_model=schemas.RecipeChatResponse)
+async def recipe_chat(body: schemas.RecipeChatRequest):
+    restrictions = (body.preferences.dietary_restrictions if body.preferences else []) or []
+    restrictions_text = ", ".join(restrictions) if restrictions else "None"
+
+    convo = ""
+    if body.history:
+        convo = "\n\nEarlier in this conversation:\n" + "\n".join(
+            f"{t.role}: {t.text}" for t in body.history[-8:]
+        )
+
+    user = (
+        f"CURRENT RECIPE:\n\n{_format_recipe_for_prompt(body.recipe)}\n\n"
+        f"Dietary restrictions (must honor): {restrictions_text}{convo}\n\n"
+        f"They say:\n\"{body.message}\""
+    )
+
+    parsed = await call_structured(
+        model=MODEL_FAST,
+        system=prompts.RECIPE_CHAT_SYSTEM,
+        user=user,
+        tool_name="respond",
+        tool_description="Answer the person and return the (possibly revised) recipe.",
+        schema=_LLMRecipeChat,
+    )
+    return schemas.RecipeChatResponse(
+        reply=parsed.reply,
+        changed=parsed.changed,
+        recipe=schemas.AIRecipePayload(
+            title=parsed.title,
+            ingredients=[
+                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional)
+                for i in parsed.ingredients
+            ],
+            instructions=list(parsed.instructions),
+            notes=parsed.notes,
+            metadata={
+                "prep_time": parsed.metadata.prep_time,
+                "cook_time": parsed.metadata.cook_time,
+                "servings": parsed.metadata.servings,
+            },
+        ),
     )

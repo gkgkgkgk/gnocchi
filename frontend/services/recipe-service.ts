@@ -447,6 +447,73 @@ export async function generateRecipeFromPitch(
   return { recipe: res.recipe, reply: res.reply ?? '' };
 }
 
+export interface RecipeChatResult {
+  reply: string;
+  changed: boolean;
+  recipe: any; // AIRecipePayload shape
+}
+
+/**
+ * Persist an AI-proposed edit (AIRecipePayload shape) onto an existing recipe.
+ * Targeted raw PATCH — only the content fields, so cover/rating/tags/history
+ * are left untouched (unlike updateRecipe, which defaults cover_image to null).
+ */
+export async function applyRecipeEdit(id: string, aiRecipe: any): Promise<Recipe> {
+  const md = aiRecipe.metadata ?? {};
+  const body: Record<string, any> = {
+    title: aiRecipe.title,
+    ingredients: (aiRecipe.ingredients ?? []).map((i: any) => ({
+      text: i.text ?? '',
+      quantity: typeof i.quantity === 'number' ? i.quantity : parseQuantity(i.quantity),
+      unit: unitToString(i.unit),
+      optional: !!i.optional,
+    })),
+    steps: (aiRecipe.instructions ?? aiRecipe.steps ?? []).filter(Boolean),
+    notes: aiRecipe.notes ?? null,
+    prep_time: parseIntOrNull(md.prep_time),
+    cook_time: parseIntOrNull(md.cook_time),
+    servings: parseIntOrNull(md.servings),
+  };
+  const row = await api.patch<any>(`/recipes/${id}`, body);
+  return adaptForUI(row);
+}
+
+/**
+ * Ask the AI about an existing recipe. Answers questions ("sub for buttermilk?")
+ * and proposes edits ("make it vegan"). Returns a reply plus, when `changed`,
+ * a revised recipe (AIRecipePayload shape) the UI can offer to apply.
+ */
+export async function chatAboutRecipe(
+  recipe: Recipe,
+  message: string,
+  history: { role: 'user' | 'assistant'; text: string }[] = [],
+): Promise<RecipeChatResult> {
+  const { getPreferences } = await import('./profile-service');
+  const preferences = await getPreferences().catch(() => ({ dietary_restrictions: [] }));
+  const payload = {
+    title: recipe.title,
+    ingredients: (recipe.ingredients ?? []).map((i) => ({
+      text: i.text,
+      quantity: i.quantity,
+      unit: unitToString(i.unit),
+    })),
+    instructions: recipe.steps,
+    notes: recipe.notes ?? '',
+    metadata: {
+      prep_time: recipe.prep_time ?? 0,
+      cook_time: recipe.cook_time ?? 0,
+      servings: recipe.servings ?? 1,
+    },
+  };
+  const res = await api.post<{ reply: string; changed: boolean; recipe: any }>('/ai/recipe-chat', {
+    recipe: payload,
+    message,
+    history,
+    preferences,
+  });
+  return { reply: res.reply, changed: res.changed, recipe: res.recipe };
+}
+
 export async function saveRecipeInsight(id: string, insight: AIInsight): Promise<Recipe> {
   const row = await api.patch<any>(`/recipes/${id}`, {
     ai_insight: {

@@ -95,6 +95,54 @@ export function convertQuantity(qty: number, from?: Unit | null, to?: Unit | nul
 }
 
 /**
+ * Cross-convert a quantity between weight and volume using a density in g/ml.
+ * `from`/`to` must be one weight + one volume unit (either order). Returns the
+ * converted quantity, or null if the units aren't a weight/volume pair or the
+ * density is missing. Base units: volume→ml, weight→g.
+ */
+export function crossConvert(
+  qty: number,
+  from: Unit | null | undefined,
+  to: Unit | null | undefined,
+  densityGPerMl: number | null | undefined,
+): number | null {
+  if (!from || !to || !densityGPerMl || from.to_base == null || to.to_base == null) return null;
+  const types = new Set([from.type, to.type]);
+  if (!(types.has('weight') && types.has('volume'))) return null;
+
+  const baseFrom = qty * from.to_base; // ml if volume, g if weight
+  // Convert the source's base amount into the target type's base amount.
+  const baseTo =
+    from.type === 'volume'
+      ? baseFrom * densityGPerMl // ml → g
+      : baseFrom / densityGPerMl; // g → ml
+  return baseTo / to.to_base;
+}
+
+/**
+ * Given a scaled quantity + its (weight or volume) unit, return the equivalent
+ * in the *other* measure type, rolled into a friendly cooking unit — e.g.
+ * 200 g flour → "1 2/3 cup", 1 cup water → "237 g". Null when the unit isn't
+ * convertible or no density is known.
+ */
+export function toggleMeasureType(
+  quantity: number,
+  unit: Unit,
+  units: Unit[],
+  densityGPerMl: number | null,
+): { quantity: number; unit: string } | null {
+  if (unit.to_base == null || (unit.type !== 'weight' && unit.type !== 'volume')) return null;
+  const targetType = unit.type === 'weight' ? 'volume' : 'weight';
+  // Pick the base unit of the target type to convert into, then normalize.
+  const targetBase = units.find((u) => u.type === targetType && u.to_base === 1);
+  if (!targetBase) return null;
+  const converted = crossConvert(quantity, unit, targetBase, densityGPerMl);
+  if (converted == null) return null;
+  const norm = normalizeMeasure(converted, targetBase, units, DISPLAY_UNIT_IDS);
+  return { quantity: norm.quantity, unit: norm.unit.abbreviation };
+}
+
+/**
  * Pick the friendliest unit to show a scaled quantity in. Rolls up to the
  * largest unit of the same type in which the value stays ≥ 1 (so 2 tbsp becomes
  * 1 fl oz / 0.125 cup territory, 16 tbsp becomes 1 cup), preferring units in the
