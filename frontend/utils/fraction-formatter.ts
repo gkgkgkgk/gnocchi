@@ -52,8 +52,9 @@ function decimalToFraction(num: number): string {
     return whole > 0 ? `${whole}${fraction}` : fraction;
   }
   
-  // If no mapping found, return the original number
-  return num.toString();
+  // No clean fraction — cap at 2 decimals (trailing zeros stripped) so we
+  // don't render long tails like "236.588235".
+  return String(Math.round(num * 100) / 100);
 }
 
 /**

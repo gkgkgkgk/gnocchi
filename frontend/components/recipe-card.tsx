@@ -116,47 +116,51 @@ export function RecipeCard(props: RecipeCardProps) {
             </Menu>
           </View>
 
-          {(totalTime > 0 || numIngredients > 0) && (
-            <View style={[styles.metaRow, { gap: theme.spacing.md, marginTop: theme.spacing.xs }]}>
-              {totalTime > 0 && (
-                <View style={styles.metaItem}>
-                  <Ionicons name="time-outline" size={13} color={c.fgSubtle} />
-                  <Text variant="caption" color="fgMuted">{totalTime}m</Text>
-                </View>
-              )}
-              {numIngredients > 0 && (
-                <View style={styles.metaItem}>
-                  <Ionicons name="list-outline" size={13} color={c.fgSubtle} />
-                  <Text variant="caption" color="fgMuted">{numIngredients} items</Text>
-                </View>
-              )}
-            </View>
-          )}
+          {/* Meta / rating / tags float to the bottom of the card so they line
+              up across cards regardless of whether the title wraps to 2 lines. */}
+          <View style={styles.footer}>
+            {(totalTime > 0 || numIngredients > 0) && (
+              <View style={[styles.metaRow, { gap: theme.spacing.md }]}>
+                {totalTime > 0 && (
+                  <View style={styles.metaItem}>
+                    <Ionicons name="time-outline" size={13} color={c.fgSubtle} />
+                    <Text variant="caption" color="fgMuted">{totalTime}m</Text>
+                  </View>
+                )}
+                {numIngredients > 0 && (
+                  <View style={styles.metaItem}>
+                    <Ionicons name="list-outline" size={13} color={c.fgSubtle} />
+                    <Text variant="caption" color="fgMuted">{numIngredients} items</Text>
+                  </View>
+                )}
+              </View>
+            )}
 
-          {!!rating && rating > 0 && (
-            <View style={{ marginTop: theme.spacing.xs }}>
-              <StarRating value={rating} size={13} gap={1} />
-            </View>
-          )}
+            {!!rating && rating > 0 && (
+              <View style={{ marginTop: theme.spacing.xs }}>
+                <StarRating value={rating} size={13} gap={1} />
+              </View>
+            )}
 
-          {tagDetails.length > 0 && (
-            <View
-              style={[
-                styles.tagsRow,
-                {
-                  marginTop: theme.spacing.sm,
-                  gap: theme.spacing.xs,
-                  flexDirection: isMobile ? 'column' : 'row',
-                },
-              ]}
-            >
-              {tagDetails.map((tag) => (
-                <Chip key={tag.id} tone={tag.color} size="sm" icon={<Ionicons name={tag.icon as any} size={11} color={tag.color} />}>
-                  {tag.name}
-                </Chip>
-              ))}
-            </View>
-          )}
+            {tagDetails.length > 0 && (
+              <View
+                style={[
+                  styles.tagsRow,
+                  {
+                    marginTop: theme.spacing.sm,
+                    gap: theme.spacing.xs,
+                    flexDirection: isMobile ? 'column' : 'row',
+                  },
+                ]}
+              >
+                {tagDetails.map((tag) => (
+                  <Chip key={tag.id} tone={tag.color} size="sm" icon={<Ionicons name={tag.icon as any} size={11} color={tag.color} />}>
+                    {tag.name}
+                  </Chip>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
       </Card>
 
@@ -214,7 +218,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  info: {},
+  info: { flex: 1 },
+  footer: { marginTop: 'auto', paddingTop: 8 },
   titleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

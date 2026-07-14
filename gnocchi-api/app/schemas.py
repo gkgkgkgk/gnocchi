@@ -204,6 +204,13 @@ class UrlImportRequest(BaseModel):
     url: str
 
 
+class TextImportRequest(BaseModel):
+    # Freeform recipe text pasted by the user (e.g. an Instagram caption copied
+    # from the app, a recipe texted by a friend, a note). Parsed by the LLM.
+    text: str
+    source_url: str | None = None
+
+
 class ImportedRecipe(BaseModel):
     recipe: RecipeCreate
     source_url: str | None = None

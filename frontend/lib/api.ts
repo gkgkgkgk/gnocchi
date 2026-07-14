@@ -84,4 +84,18 @@ export const api = {
   upload: <T = any>(path: string, formData: FormData) =>
     request<T>(path, { method: 'POST', body: formData, raw: true }),
   imageUrl: (key?: string | null) => (key ? `${BASE}/images/${key}` : undefined),
+  /**
+   * Reverse of `imageUrl`: turn one of our own image URLs (absolute in dev,
+   * relative `/images/…` in prod) back into the bare storage key. Leaves a
+   * genuine external URL (or an already-bare key) unchanged — so cover images
+   * round-trip through the editor without getting a doubled `/images/` path.
+   */
+  imageKey: (value?: string | null): string | null => {
+    if (!value) return null;
+    const marker = '/images/';
+    const full = `${BASE}${marker}`;
+    if (BASE && value.startsWith(full)) return value.slice(full.length);
+    if (value.startsWith(marker)) return value.slice(marker.length);
+    return value;
+  },
 };

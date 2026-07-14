@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Pressable, StyleSheet, TextInput, Modal, Platform, useWindowDimensions, Image, Animated, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { View, ScrollView, Pressable, StyleSheet, TextInput, Modal, Platform, useWindowDimensions, Image, ActivityIndicator, Alert } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Reanimated, { useSharedValue, useAnimatedStyle, runOnJS, type SharedValue } from 'react-native-reanimated';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Screen } from '@/components/ui/Screen';
@@ -34,6 +36,112 @@ interface DayPlan {
   dayName: string;
   recipes: PlannedRecipe[];
 }
+
+// Drag-and-drop plumbing --------------------------------------------------
+// `from` is the source: a day index, or 'ideas' for the Recipe Ideas pool.
+type DragSource = number | 'ideas';
+interface Zone { key: string; x: number; y: number; w: number; h: number }
+interface DragShared {
+  x: SharedValue<number>;
+  y: SharedValue<number>;
+  active: SharedValue<number>;
+}
+
+interface DraggableRecipeProps {
+  recipe: PlannedRecipe;
+  from: DragSource;
+  containerStyle: any;
+  dragging: boolean;
+  styles: any;
+  c: any;
+  drag: DragShared;
+  zonesShared: SharedValue<Zone[]>;
+  hoveredShared: SharedValue<string>;
+  onBeginDrag: (recipe: PlannedRecipe, from: DragSource) => void;
+  onDrop: (key: string) => void;
+  onHover: (key: string) => void;
+  onEndDrag: () => void;
+  onOpen: (recipeId: string) => void;
+  onRemove: (recipe: PlannedRecipe, from: DragSource) => void;
+}
+
+/**
+ * A recipe card you can tap (open), remove, or press-and-hold to drag onto a
+ * different day / the Recipe Ideas pool. The pan only activates after a long
+ * press so normal taps and list scrolling keep working. Memoized so the parent
+ * re-rendering mid-drag (as the hovered day changes) never interrupts the
+ * active gesture.
+ */
+const DraggableRecipe = React.memo(function DraggableRecipe(props: DraggableRecipeProps) {
+  const { recipe, from, containerStyle, dragging, styles, c, drag, zonesShared, hoveredShared,
+    onBeginDrag, onDrop, onHover, onEndDrag, onOpen, onRemove } = props;
+
+  const pan = Gesture.Pan()
+    .activateAfterLongPress(220)
+    .onStart((e) => {
+      'worklet';
+      drag.active.value = 1;
+      drag.x.value = e.absoluteX;
+      drag.y.value = e.absoluteY;
+      runOnJS(onBeginDrag)(recipe, from);
+    })
+    .onUpdate((e) => {
+      'worklet';
+      drag.x.value = e.absoluteX;
+      drag.y.value = e.absoluteY;
+      let hit = '';
+      const zs = zonesShared.value;
+      for (let i = 0; i < zs.length; i++) {
+        const z = zs[i];
+        if (e.absoluteX >= z.x && e.absoluteX <= z.x + z.w && e.absoluteY >= z.y && e.absoluteY <= z.y + z.h) {
+          hit = z.key;
+          break;
+        }
+      }
+      if (hit !== hoveredShared.value) {
+        hoveredShared.value = hit;
+        runOnJS(onHover)(hit);
+      }
+    })
+    .onEnd(() => {
+      'worklet';
+      runOnJS(onDrop)(hoveredShared.value);
+    })
+    .onFinalize(() => {
+      'worklet';
+      drag.active.value = 0;
+      hoveredShared.value = '';
+      runOnJS(onEndDrag)();
+    });
+
+  return (
+    <GestureDetector gesture={pan}>
+      <Pressable
+        style={[containerStyle, dragging && { opacity: 0.35 }]}
+        onPress={() => onOpen(recipe.recipeId)}
+      >
+        <View style={styles.recipeChipTop}>
+          <View style={styles.recipeChipImageContainer}>
+            {recipe.imageUrl ? (
+              <Image source={{ uri: recipe.imageUrl }} style={styles.recipeChipImage} />
+            ) : (
+              <View style={styles.recipeChipImage}>
+                <Ionicons name="restaurant" size={22} color={c.secondary} />
+              </View>
+            )}
+          </View>
+          <ThemedText style={styles.recipeChipText} numberOfLines={2}>{recipe.recipeName}</ThemedText>
+        </View>
+        <Pressable
+          style={styles.chipRemove}
+          onPress={(e) => { (e as any).stopPropagation?.(); onRemove(recipe, from); }}
+        >
+          <ThemedText style={styles.chipRemoveText}>Remove</ThemedText>
+        </Pressable>
+      </Pressable>
+    </GestureDetector>
+  );
+});
 
 // Initialize week with 7 days starting from today
 const initializeEmptyWeek = (): DayPlan[] => {
@@ -78,8 +186,38 @@ export default function PlanningScreen() {
   const [generatingShoppingList, setGeneratingShoppingList] = useState(false);
   const [loadingShoppingList, setLoadingShoppingList] = useState(true);
   const [addingToShortList, setAddingToShortList] = useState(false);
-  const [draggedRecipe, setDraggedRecipe] = useState<{ recipe: PlannedRecipe; fromDay: number | null } | null>(null);
-  const [removingRecipeId, setRemovingRecipeId] = useState<string | null>(null);
+  // Drag-and-drop: floating preview (UI thread) + hovered drop-zone (JS state,
+  // only changes when crossing a zone boundary, so it's cheap).
+  const [dragItem, setDragItem] = useState<{ recipe: PlannedRecipe; from: DragSource } | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [hoveredKey, setHoveredKey] = useState<string>('');
+  const dragItemRef = useRef<{ recipe: PlannedRecipe; from: DragSource } | null>(null);
+  const dayRefs = useRef<(View | null)[]>([]);
+  const ideasRef = useRef<View | null>(null);
+  const dragX = useSharedValue(0);
+  const dragY = useSharedValue(0);
+  const dragActive = useSharedValue(0);
+  const zonesShared = useSharedValue<Zone[]>([]);
+  const hoveredShared = useSharedValue<string>('');
+  const drag = useMemo<DragShared>(() => ({ x: dragX, y: dragY, active: dragActive }), []);
+  // Refs mirror latest state so persistence reads current values without
+  // making the drag callbacks depend on (and churn with) that state.
+  const weekPlanRef = useRef<DayPlan[]>(weekPlan);
+  const shortListRef = useRef<PlannedRecipe[]>(shortList);
+  const shoppingListRef = useRef<ShoppingListItem[]>(shoppingList);
+  weekPlanRef.current = weekPlan;
+  shortListRef.current = shortList;
+  shoppingListRef.current = shoppingList;
+
+  // Floating preview position (centered under the finger), UI thread only.
+  const previewStyle = useAnimatedStyle(() => ({
+    opacity: dragActive.value,
+    transform: [
+      { translateX: dragX.value - 74 },
+      { translateY: dragY.value - 55 },
+      { scale: 1.05 },
+    ],
+  }));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showRecipeDetailModal, setShowRecipeDetailModal] = useState(false);
   const [selectedRecipeDetail, setSelectedRecipeDetail] = useState<Recipe | null>(null);
@@ -115,156 +253,82 @@ export default function PlanningScreen() {
     return `${month}/${day}`;
   };
 
-  // Animated Recipe Chip Component
-  const AnimatedRecipeChip = ({ recipe, dayIndex, isDragging, isRemoving }: { 
-    recipe: PlannedRecipe; 
-    dayIndex: number; 
-    isDragging: boolean;
-    isRemoving: boolean;
-  }) => {
-    const scaleAnim = useRef(new Animated.Value(1)).current;
-    const opacityAnim = useRef(new Animated.Value(1)).current;
+  // --- Drag-and-drop callbacks (all stable; move ops use functional setState +
+  // refs so these never need to change identity, keeping DraggableRecipe memoized). ---
 
-    useEffect(() => {
-      if (isRemoving) {
-        Animated.parallel([
-          Animated.timing(scaleAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacityAnim, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      }
-    }, [isRemoving]);
+  const persist = useCallback((week: DayPlan[], shortListData: PlannedRecipe[]) => {
+    persistMealPlanWithData(week, shortListData, shoppingListRef.current);
+  }, []);
 
-    return (
-      <Animated.View
-        style={{
-          transform: [{ scale: scaleAnim }],
-          opacity: opacityAnim,
-        }}
-      >
-        <Pressable
-          style={[
-            styles.recipeChip,
-            isDragging && styles.recipeChipDragging
-          ]}
-          onPress={() => openRecipeDetail(recipe.recipeId)}
-          onLongPress={() => {
-            console.log('Long press detected on recipe:', recipe.recipeName);
-            startDrag(recipe, dayIndex);
-          }}
-          delayLongPress={500}
-        >
-          {/* Top section: Image and Title */}
-          <View style={styles.recipeChipTop}>
-            {/* Circular Recipe Image */}
-            <View style={styles.recipeChipImageContainer}>
-              {recipe.imageUrl ? (
-                <Image 
-                  source={{ uri: recipe.imageUrl }}
-                  style={styles.recipeChipImage}
-                />
-              ) : (
-                <View style={styles.recipeChipImage}>
-                  <Ionicons name="restaurant" size={22} color={c.secondary} />
-                </View>
-              )}
-            </View>
-            
-            {/* Recipe Title */}
-            <ThemedText
-              style={styles.recipeChipText}
-              numberOfLines={2}
-            >
-              {recipe.recipeName}
-            </ThemedText>
-          </View>
-          
-          {/* Bottom section: Remove button (always at bottom) */}
-          <Pressable
-            style={styles.chipRemove}
-            onPress={(e) => {
-              e.stopPropagation();
-              removeRecipe(dayIndex, recipe.id);
-            }}
-          >
-            <ThemedText style={styles.chipRemoveText}>Remove</ThemedText>
-          </Pressable>
-        </Pressable>
-      </Animated.View>
-    );
-  };
-
-
-  const removeRecipe = async (dayIndex: number, recipeId: string) => {
-    // Trigger animation
-    setRemovingRecipeId(recipeId);
-    
-    // Wait for animation to complete
-    setTimeout(async () => {
-      const updatedWeekPlan = [...weekPlan];
-      updatedWeekPlan[dayIndex].recipes = updatedWeekPlan[dayIndex].recipes.filter(r => r.id !== recipeId);
-      setWeekPlan(updatedWeekPlan);
-      await persistMealPlanWithData(updatedWeekPlan, shortList);
-      setRemovingRecipeId(null);
-    }, 300); // Match animation duration
-  };
-
-  const startDrag = (recipe: PlannedRecipe, fromDay: number | null) => {
-    console.log('Starting drag:', recipe.recipeName, 'from day:', fromDay);
-    setDraggedRecipe({ recipe, fromDay });
-  };
-
-  const cancelDrag = () => {
-    console.log('Canceling drag');
-    setDraggedRecipe(null);
-  };
-
-  const dropOnDay = (targetDay: number) => {
-    console.log('Drop on day:', targetDay, 'dragged recipe:', draggedRecipe);
-    if (!draggedRecipe) return;
-
-    const { recipe, fromDay } = draggedRecipe;
-
-    if (fromDay === null) {
-      // From short list to day
-      console.log('Moving from short list to day', targetDay);
-      moveToDay(recipe, targetDay);
-    } else if (fromDay !== targetDay) {
-      // From one day to another
-      console.log('Moving from day', fromDay, 'to day', targetDay);
-      setWeekPlan(prev => {
-        const updated = [...prev];
-        // Remove from source day
-        updated[fromDay].recipes = updated[fromDay].recipes.filter(r => r.id !== recipe.id);
-        // Add to target day
-        updated[targetDay].recipes.push(recipe);
-        return updated;
+  const measureZones = useCallback(() => {
+    const zones: Zone[] = [];
+    let pending = dayRefs.current.length + 1;
+    const done = () => { if (--pending <= 0) zonesShared.value = zones; };
+    dayRefs.current.forEach((ref, i) => {
+      if (ref && (ref as any).measureInWindow) {
+        (ref as any).measureInWindow((x: number, y: number, w: number, h: number) => {
+          zones.push({ key: `day-${i}`, x, y, w, h }); done();
+        });
+      } else { done(); }
+    });
+    if (ideasRef.current && (ideasRef.current as any).measureInWindow) {
+      (ideasRef.current as any).measureInWindow((x: number, y: number, w: number, h: number) => {
+        zones.push({ key: 'ideas', x, y, w, h }); done();
       });
-      persistMealPlan();
+    } else { done(); }
+  }, []);
+
+  const beginDrag = useCallback((recipe: PlannedRecipe, from: DragSource) => {
+    dragItemRef.current = { recipe, from };
+    setDragItem({ recipe, from });
+    setDraggingId(recipe.id);
+    measureZones();
+  }, [measureZones]);
+
+  const endDrag = useCallback(() => {
+    dragItemRef.current = null;
+    setDragItem(null);
+    setDraggingId(null);
+    setHoveredKey('');
+  }, []);
+
+  const removeRecipe = useCallback((dayIndex: number, recipeId: string) => {
+    setWeekPlan(prev => {
+      const updated = prev.map((d, i) => i === dayIndex ? { ...d, recipes: d.recipes.filter(r => r.id !== recipeId) } : d);
+      persist(updated, shortListRef.current);
+      return updated;
+    });
+  }, [persist]);
+
+  // Drop handler: reads the recipe captured at drag-start (via ref) and the
+  // hovered zone key, then performs the appropriate move.
+  const handleDrop = useCallback((key: string) => {
+    const item = dragItemRef.current;
+    if (!item || !key) return;
+    const { recipe, from } = item;
+    if (key === 'ideas') {
+      if (from !== 'ideas') moveToShortList(recipe, from as number);
+    } else if (key.startsWith('day-')) {
+      const target = parseInt(key.slice(4), 10);
+      if (from === 'ideas') {
+        moveToDay(recipe, target);
+      } else if (from !== target) {
+        setWeekPlan(prev => {
+          const updated = prev.map((d, i) =>
+            i === from ? { ...d, recipes: d.recipes.filter(r => r.id !== recipe.id) }
+            : i === target ? { ...d, recipes: [...d.recipes, recipe] }
+            : d);
+          persist(updated, shortListRef.current);
+          return updated;
+        });
+      }
     }
+  }, [persist]);
 
-    setDraggedRecipe(null);
-  };
-
-  const dropOnShortList = () => {
-    if (!draggedRecipe) return;
-
-    const { recipe, fromDay } = draggedRecipe;
-
-    if (fromDay !== null) {
-      // From day to short list
-      moveToShortList(recipe, fromDay);
-    }
-
-    setDraggedRecipe(null);
-  };
+  const removeDraggable = useCallback((recipe: PlannedRecipe, from: DragSource) => {
+    if (from === 'ideas') removeFromShortList(recipe.id);
+    else removeRecipe(from as number, recipe.id);
+  }, [removeRecipe]);
 
   const loadUserAndMealPlan = async () => {
     try {
@@ -395,11 +459,11 @@ export default function PlanningScreen() {
     await persistMealPlanWithData(updatedWeekPlan, updatedShortList);
   };
 
-  const removeFromShortList = async (recipeId: string) => {
-    const updatedShortList = shortList.filter(r => r.id !== recipeId);
-    setShortList(updatedShortList);
-    await persistMealPlanWithData(weekPlan, updatedShortList);
-  };
+  const removeFromShortList = useCallback((recipeId: string) => {
+    const updated = shortListRef.current.filter(r => r.id !== recipeId);
+    setShortList(updated);
+    persist(weekPlanRef.current, updated);
+  }, [persist]);
 
   const resetMealPlan = () => {
     const clearedWeekPlan = weekPlan.map(day => ({
@@ -412,31 +476,23 @@ export default function PlanningScreen() {
     persistMealPlanWithData(clearedWeekPlan, [], [])
   };
 
-  const moveToDay = async (recipe: PlannedRecipe, dayIndex: number) => {
-    // Remove from short list
-    const updatedShortList = shortList.filter(r => r.id !== recipe.id);
-    setShortList(updatedShortList);
-    
-    // Add to day
-    const updatedWeekPlan = [...weekPlan];
-    updatedWeekPlan[dayIndex].recipes.push(recipe);
-    setWeekPlan(updatedWeekPlan);
-    
-    await persistMealPlanWithData(updatedWeekPlan, updatedShortList);
-  };
+  const moveToDay = useCallback((recipe: PlannedRecipe, dayIndex: number) => {
+    const newShort = shortListRef.current.filter(r => r.id !== recipe.id);
+    const newWeek = weekPlanRef.current.map((d, i) =>
+      i === dayIndex ? { ...d, recipes: [...d.recipes, recipe] } : d);
+    setShortList(newShort);
+    setWeekPlan(newWeek);
+    persist(newWeek, newShort);
+  }, [persist]);
 
-  const moveToShortList = async (recipe: PlannedRecipe, fromDayIndex: number) => {
-    // Remove from day
-    const updatedWeekPlan = [...weekPlan];
-    updatedWeekPlan[fromDayIndex].recipes = updatedWeekPlan[fromDayIndex].recipes.filter(r => r.id !== recipe.id);
-    setWeekPlan(updatedWeekPlan);
-    
-    // Add to short list
-    const updatedShortList = [...shortList, recipe];
-    setShortList(updatedShortList);
-    
-    await persistMealPlanWithData(updatedWeekPlan, updatedShortList);
-  };
+  const moveToShortList = useCallback((recipe: PlannedRecipe, fromDayIndex: number) => {
+    const newWeek = weekPlanRef.current.map((d, i) =>
+      i === fromDayIndex ? { ...d, recipes: d.recipes.filter(r => r.id !== recipe.id) } : d);
+    const newShort = [...shortListRef.current, recipe];
+    setWeekPlan(newWeek);
+    setShortList(newShort);
+    persist(newWeek, newShort);
+  }, [persist]);
 
   const persistMealPlanWithData = async (
     weekPlanData: DayPlan[], 
@@ -456,10 +512,6 @@ export default function PlanningScreen() {
     } catch (error) {
       console.error('Failed to save meal plan:', error);
     }
-  };
-
-  const persistMealPlan = async () => {
-    await persistMealPlanWithData(weekPlan, shortList, shoppingList);
   };
 
   const toggleShoppingListItem = (index: number) => {
@@ -550,7 +602,7 @@ export default function PlanningScreen() {
     }
   };
 
-  const openRecipeDetail = async (recipeId: string) => {
+  const openRecipeDetail = useCallback(async (recipeId: string) => {
     try {
       setLoadingRecipeDetail(true);
       setShowRecipeDetailModal(true);
@@ -565,7 +617,7 @@ export default function PlanningScreen() {
     } finally {
       setLoadingRecipeDetail(false);
     }
-  };
+  }, []);
 
   const closeRecipeDetail = () => {
     setShowRecipeDetailModal(false);
@@ -616,6 +668,7 @@ export default function PlanningScreen() {
           {weekPlan.map((day, dayIndex) => {
             const isToday = dayIndex === 0;
             const hasRecipes = day.recipes.length > 0;
+            const isHovered = hoveredKey === `day-${dayIndex}`;
             
             // Calculate width based on number of recipes
             // Mobile: max 2 columns, Desktop: max 3 columns
@@ -636,13 +689,12 @@ export default function PlanningScreen() {
             return (
               <View
                 key={dayIndex}
+                ref={(el) => { dayRefs.current[dayIndex] = el; }}
                 style={{
-                  borderWidth: draggedRecipe ? 3 : 2,
-                  borderColor: draggedRecipe 
-                    ? c.accent 
-                    : isToday ? c.accent : c.border,
+                  borderWidth: isHovered ? 3 : 2,
+                  borderColor: isHovered ? c.accent : isToday ? c.accent : c.border,
                   borderRadius: 16,
-                  backgroundColor: draggedRecipe ? c.secondaryMuted : undefined,
+                  backgroundColor: isHovered ? c.secondaryMuted : undefined,
                   width: calculatedWidth,
                 }}
               >
@@ -682,20 +734,26 @@ export default function PlanningScreen() {
                     </View>
                   ) : (
                     <>
-                      {day.recipes.map((recipe) => {
-                        const isDragging = draggedRecipe?.recipe.id === recipe.id;
-                        const isRemoving = removingRecipeId === recipe.id;
-                        
-                        return (
-                          <AnimatedRecipeChip
-                            key={recipe.id}
-                            recipe={recipe}
-                            dayIndex={dayIndex}
-                            isDragging={isDragging}
-                            isRemoving={isRemoving}
-                          />
-                        );
-                      })}
+                      {day.recipes.map((recipe) => (
+                        <DraggableRecipe
+                          key={recipe.id}
+                          recipe={recipe}
+                          from={dayIndex}
+                          containerStyle={styles.recipeChip}
+                          dragging={draggingId === recipe.id}
+                          styles={styles}
+                          c={c}
+                          drag={drag}
+                          zonesShared={zonesShared}
+                          hoveredShared={hoveredShared}
+                          onBeginDrag={beginDrag}
+                          onDrop={handleDrop}
+                          onHover={setHoveredKey}
+                          onEndDrag={endDrag}
+                          onOpen={openRecipeDetail}
+                          onRemove={removeDraggable}
+                        />
+                      ))}
                     </>
                   )}
                 </ScrollView>
@@ -703,13 +761,7 @@ export default function PlanningScreen() {
                 {/* Fixed Add Button at Bottom */}
                 <Pressable
                   style={styles.addRecipeButton}
-                  onPress={() => {
-                    if (draggedRecipe) {
-                      dropOnDay(dayIndex);
-                    } else {
-                      openAddRecipe(dayIndex);
-                    }
-                  }}
+                  onPress={() => openAddRecipe(dayIndex)}
                 >
                   <Ionicons name="add-circle" size={20} color={isToday ? c.accent : c.fgMuted} />
                   <ThemedText style={[styles.addRecipeButtonText, isToday && styles.addRecipeButtonTextToday]}>
@@ -722,29 +774,20 @@ export default function PlanningScreen() {
           })}
         </ScrollView>
 
-        {/* Short List Section */}
+        {/* Recipe Ideas (short list) — also a drop zone */}
         <View
+          ref={(el) => { ideasRef.current = el; }}
           style={{
-            borderWidth: draggedRecipe && draggedRecipe.fromDay !== null ? 3 : 2,
-            borderColor: draggedRecipe && draggedRecipe.fromDay !== null ? c.accent : c.borderStrong,
+            borderWidth: hoveredKey === 'ideas' ? 3 : 2,
+            borderColor: hoveredKey === 'ideas' ? c.accent : c.borderStrong,
             margin: 20,
             marginTop: 0,
             padding: 16,
-            backgroundColor: draggedRecipe && draggedRecipe.fromDay !== null
-              ? c.accentMuted
-              : c.bgMuted,
+            backgroundColor: hoveredKey === 'ideas' ? c.accentMuted : c.bgMuted,
             borderRadius: 12,
             minHeight: 180,
           }}
         >
-          <Pressable 
-            style={{ flex: 1 }}
-            onPress={() => {
-              if (draggedRecipe && draggedRecipe.fromDay !== null) {
-                dropOnShortList();
-              }
-            }}
-          >
           <View style={styles.shortListHeader}>
             <Ionicons name="list-outline" size={24} color={tintColor} />
             <ThemedText style={styles.shortListTitle}>Recipe Ideas</ThemedText>
@@ -755,7 +798,7 @@ export default function PlanningScreen() {
               <Ionicons name="add-circle" size={24} color={tintColor} />
             </Pressable>
           </View>
-          
+
           {shortList.length === 0 ? (
             <View style={styles.shortListEmpty}>
               <ThemedText style={styles.placeholderText}>
@@ -763,69 +806,33 @@ export default function PlanningScreen() {
               </ThemedText>
             </View>
           ) : (
-            <ScrollView 
-              horizontal 
+            <ScrollView
+              horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.shortListScroll}
             >
-              {shortList.map((recipe) => {
-                const isDragging = draggedRecipe?.recipe.id === recipe.id;
-                
-                return (
-                  <Pressable
-                    key={recipe.id} 
-                    style={[
-                      styles.shortListCard,
-                      isDragging && styles.shortListCardDragging
-                    ]}
-                    onPress={() => openRecipeDetail(recipe.recipeId)}
-                    onLongPress={() => {
-                      console.log('Long press detected on short list recipe:', recipe.recipeName);
-                      startDrag(recipe, null);
-                    }}
-                    delayLongPress={500}
-                  >
-                  {/* Top section: Image and Title */}
-                  <View style={styles.recipeChipTop}>
-                    {/* Circular Recipe Image */}
-                    <View style={styles.recipeChipImageContainer}>
-                      {recipe.imageUrl ? (
-                        <Image 
-                          source={{ uri: recipe.imageUrl }}
-                          style={styles.recipeChipImage}
-                        />
-                      ) : (
-                        <View style={styles.recipeChipImage}>
-                          <Ionicons name="restaurant" size={22} color={c.secondary} />
-                        </View>
-                      )}
-                    </View>
-                    
-                    {/* Recipe Title */}
-                    <ThemedText
-                      style={styles.recipeChipText}
-                      numberOfLines={2}
-                    >
-                      {recipe.recipeName}
-                    </ThemedText>
-                  </View>
-                  
-                  {/* Bottom section: Remove button */}
-                  <Pressable
-                    style={styles.chipRemove}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      removeFromShortList(recipe.id);
-                    }}
-                  >
-                    <ThemedText style={styles.chipRemoveText}>Remove</ThemedText>
-                  </Pressable>
-                </Pressable>
-                );
-              })}
+              {shortList.map((recipe) => (
+                <DraggableRecipe
+                  key={recipe.id}
+                  recipe={recipe}
+                  from="ideas"
+                  containerStyle={styles.shortListCard}
+                  dragging={draggingId === recipe.id}
+                  styles={styles}
+                  c={c}
+                  drag={drag}
+                  zonesShared={zonesShared}
+                  hoveredShared={hoveredShared}
+                  onBeginDrag={beginDrag}
+                  onDrop={handleDrop}
+                  onHover={setHoveredKey}
+                  onEndDrag={endDrag}
+                  onOpen={openRecipeDetail}
+                  onRemove={removeDraggable}
+                />
+              ))}
             </ScrollView>
           )}
-          </Pressable>
         </View>
 
         {/* Shopping List Section */}
@@ -1025,14 +1032,22 @@ export default function PlanningScreen() {
         </ThemedView>
       </Modal>
 
-      {/* Cancel Drag Overlay */}
-      {draggedRecipe && (
-        <View style={styles.dragOverlay}>
-          <Pressable style={styles.cancelDragButton} onPress={cancelDrag}>
-            <Ionicons name="close-circle" size={60} color={c.bg} />
-            <ThemedText style={styles.cancelDragText}>Cancel</ThemedText>
-          </Pressable>
-        </View>
+      {/* Floating drag preview — follows the finger on the UI thread */}
+      {dragItem && (
+        <Reanimated.View pointerEvents="none" style={[styles.dragPreview, previewStyle]}>
+          <View style={styles.recipeChipTop}>
+            <View style={styles.recipeChipImageContainer}>
+              {dragItem.recipe.imageUrl ? (
+                <Image source={{ uri: dragItem.recipe.imageUrl }} style={styles.recipeChipImage} />
+              ) : (
+                <View style={styles.recipeChipImage}>
+                  <Ionicons name="restaurant" size={22} color={c.secondary} />
+                </View>
+              )}
+            </View>
+            <ThemedText style={styles.recipeChipText} numberOfLines={2}>{dragItem.recipe.recipeName}</ThemedText>
+          </View>
+        </Reanimated.View>
       )}
 
         {/* Delete Confirmation Modal */}
@@ -1369,6 +1384,25 @@ function makeStyles(theme: Theme) {
     backgroundColor: c.secondaryMuted,
     borderColor: c.accent,
     borderWidth: 2,
+  },
+  dragPreview: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 9999,
+    width: 148,
+    minHeight: 90,
+    backgroundColor: c.bgElevated,
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 2,
+    borderColor: c.accent,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 12,
   },
   recipeChipTop: {
     flexDirection: 'column',

@@ -25,8 +25,9 @@ export function decimalToFraction(decimal: number): string {
     }
   }
 
-  // If no match found, return decimal
-  return decimal.toString();
+  // No clean fraction — show a plain number capped at 2 decimals (trailing
+  // zeros stripped) so converted amounts don't read like "236.588235".
+  return String(Math.round(decimal * 100) / 100);
 }
 
 /**

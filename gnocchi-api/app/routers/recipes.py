@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app import schemas, storage
 from app.db import get_session
-from app.models import Recipe, RecipePhoto
+from app.models import Cookbook, Recipe, RecipePhoto, Singleton
 
 router = APIRouter(prefix="/recipes", tags=["recipes"])
 
@@ -67,6 +67,26 @@ async def delete_recipe(id: uuid.UUID, session: AsyncSession = Depends(get_sessi
     recipe = await _load(session, id)
     for photo in recipe.photos:
         storage.delete(photo.key)
+    # Purge this recipe's id from any cookbook that references it. Otherwise the
+    # dead id lingers in recipe_ids, so recipe_count (len(recipe_ids)) keeps
+    # counting a recipe that no longer loads.
+    rid = str(id)
+    cookbooks = await session.execute(select(Cookbook).where(Cookbook.recipe_ids.any(rid)))
+    for cb in cookbooks.scalars().all():
+        cb.recipe_ids = [r for r in cb.recipe_ids if r != rid]
+    # And from the meal-plan singleton (its day slots + short list), so a
+    # deleted recipe doesn't leave a phantom entry behind.
+    mp = await session.get(Singleton, "meal_plan")
+    if mp is not None and mp.value:
+        v = mp.value
+        mp.value = {
+            **v,
+            "plan": [
+                {**d, "recipes": [r for r in d.get("recipes", []) if r != rid]}
+                for d in v.get("plan", [])
+            ],
+            "short_list": [r for r in v.get("short_list", []) if r != rid],
+        }
     await session.delete(recipe)
     await session.commit()
 

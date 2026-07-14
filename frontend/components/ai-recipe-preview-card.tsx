@@ -55,11 +55,15 @@ export function AiRecipePreviewCard({ recipe, showSteps, footer }: AiRecipePrevi
         <View style={styles.block}>
           <Text variant="label" color="fgMuted" style={styles.blockLabel}>Ingredients</Text>
           <View style={{ gap: 3 }}>
-            {ingredients.map((ing: any, i: number) => (
-              <Text key={i} variant="small" color="fgMuted">
-                {`• ${[ing.quantity, ing.unit, ing.text].filter(Boolean).join(' ')}`}
-              </Text>
-            ))}
+            {ingredients.map((ing: any, i: number) => {
+              // Cap noisy floats (e.g. scaled amounts) at 2 decimals.
+              const qty = typeof ing.quantity === 'number' ? Math.round(ing.quantity * 100) / 100 : ing.quantity;
+              return (
+                <Text key={i} variant="small" color="fgMuted">
+                  {`• ${[qty, ing.unit, ing.text].filter(Boolean).join(' ')}`}
+                </Text>
+              );
+            })}
           </View>
         </View>
       )}

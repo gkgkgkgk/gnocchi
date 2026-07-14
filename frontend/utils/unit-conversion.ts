@@ -1,7 +1,8 @@
 /**
  * Unit conversion + smart scaling, built on the canonical units' `to_base`
- * factors (see services/unit-service.ts). Same-type conversions only — we don't
- * do weight↔volume (that needs per-ingredient density, a future addition).
+ * factors (see services/unit-service.ts). Same-type conversions via
+ * convertQuantity/scaleForDisplay; weight↔volume via crossConvert/
+ * toggleMeasureType, which take a per-ingredient density (see ingredient-density.ts).
  */
 import { Unit } from '@/services/unit-service';
 

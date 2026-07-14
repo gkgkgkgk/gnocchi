@@ -251,8 +251,13 @@ function adaptForBackend(input: any): Record<string, any> {
     notes: input.notes ?? null,
     source_url: input.source_url ?? null,
     source_type: input.source_type ?? null,
-    cover_image:
+    // Store a bare storage key, not a rendered URL — otherwise editing a recipe
+    // round-trips `/images/key` back in and the next load doubles the prefix
+    // (`/images//images/key`) and breaks the cover↔photo link. External URLs
+    // (imported covers) pass through untouched.
+    cover_image: api.imageKey(
       input.cover_image ?? input.image_url ?? input.imageUrl ?? null,
+    ),
     prep_time: parseIntOrNull(
       meta.prep_time ?? meta.prepTime ?? input.prep_time ?? input.prepTime,
     ),

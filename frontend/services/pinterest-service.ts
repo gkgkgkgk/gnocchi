@@ -35,6 +35,15 @@ export async function importFromWebsite(url: string): Promise<ImportResponse> {
   return api.post<ImportResponse>('/import/website', { url: normalizeUrl(url) });
 }
 
-export async function importFromInstagram(url: string): Promise<ImportResponse> {
-  return api.post<ImportResponse>('/import/instagram', { url: normalizeUrl(url) });
+/**
+ * Extract a recipe from freeform pasted text — an Instagram/TikTok caption
+ * copied from the app, a recipe a friend texted, a note. Instagram no longer
+ * serves post content to logged-out server fetches, so pasting the caption is
+ * the reliable, ToS-clean way to import from it.
+ */
+export async function importFromText(text: string, sourceUrl?: string): Promise<ImportResponse> {
+  return api.post<ImportResponse>('/import/text', {
+    text,
+    source_url: sourceUrl ? normalizeUrl(sourceUrl) : null,
+  });
 }
