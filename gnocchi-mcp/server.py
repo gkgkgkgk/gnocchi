@@ -7,7 +7,7 @@ transport is stdio, so the HTTP API never needs to expose an MCP endpoint.
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import quote
 
 import httpx
@@ -96,10 +96,10 @@ async def get_recipe(recipe_id: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def save_recipe(recipe: RecipeDraft) -> dict[str, Any]:
-    """Save a new recipe created with the user. Its source is marked as AI-assisted."""
+async def save_recipe(recipe: RecipeDraft, source_type: Literal["manual", "ai"] = "manual") -> dict[str, Any]:
+    """Save a new recipe. Use manual for one supplied by the user, ai for one generated here."""
     body = recipe.model_dump(exclude_none=True)
-    body["source_type"] = "ai"
+    body["source_type"] = source_type
     return await api_request("POST", "/recipes", body)
 
 

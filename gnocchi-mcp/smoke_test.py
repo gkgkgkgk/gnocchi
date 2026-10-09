@@ -26,7 +26,7 @@ async def main() -> None:
             )
         )
         created.append(original["id"])
-        assert original["source_type"] == "ai"
+        assert original["source_type"] == "manual"
 
         variation = await create_variation(
             original["id"], RecipeChanges(title="MCP smoke test variation", notes="Less salt")

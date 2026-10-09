@@ -1,6 +1,6 @@
 # Gnocchi MCP
 
-This local stdio server exposes five recipe tools: `find_recipes`, `get_recipe`, `save_recipe`, `create_variation`, and `update_recipe`. It calls the existing Gnocchi API; it needs no separate database or container.
+This local stdio server exposes five recipe tools: `find_recipes`, `get_recipe`, `save_recipe`, `create_variation`, and `update_recipe`. `save_recipe` marks user-supplied recipes as manual by default and can mark generated ones as AI-created. It calls the existing Gnocchi API; it needs no separate database or container.
 
 ```sh
 python3 -m venv gnocchi-mcp/.venv
