@@ -87,10 +87,14 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: [self-hosted, linux, x64, holocron-deploy]
+    permissions:
+      contents: read
+      packages: read
     environment: production
     steps:
       - uses: actions/checkout@v4
       - name: Deploy exact commit to Holocron
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash deploy/ci-deploy.sh '${{ github.sha }}'
