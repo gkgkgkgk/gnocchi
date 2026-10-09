@@ -12,13 +12,31 @@ callers check `jsonld` first and only fall back to `raw_text` + LLM.
 from __future__ import annotations
 
 import json
+import asyncio
+import ipaddress
+import socket
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
 
 TIMEOUT = 10.0
+MAX_HTML_BYTES = 2 * 1024 * 1024
+
+
+async def _check_public_url(url: str) -> None:
+    """Imports are for public recipe sites, never services on the home LAN."""
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+        raise HTTPException(status_code=400, detail="Enter a public http or https recipe URL.")
+    try:
+        addresses = await asyncio.to_thread(socket.getaddrinfo, parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80), type=socket.SOCK_STREAM)
+    except (socket.gaierror, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Recipe site could not be resolved.") from exc
+    if not addresses or any(not ipaddress.ip_address(item[4][0]).is_global for item in addresses):
+        raise HTTPException(status_code=400, detail="Recipe URL must point to a public site.")
 
 
 def _find_jsonld_recipe(soup: BeautifulSoup) -> dict[str, Any] | None:
@@ -71,13 +89,31 @@ def _extract_recipe_text(soup: BeautifulSoup) -> str:
 
 
 async def _fetch(url: str) -> str:
-    async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True) as c:
-        try:
-            resp = await c.get(url, headers={"User-Agent": "Mozilla/5.0 (compatible; Gnocchi/1.0)"})
-            resp.raise_for_status()
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {e}") from e
-        return resp.text
+    async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=False, trust_env=False) as c:
+        for _ in range(6):
+            await _check_public_url(url)
+            try:
+                async with c.stream("GET", url, headers={"User-Agent": "Mozilla/5.0 (compatible; Gnocchi/1.0)"}) as resp:
+                    if resp.is_redirect:
+                        location = resp.headers.get("location")
+                        if not location:
+                            raise HTTPException(status_code=400, detail="Recipe site redirected without a destination.")
+                        url = urljoin(url, location)
+                        continue
+                    resp.raise_for_status()
+                    if "text/html" not in resp.headers.get("content-type", ""):
+                        raise HTTPException(status_code=400, detail="Recipe URL did not return a web page.")
+                    chunks = []
+                    size = 0
+                    async for chunk in resp.aiter_bytes():
+                        size += len(chunk)
+                        if size > MAX_HTML_BYTES:
+                            raise HTTPException(status_code=413, detail="Recipe page is too large to import.")
+                        chunks.append(chunk)
+                    return b"".join(chunks).decode(resp.encoding or "utf-8", errors="replace")
+            except httpx.HTTPError as exc:
+                raise HTTPException(status_code=400, detail=f"Failed to fetch recipe page: {exc}") from exc
+    raise HTTPException(status_code=400, detail="Recipe site redirected too many times.")
 
 
 async def scrape_website(url: str) -> dict[str, Any]:

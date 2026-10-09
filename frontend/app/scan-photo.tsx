@@ -68,6 +68,7 @@ export default function ScanPhotoScreen() {
         cookTime: (recipeData.cook_time ?? 0).toString(),
         servings: (recipeData.servings ?? 1).toString(),
         source: undefined,
+        sourceType: 'photo',
       };
 
       setProcessing(false);

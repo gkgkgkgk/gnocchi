@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, StyleSheet, Pressable, Image, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -22,6 +22,10 @@ interface RecipeCardProps {
   metadata?: any;
   ingredients?: any[];
   rating?: number | null;
+  source_type?: string | null;
+  source_recipe_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
   tags?: string[];
   userTags?: RecipeTag[];
   onPress?: () => void;
@@ -39,6 +43,10 @@ export function RecipeCard(props: RecipeCardProps) {
     metadata,
     ingredients,
     rating,
+    source_type,
+    source_recipe_id,
+    created_at,
+    updated_at,
     tags = [],
     userTags = [],
     onPress,
@@ -49,14 +57,17 @@ export function RecipeCard(props: RecipeCardProps) {
 
   const theme = useTheme();
   const c = theme.colors;
-  const { width } = useWindowDimensions();
-  const isMobile = width < 768;
-
   const image = imageUrl || image_url;
   const prep = Number(metadata?.prepTime) || 0;
   const cook = Number(metadata?.cookTime) || 0;
   const totalTime = prep + cook;
   const numIngredients = ingredients?.length ?? 0;
+  const sourceLabel = source_recipe_id || source_type === 'adapted' ? 'Adapted recipe'
+    : source_type === 'ai' ? 'Created with AI'
+    : source_type === 'manual' || !source_type ? 'Made by me'
+    : 'Imported recipe';
+  const edited = !!created_at && !!updated_at &&
+    new Date(updated_at).getTime() - new Date(created_at).getTime() > 60_000;
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showEditTags, setShowEditTags] = useState(false);
@@ -72,12 +83,14 @@ export function RecipeCard(props: RecipeCardProps) {
         {image ? (
           <Image source={{ uri: image }} style={styles.image} />
         ) : (
-          <View style={[styles.imagePlaceholder, { backgroundColor: c.bgMuted }]}>
-            <Text variant="display" color="fgSubtle" style={{ fontSize: 44 }}>
-              🍽️
-            </Text>
+          <View style={[styles.imagePlaceholder, { backgroundColor: c.secondaryMuted }]}>
+            <Ionicons name="restaurant-outline" size={40} color={c.secondary} />
           </View>
         )}
+        <View style={[styles.originBadge, { backgroundColor: c.bgElevated }]}>
+          <Ionicons name={source_recipe_id || source_type === 'adapted' ? 'git-branch-outline' : 'bookmark-outline'} size={12} color={c.accent} />
+          <Text variant="caption" style={{ color: c.fg }}>{sourceLabel}</Text>
+        </View>
 
         <View style={[styles.info, { padding: theme.spacing.md }]}>
           <View style={styles.titleRow}>
@@ -119,6 +132,7 @@ export function RecipeCard(props: RecipeCardProps) {
           {/* Meta / rating / tags float to the bottom of the card so they line
               up across cards regardless of whether the title wraps to 2 lines. */}
           <View style={styles.footer}>
+            {edited && <Text variant="caption" color="fgSubtle" style={{ marginBottom: 5 }}>Updated since saving</Text>}
             {(totalTime > 0 || numIngredients > 0) && (
               <View style={[styles.metaRow, { gap: theme.spacing.md }]}>
                 {totalTime > 0 && (
@@ -149,7 +163,7 @@ export function RecipeCard(props: RecipeCardProps) {
                   {
                     marginTop: theme.spacing.sm,
                     gap: theme.spacing.xs,
-                    flexDirection: isMobile ? 'column' : 'row',
+                    flexDirection: 'row',
                   },
                 ]}
               >
@@ -167,7 +181,7 @@ export function RecipeCard(props: RecipeCardProps) {
       <Sheet visible={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
         <Text variant="h2" style={{ marginBottom: theme.spacing.sm }}>Delete recipe?</Text>
         <Text variant="body" color="fgMuted" style={{ marginBottom: theme.spacing.xl }}>
-          "{title}" will be permanently removed.
+          &ldquo;{title}&rdquo; will be permanently removed.
         </Text>
         <View style={{ flexDirection: 'row', gap: theme.spacing.md, justifyContent: 'flex-end' }}>
           <Button variant="ghost" onPress={() => setShowDeleteConfirm(false)}>Cancel</Button>
@@ -217,6 +231,11 @@ const styles = StyleSheet.create({
     height: 160,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  originBadge: {
+    position: 'absolute', top: 12, left: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 9, paddingVertical: 6, borderRadius: 99,
   },
   info: { flex: 1 },
   footer: { marginTop: 'auto', paddingTop: 8 },

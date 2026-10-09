@@ -106,7 +106,7 @@ export function CookbookCard({
       <Sheet visible={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
         <Text variant="h2">Delete cookbook?</Text>
         <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, marginBottom: theme.spacing.xl }}>
-          "{name}" will be removed. The recipes inside will not be deleted.
+          &ldquo;{name}&rdquo; will be removed. The recipes inside will not be deleted.
         </Text>
         <View style={{ flexDirection: 'row', gap: theme.spacing.md, justifyContent: 'flex-end' }}>
           <Button variant="ghost" onPress={() => setShowDeleteConfirm(false)}>Cancel</Button>

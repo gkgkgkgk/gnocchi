@@ -40,6 +40,7 @@ class RecipeBase(BaseModel):
     notes: str | None = None
     source_url: str | None = None
     source_type: str | None = None
+    source_recipe_id: uuid.UUID | None = None
     prep_time: int | None = None
     cook_time: int | None = None
     servings: int | None = None
@@ -61,6 +62,7 @@ class RecipeUpdate(BaseModel):
     notes: str | None = None
     source_url: str | None = None
     source_type: str | None = None
+    source_recipe_id: uuid.UUID | None = None
     prep_time: int | None = None
     cook_time: int | None = None
     servings: int | None = None

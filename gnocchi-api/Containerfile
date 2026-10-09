@@ -19,8 +19,7 @@ ENV PORT=8001 \
 
 EXPOSE 8001
 
-# Migrate on boot (idempotent), then serve. `data/images` is the container
-# path bound to /var/lib/gnocchi/images on the host.
-CMD ["sh", "-c", "mkdir -p ${IMAGE_STORAGE_DIR} && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+# Deploy runs Alembic explicitly after a backup; ordinary restarts only serve.
+CMD ["sh", "-c", "mkdir -p ${IMAGE_STORAGE_DIR} && exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
 
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -fs http://127.0.0.1:${PORT}/health || exit 1

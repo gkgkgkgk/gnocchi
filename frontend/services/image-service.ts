@@ -1,5 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { api } from '@/lib/api';
+import { appendImage } from '@/utils/form-upload';
 
 export async function requestCameraPermission(): Promise<boolean> {
   const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -40,9 +41,7 @@ export async function pickImage(): Promise<string | null> {
  * consume the `.recipe` field.
  */
 export async function parseRecipeFromImage(uri: string): Promise<any> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
   const fd = new FormData();
-  fd.append('image', blob, 'recipe.jpg');
+  await appendImage(fd, uri, 'recipe.jpg');
   return api.upload('/import/photo', fd);
 }

@@ -1,4 +1,5 @@
 import { api } from '@/lib/api';
+import { appendImage } from '@/utils/form-upload';
 
 // --- Types --------------------------------------------------------------
 
@@ -55,6 +56,7 @@ export interface Recipe {
   notes?: string | null;
   source_url?: string | null;
   source_type?: string | null;
+  source_recipe_id?: string | null;
   prep_time?: number | null;
   cook_time?: number | null;
   servings?: number | null;
@@ -88,6 +90,7 @@ export interface CreateRecipeInput {
   notes?: string | null;
   source_url?: string | null;
   source_type?: string | null;
+  source_recipe_id?: string | null;
   prep_time?: number | null;
   cook_time?: number | null;
   servings?: number | null;
@@ -227,7 +230,7 @@ function adaptForUI(r: any): Recipe {
  * Reshape a loose UI payload into the backend's expected create/update body.
  * Accepts any of the field aliases the old screens still emit.
  */
-function adaptForBackend(input: any): Record<string, any> {
+function adaptForBackend(input: any, partial = false): Record<string, any> {
   const meta = input.metadata ?? {};
   const body: Record<string, any> = {
     title: input.title,
@@ -251,6 +254,7 @@ function adaptForBackend(input: any): Record<string, any> {
     notes: input.notes ?? null,
     source_url: input.source_url ?? null,
     source_type: input.source_type ?? null,
+    source_recipe_id: input.source_recipe_id ?? null,
     // Store a bare storage key, not a rendered URL — otherwise editing a recipe
     // round-trips `/images/key` back in and the next load doubles the prefix
     // (`/images//images/key`) and breaks the cover↔photo link. External URLs
@@ -277,6 +281,25 @@ function adaptForBackend(input: any): Record<string, any> {
         }
       : null;
   }
+  if (partial) {
+    const supplied: Record<string, boolean> = {
+      title: 'title' in input,
+      ingredients: 'ingredients' in input,
+      steps: 'steps' in input,
+      notes: 'notes' in input,
+      source_url: 'source_url' in input,
+      source_type: 'source_type' in input,
+      source_recipe_id: 'source_recipe_id' in input,
+      cover_image: ['cover_image', 'image_url', 'imageUrl'].some((key) => input[key] !== undefined),
+      prep_time: ['prep_time', 'prepTime'].some((key) => key in input || key in meta),
+      cook_time: ['cook_time', 'cookTime'].some((key) => key in input || key in meta),
+      servings: 'servings' in input || 'servings' in meta,
+      tags: 'tags' in input || 'tags' in meta,
+    };
+    for (const [key, present] of Object.entries(supplied)) {
+      if (!present) delete body[key];
+    }
+  }
   // Trim undefined so PATCH stays PATCH.
   Object.keys(body).forEach((k) => body[k] === undefined && delete body[k]);
   return body;
@@ -300,12 +323,12 @@ export async function fetchRecipeById(id: string): Promise<Recipe | null> {
 }
 
 export async function createRecipe(input: CreateRecipeInput): Promise<Recipe> {
-  const row = await api.post<any>('/recipes', adaptForBackend(input));
+  const row = await api.post<any>('/recipes', adaptForBackend({ source_type: 'manual', ...input }));
   return adaptForUI(row);
 }
 
 export async function updateRecipe(id: string, input: UpdateRecipeInput): Promise<Recipe> {
-  const row = await api.patch<any>(`/recipes/${id}`, adaptForBackend(input));
+  const row = await api.patch<any>(`/recipes/${id}`, adaptForBackend(input, true));
   return adaptForUI(row);
 }
 
@@ -344,10 +367,8 @@ export async function addCookNote(id: string, note: CookHistoryEntry): Promise<R
 }
 
 export async function uploadRecipePhoto(id: string, uri: string): Promise<RecipePhoto> {
-  const response = await fetch(uri);
-  const blob = await response.blob();
   const fd = new FormData();
-  fd.append('image', blob, 'photo.jpg');
+  await appendImage(fd, uri, 'photo.jpg');
   return api.upload<RecipePhoto>(`/recipes/${id}/photos`, fd);
 }
 
@@ -459,13 +480,12 @@ export interface RecipeChatResult {
 }
 
 /**
- * Persist an AI-proposed edit (AIRecipePayload shape) onto an existing recipe.
- * Targeted raw PATCH — only the content fields, so cover/rating/tags/history
- * are left untouched (unlike updateRecipe, which defaults cover_image to null).
+ * Save an AI-proposed edit as a linked variation. The source recipe stays
+ * available, with its cook history and notes intact.
  */
-export async function applyRecipeEdit(id: string, aiRecipe: any): Promise<Recipe> {
+export async function applyRecipeEdit(original: Recipe, aiRecipe: any): Promise<Recipe> {
   const md = aiRecipe.metadata ?? {};
-  const body: Record<string, any> = {
+  return createRecipe({
     title: aiRecipe.title,
     ingredients: (aiRecipe.ingredients ?? []).map((i: any) => ({
       text: i.text ?? '',
@@ -478,9 +498,11 @@ export async function applyRecipeEdit(id: string, aiRecipe: any): Promise<Recipe
     prep_time: parseIntOrNull(md.prep_time),
     cook_time: parseIntOrNull(md.cook_time),
     servings: parseIntOrNull(md.servings),
-  };
-  const row = await api.patch<any>(`/recipes/${id}`, body);
-  return adaptForUI(row);
+    source_type: 'adapted',
+    source_recipe_id: original.id,
+    source_url: original.source_url ?? null,
+    tags: original.tags ?? [],
+  });
 }
 
 /**
@@ -564,5 +586,9 @@ export async function saveModifiedRecipe(
     prep_time: modified.metadata?.prep_time ?? original?.prep_time ?? null,
     cook_time: modified.metadata?.cook_time ?? original?.cook_time ?? null,
     servings: modified.metadata?.servings ?? original?.servings ?? null,
+    source_type: original ? 'adapted' : 'ai',
+    source_recipe_id: original?.id ?? null,
+    source_url: original?.source_url ?? null,
+    tags: original?.tags ?? [],
   });
 }

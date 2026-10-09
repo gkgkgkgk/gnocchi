@@ -13,6 +13,8 @@ from app.config import settings
 
 
 ALLOWED_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+MAX_UPLOAD_BYTES = 12 * 1024 * 1024
+CHUNK_BYTES = 1024 * 1024
 
 
 async def save_upload(upload: UploadFile) -> str:
@@ -21,8 +23,17 @@ async def save_upload(upload: UploadFile) -> str:
         raise HTTPException(status_code=400, detail=f"Unsupported image type: {upload.content_type}")
     key = f"{uuid.uuid4().hex}.{ext}"
     path = settings.image_storage_dir / key
-    async with aiofiles.open(path, "wb") as f:
-        await f.write(await upload.read())
+    size = 0
+    try:
+        async with aiofiles.open(path, "wb") as f:
+            while chunk := await upload.read(CHUNK_BYTES):
+                size += len(chunk)
+                if size > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="Image must be 12 MB or smaller.")
+                await f.write(chunk)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
     return key
 
 

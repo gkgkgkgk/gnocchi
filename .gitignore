@@ -74,6 +74,12 @@ web_modules/
 # Expo local dev state — machine-specific, not for the repo
 .expo/
 
+# Database backups (scripts/backup.py) — local only, can be large
+backups/
+
+# On-disk image store
+.data/
+
 # Nix / local dev state
 # local postgres cluster
 .pg/
@@ -154,4 +160,5 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .venv/
+.venv
 .vscode/

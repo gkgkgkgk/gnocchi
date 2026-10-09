@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, Alert, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
@@ -19,6 +19,7 @@ import { useTheme } from '@/hooks/use-theme';
 
 export default function CookbooksScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const theme = useTheme();
   const c = theme.colors;
   const [cookbooks, setCookbooks] = useState<Cookbook[]>([]);
@@ -30,7 +31,7 @@ export default function CookbooksScreen() {
 
   const numColumns = Math.max(2, Math.min(5, Math.floor(width / 220)));
 
-  useEffect(() => { loadCookbooks(); }, []);
+  useEffect(() => { if (isFocused) loadCookbooks(); }, [isFocused]);
 
   const loadCookbooks = async () => {
     try {
@@ -90,7 +91,10 @@ export default function CookbooksScreen() {
       {loading ? (
         <View style={styles.centered}><ActivityIndicator color={c.accent} /></View>
       ) : error ? (
-        <View style={styles.centered}><Text variant="body" color="danger">{error}</Text></View>
+        <View style={styles.centered}>
+          <Text variant="body" color="danger">{error}</Text>
+          <Button onPress={loadCookbooks} style={{ marginTop: 16 }}>Try again</Button>
+        </View>
       ) : cookbooks.length === 0 ? (
         <EmptyState
           doodle="book"

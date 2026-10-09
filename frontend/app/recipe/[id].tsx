@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, Modal, Platform, TextInput } from 'react-native';
+import { View, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, Linking, TextInput } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -25,7 +25,6 @@ import { densityFor } from '@/utils/ingredient-density';
 import { formatIngredientLine } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsive } from '@/hooks/use-responsive';
-import { useThemeColor } from '@/hooks/use-theme-color';
 import { convertDecimalsToFractions } from '@/utils/fraction-formatter';
 
 function formatCookDate(iso: string): string {
@@ -570,6 +569,24 @@ export default function RecipeDetailScreen() {
         {/* Recipe Content */}
         <View style={[styles.content, isWide && styles.contentWide]}>
           <Text variant="display">{recipe.title}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
+            {recipe.source_recipe_id ? (
+              <Chip onPress={() => router.push(`/recipe/${recipe.source_recipe_id}` as any)} variant="outline" icon={<Ionicons name="git-branch-outline" size={14} color={c.accent} />}>
+                Adapted from another recipe · view original
+              </Chip>
+            ) : recipe.source_type === 'ai' ? (
+              <Chip variant="outline" icon={<Ionicons name="sparkles-outline" size={14} color={c.accent} />}>Created with AI</Chip>
+            ) : recipe.source_type === 'manual' || !recipe.source_type ? (
+              <Chip variant="outline" icon={<Ionicons name="create-outline" size={14} color={c.accent} />}>Made by me</Chip>
+            ) : (
+              <Chip variant="outline" icon={<Ionicons name="download-outline" size={14} color={c.accent} />}>Imported recipe</Chip>
+            )}
+            {recipe.source_url?.startsWith('http') && (
+              <Chip onPress={() => Linking.openURL(recipe.source_url!)} variant="outline" icon={<Ionicons name="open-outline" size={14} color={c.accent} />}>
+                View source
+              </Chip>
+            )}
+          </View>
 
           {/* Metadata chips */}
           {(servings > 0 || prepTime > 0 || cookTime > 0) && (
@@ -836,7 +853,10 @@ export default function RecipeDetailScreen() {
           visible={showChat}
           recipe={recipe}
           onClose={() => setShowChat(false)}
-          onApplied={(updated) => setRecipe(updated)}
+          onApplied={(updated) => {
+            setShowChat(false);
+            router.push(`/recipe/${updated.id}` as any);
+          }}
         />
       )}
 
@@ -855,7 +875,7 @@ export default function RecipeDetailScreen() {
       <Sheet visible={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
         <Text variant="h2">Delete recipe?</Text>
         <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, marginBottom: theme.spacing.xl }}>
-          "{recipe.title}" will be permanently removed.
+          &ldquo;{recipe.title}&rdquo; will be permanently removed.
         </Text>
         <View style={{ flexDirection: 'row', gap: theme.spacing.md, justifyContent: 'flex-end' }}>
           <Button variant="ghost" onPress={() => setShowDeleteConfirm(false)}>Cancel</Button>

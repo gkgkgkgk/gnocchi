@@ -80,7 +80,7 @@ export function RecipeChatPanel({ visible, recipe, onClose, onApplied }: RecipeC
       console.error('Recipe chat failed:', error);
       setMessages((prev) => [
         ...prev,
-        { id: uid(), role: 'assistant', text: '⚠️ Sorry — something went wrong. Try again?' },
+        { id: uid(), role: 'assistant', text: error?.status === 503 ? 'AI is not configured for this kitchen yet.' : 'Sorry — I couldn’t answer that. Please try again.' },
       ]);
     } finally {
       setLoading(false);
@@ -91,7 +91,7 @@ export function RecipeChatPanel({ visible, recipe, onClose, onApplied }: RecipeC
     if (!msg.proposal || applyingId) return;
     setApplyingId(msg.id);
     try {
-      const updated = await applyRecipeEdit(recipe.id, msg.proposal);
+      const updated = await applyRecipeEdit(recipe, msg.proposal);
       onApplied(updated);
       setMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, applied: true } : m)));
     } catch (error: any) {
@@ -165,7 +165,7 @@ export function RecipeChatPanel({ visible, recipe, onClose, onApplied }: RecipeC
                       m.applied ? (
                         <View style={[styles.appliedPill, { marginTop: theme.spacing.md }]}>
                           <Ionicons name="checkmark-circle" size={16} color={c.success} />
-                          <Text variant="smallMedium" style={{ color: c.success }}>Changes applied to your recipe</Text>
+                          <Text variant="smallMedium" style={{ color: c.success }}>Saved as a new variation</Text>
                         </View>
                       ) : (
                         <Button
@@ -174,7 +174,7 @@ export function RecipeChatPanel({ visible, recipe, onClose, onApplied }: RecipeC
                           fullWidth
                           style={{ marginTop: theme.spacing.md }}
                           icon={<Ionicons name="checkmark" size={18} color={c.accentFg} />}>
-                          Apply changes
+                          Save as variation
                         </Button>
                       )
                     }

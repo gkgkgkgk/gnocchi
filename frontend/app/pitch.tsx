@@ -87,7 +87,7 @@ export default function PitchScreen() {
     }
   };
 
-  const useRecipe = (recipe: any) => {
+  const openRecipeDraft = (recipe: any) => {
     const md = recipe.metadata ?? {};
     const importData = {
       title: recipe.title,
@@ -104,6 +104,7 @@ export default function PitchScreen() {
       cookTime: String(md.cook_time ?? ''),
       servings: String(md.servings ?? ''),
       source: '',
+      sourceType: 'ai',
     };
     (global as any).__pendingRecipeImport = importData;
     router.push({ pathname: '/new-recipe', params: { fromImport: 'true' } } as any);
@@ -166,7 +167,7 @@ export default function PitchScreen() {
                       // Only the newest recipe is committable — older ones are history.
                       isLast ? (
                         <Button
-                          onPress={() => useRecipe(m.recipe)}
+                          onPress={() => openRecipeDraft(m.recipe)}
                           fullWidth
                           style={{ marginTop: theme.spacing.lg }}
                           iconRight={<Ionicons name="arrow-forward" size={18} color={c.accentFg} />}>

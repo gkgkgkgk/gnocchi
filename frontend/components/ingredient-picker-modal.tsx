@@ -149,7 +149,7 @@ export function IngredientPickerModal({
                 onPress={handleCreateIngredient}
               >
                 <ThemedText style={styles.createButtonText}>
-                  + Use "{searchQuery}"
+                  + Use &ldquo;{searchQuery}&rdquo;
                 </ThemedText>
               </Pressable>
             )}

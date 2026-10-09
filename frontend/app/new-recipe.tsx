@@ -143,6 +143,12 @@ function makeStyles(theme: Theme) {
     marginBottom: 12,
     alignItems: 'center',
   },
+  ingredientCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+  },
   ingredientInput: {
     borderWidth: 1,
     borderColor: c.border,
@@ -391,6 +397,9 @@ interface RecipeFormData {
   ingredients: RecipeIngredient[];
   steps: string[];
   imageUrl?: string;
+  sourceUrl?: string | null;
+  sourceType?: string | null;
+  sourceRecipeId?: string | null;
 }
 
 export default function NewRecipeScreen() {
@@ -411,6 +420,7 @@ export default function NewRecipeScreen() {
     ingredients: [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false }],
     steps: [''],
     imageUrl: '',
+    sourceType: 'manual',
   });
   
   // Load recipe data if editing
@@ -476,6 +486,9 @@ export default function NewRecipeScreen() {
         ingredients: transformedIngredients,
         steps: recipe.steps || [''],
         imageUrl: (recipe as any).image_url || recipe.imageUrl || '',
+        sourceUrl: recipe.source_url,
+        sourceType: recipe.source_type,
+        sourceRecipeId: recipe.source_recipe_id,
       });
     } catch (error) {
       console.error('Failed to load recipe:', error);
@@ -586,6 +599,8 @@ export default function NewRecipeScreen() {
             // A scanned photo comes through as localPhotoUri — show it as the
             // preview and mark it local so it's uploaded + set as cover on save.
             imageUrl: imported.imageUrl || imported.localPhotoUri || '',
+            sourceUrl: imported.source || null,
+            sourceType: imported.sourceType || (imported.source ? 'website' : 'manual'),
           });
           if (imported.localPhotoUri) {
             setLocalPhotoUri(imported.localPhotoUri);
@@ -611,8 +626,6 @@ export default function NewRecipeScreen() {
   const theme = useTheme();
   const styles = makeStyles(theme);
   const c = theme.colors;
-  const backgroundColor = c.bgElevated;
-  const borderColor = c.border;
 
   const stepTitles = ['Basic Info', 'Ingredients', 'Instructions', 'Details'];
 
@@ -636,24 +649,17 @@ export default function NewRecipeScreen() {
       if (!data.title.trim()) out.push('title');
     }
     if (step === 1) {
-      // A row counts as "started" if either field has content. A started
-      // row must have BOTH quantity and name; if not, the missing fields
-      // are errors. Additionally, at least one row must be complete —
-      // if none is, mark row 0's empty fields.
+      // Ingredient names are enough for things like salt to taste. Quantity
+      // and unit are optional; a number without a name is not useful.
       let anyComplete = false;
       data.ingredients.forEach((ing, i) => {
         const hasQty = ing.quantity.trim();
-        const hasName = !!ing.ingredientName;
-        if (hasQty && hasName) anyComplete = true;
-        if ((hasQty || hasName) && !(hasQty && hasName)) {
-          if (!hasQty) out.push(`ingredient-${i}-quantity`);
-          if (!hasName) out.push(`ingredient-${i}-name`);
-        }
+        const hasName = !!ing.ingredientName.trim();
+        if (hasName) anyComplete = true;
+        if (hasQty && !hasName) out.push(`ingredient-${i}-name`);
       });
       if (!anyComplete) {
-        // Force at least the first row's fields to be flagged.
-        if (!data.ingredients[0]?.quantity.trim()) out.push('ingredient-0-quantity');
-        if (!data.ingredients[0]?.ingredientName) out.push('ingredient-0-name');
+        out.push('ingredient-0-name');
       }
     }
     if (step === 2) {
@@ -806,7 +812,7 @@ export default function NewRecipeScreen() {
     }
 
     const validIngredients = formData.ingredients.filter(
-      (ing) => ing.ingredientName && ing.quantity.trim()
+      (ing) => ing.ingredientName.trim()
     );
     if (validIngredients.length === 0) {
       return 'Please add at least one ingredient';
@@ -837,7 +843,7 @@ export default function NewRecipeScreen() {
     try {
       // Transform ingredients to match the database schema
       const ingredients = formData.ingredients
-        .filter((ing) => ing.ingredientName && ing.quantity.trim())
+        .filter((ing) => ing.ingredientName.trim())
         .map((ing) => ({
           text: ing.text || buildIngredientText(ing.quantity, ing.unitAbbreviation, ing.ingredientName),
           id: ing.ingredientId && ing.ingredientId.trim() !== '' ? ing.ingredientId : undefined,
@@ -873,6 +879,9 @@ export default function NewRecipeScreen() {
         steps,
         image_url: isLocalPhoto ? undefined : (formData.imageUrl || undefined),
         notes: formData.description || undefined,
+        source_url: formData.sourceUrl ?? null,
+        source_type: formData.sourceType ?? 'manual',
+        source_recipe_id: formData.sourceRecipeId ?? null,
         metadata,
       };
 
@@ -966,58 +975,59 @@ export default function NewRecipeScreen() {
   const renderIngredients = () => (
     <View style={styles.stepContent}>
       <ThemedText style={styles.sectionTitle}>Ingredients</ThemedText>
+      <ThemedText style={[styles.label, { marginBottom: 12 }]}>Type ingredients directly. Amounts are optional.</ThemedText>
       {formData.ingredients.map((ingredient, index) => (
-        <View key={index} style={styles.ingredientRow}>
-          <TextInput
-            style={[
-              styles.ingredientInput,
-              errors.has(`ingredient-${index}-quantity`) && styles.errorField,
-            ]}
-            value={ingredient.quantity}
-            onChangeText={(value) => updateIngredient(index, 'quantity', value)}
-            placeholder="2"
-            placeholderTextColor={c.fgSubtle}
-            keyboardType="decimal-pad"
-          />
-          <Pressable
-            style={[styles.ingredientInput, { backgroundColor, borderColor }]}
-            onPress={() => openUnitPicker(index)}
-          >
-            <ThemedText style={ingredient.unitAbbreviation ? styles.selectedText : styles.placeholderText}>
-              {ingredient.unitAbbreviation || 'unit'}
-            </ThemedText>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.ingredientNameInput,
-              { backgroundColor, borderColor },
-              errors.has(`ingredient-${index}-name`) && styles.errorField,
-            ]}
-            onPress={() => openIngredientPicker(index)}
-          >
-            <ThemedText style={ingredient.ingredientName ? styles.selectedText : styles.placeholderText}>
-              {ingredient.ingredientName || 'ingredient'}
-            </ThemedText>
-          </Pressable>
-          <Pressable
-            onPress={() => setFormData(prev => ({
-              ...prev,
-              ingredients: prev.ingredients.map((ing, i) => i === index ? { ...ing, optional: !ing.optional } : ing),
-            }))}
-            style={[styles.optionalToggle, ingredient.optional && styles.optionalToggleActive]}
-          >
-            <ThemedText
-              style={[styles.optionalToggleText, ingredient.optional && styles.optionalToggleTextActive]}
+        <View key={index} style={[styles.ingredientCard, { backgroundColor: c.bgElevated, borderColor: c.border }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <TextInput
+              style={[styles.textInput, { flex: 1 }, errors.has(`ingredient-${index}-name`) && styles.errorField]}
+              value={ingredient.ingredientName}
+              onChangeText={(value) => updateIngredient(index, 'ingredientName', value)}
+              placeholder="Ingredient, e.g. cherry tomatoes"
+              placeholderTextColor={c.fgSubtle}
+            />
+            <Pressable onPress={() => openIngredientPicker(index)} accessibilityLabel="Browse ingredients" style={styles.removeButton}>
+              <ThemedText style={{ color: c.accent, fontSize: 17 }}>⌕</ThemedText>
+            </Pressable>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <TextInput
+              style={[styles.textInput, { width: 75 }]}
+              value={ingredient.quantity}
+              onChangeText={(value) => updateIngredient(index, 'quantity', value)}
+              placeholder="Amount"
+              placeholderTextColor={c.fgSubtle}
+              keyboardType="decimal-pad"
+            />
+            <TextInput
+              style={[styles.textInput, { flex: 1, minWidth: 70 }]}
+              value={ingredient.unitAbbreviation}
+              onChangeText={(value) => updateIngredient(index, 'unitAbbreviation', value)}
+              placeholder="Unit (optional)"
+              placeholderTextColor={c.fgSubtle}
+            />
+            <Pressable onPress={() => openUnitPicker(index)} accessibilityLabel="Browse units" style={styles.removeButton}>
+              <ThemedText style={{ color: c.accent, fontSize: 17 }}>⌕</ThemedText>
+            </Pressable>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <Pressable
+              onPress={() => setFormData(prev => ({
+                ...prev,
+                ingredients: prev.ingredients.map((ing, i) => i === index ? { ...ing, optional: !ing.optional } : ing),
+              }))}
+              style={[styles.optionalToggle, ingredient.optional && styles.optionalToggleActive]}
             >
-              opt
-            </ThemedText>
-          </Pressable>
-          <Pressable
-            style={styles.removeButton}
-            onPress={() => removeIngredient(index)}
-          >
-            {formData.ingredients.length > 1 ? <ThemedText style={styles.removeButtonText}>✕</ThemedText> : null}
-          </Pressable>
+              <ThemedText style={[styles.optionalToggleText, ingredient.optional && styles.optionalToggleTextActive]}>
+                {ingredient.optional ? 'Optional ✓' : 'Mark optional'}
+              </ThemedText>
+            </Pressable>
+            {formData.ingredients.length > 1 && (
+              <Pressable onPress={() => removeIngredient(index)} accessibilityLabel="Remove ingredient" style={styles.removeButton}>
+                <ThemedText style={{ color: c.danger }}>Remove</ThemedText>
+              </Pressable>
+            )}
+          </View>
         </View>
       ))}
       <Pressable style={styles.addButton} onPress={addIngredient}>
@@ -1153,7 +1163,7 @@ export default function NewRecipeScreen() {
         >
           <ThemedText style={styles.backButtonText}>✕</ThemedText>
         </Pressable>
-        <ThemedText style={styles.headerTitle}>New Recipe</ThemedText>
+        <ThemedText style={styles.headerTitle}>{isEditing ? 'Edit recipe' : 'New recipe'}</ThemedText>
         <View style={styles.backButton} />
       </View>
 
@@ -1205,6 +1215,11 @@ export default function NewRecipeScreen() {
           </Pressable>
         )}
         <View style={{ flex: 1 }} />
+        {currentStep === 2 && (
+          <Pressable style={styles.navButton} onPress={handleSave} disabled={saving}>
+            <ThemedText style={styles.navButtonText}>Save now</ThemedText>
+          </Pressable>
+        )}
         {currentStep < stepTitles.length - 1 ? (
           <Pressable style={[styles.navButton, styles.navButtonPrimary]} onPress={handleNext}>
             <ThemedText style={styles.navButtonTextPrimary}>Next →</ThemedText>

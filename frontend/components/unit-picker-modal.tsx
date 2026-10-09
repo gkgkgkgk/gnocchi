@@ -145,7 +145,7 @@ export function UnitPickerModal({
                     onPress={handleUseTypedUnit}
                   >
                     <ThemedText style={styles.unitAbbreviation}>
-                      Use "{searchQuery.trim()}"
+                      Use &ldquo;{searchQuery.trim()}&rdquo;
                     </ThemedText>
                   </Pressable>
                 )}
@@ -160,7 +160,7 @@ export function UnitPickerModal({
                     showCustomButton ? null : (
                       <View style={styles.emptyContainer}>
                         <ThemedText style={styles.emptyText}>
-                          Type a unit like "cup" or "tbsp" to add one
+                          Type a unit like &ldquo;cup&rdquo; or &ldquo;tbsp&rdquo; to add one
                         </ThemedText>
                       </View>
                     )

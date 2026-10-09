@@ -8,6 +8,7 @@ export interface ScrapedRecipe {
   prep_time?: number | null;
   cook_time?: number | null;
   servings?: number | null;
+  source_type?: string | null;
 }
 
 export interface ImportResponse {

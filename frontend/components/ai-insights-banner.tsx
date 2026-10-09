@@ -58,7 +58,7 @@ export function AIInsightsBanner({
         </View>
         <View style={{ flex: 1 }}>
           <View style={styles.headerRow}>
-            <Text variant="label" color="fgMuted">Chef Gnocchi's note</Text>
+            <Text variant="label" color="fgMuted">Chef Gnocchi&apos;s note</Text>
             {onRefresh && (
               <Pressable hitSlop={8} onPress={onRefresh} style={{ padding: 4 }}>
                 <Ionicons name="refresh" size={14} color={c.fgMuted} />

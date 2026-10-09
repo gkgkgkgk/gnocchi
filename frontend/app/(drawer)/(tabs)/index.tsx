@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, FlatList, ActivityIndicator, Alert, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
 
 import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
@@ -13,13 +14,19 @@ import { WavyDecoration } from '@/components/wavy-decoration';
 import { RecipeCard } from '@/components/recipe-card';
 import { FloatingActionButton } from '@/components/floating-action-button';
 import { AddRecipeModal } from '@/components/add-recipe-modal';
-import { ProfileQuestionnaireModal } from '@/components/profile-questionnaire-modal';
 import { fetchRecipes, deleteRecipe, Recipe } from '@/services/recipe-service';
-import { checkUserProfile, createUserProfile, getUserTags, RecipeTag } from '@/services/profile-service';
+import { getUserTags, RecipeTag } from '@/services/profile-service';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsive } from '@/hooks/use-responsive';
 
 type SortKey = 'recent' | 'rating' | 'cooks';
+type LibraryFilter = 'all' | 'made' | 'adapted' | 'imported';
+const LIBRARY_FILTERS: { key: LibraryFilter; label: string }[] = [
+  { key: 'all', label: 'All recipes' },
+  { key: 'made', label: 'Made by me' },
+  { key: 'adapted', label: 'Adapted' },
+  { key: 'imported', label: 'Imported' },
+];
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'recent', label: 'Recent' },
   { key: 'rating', label: 'Rating' },
@@ -28,6 +35,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 
 export default function HomeScreen() {
   const router = useRouter();
+  const isFocused = useIsFocused();
   const theme = useTheme();
   const c = theme.colors;
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -35,8 +43,8 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [search, setSearch] = useState('');
+  const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeTags, setActiveTags] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<SortKey>('recent');
   const { columns: numColumns } = useResponsive();
@@ -49,6 +57,10 @@ export default function HomeScreen() {
   const visibleRecipes = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = recipes.filter((r) => {
+      const origin = r.source_type ?? (r.source_url ? 'website' : 'manual');
+      if (libraryFilter === 'made' && !['manual', 'ai'].includes(origin)) return false;
+      if (libraryFilter === 'adapted' && origin !== 'adapted' && !r.source_recipe_id) return false;
+      if (libraryFilter === 'imported' && !['website', 'pinterest', 'photo', 'text', 'instagram'].includes(origin)) return false;
       if (q) {
         const inTitle = r.title?.toLowerCase().includes(q);
         const inIngredients = r.ingredients?.some((i) => i.text?.toLowerCase().includes(q));
@@ -67,13 +79,13 @@ export default function HomeScreen() {
       if (sortBy === 'cooks') return (b.cook_history?.length ?? 0) - (a.cook_history?.length ?? 0) || byRecent(a, b);
       return byRecent(a, b);
     });
-  }, [recipes, search, activeTags, sortBy]);
+  }, [recipes, search, activeTags, sortBy, libraryFilter]);
 
   useEffect(() => {
+    if (!isFocused) return;
     loadRecipes();
     loadTags();
-    checkProfile();
-  }, []);
+  }, [isFocused]);
 
   const loadTags = async () => {
     try {
@@ -81,11 +93,6 @@ export default function HomeScreen() {
     } catch (err) {
       console.error('Failed to load tags:', err);
     }
-  };
-
-  const checkProfile = async () => {
-    const hasProfile = await checkUserProfile();
-    if (!hasProfile) setShowProfileModal(true);
   };
 
   const loadRecipes = async () => {
@@ -111,20 +118,13 @@ export default function HomeScreen() {
     }
   };
 
-  const handleProfileComplete = async (answers: Record<string, any>) => {
-    try {
-      await createUserProfile(answers);
-      setShowProfileModal(false);
-    } catch (err) {
-      console.error('Profile create failed:', err);
-      Alert.alert('Error', 'Failed to create profile');
-    }
-  };
-
   return (
     <Screen>
       <View style={styles.header}>
-        <Text variant="display">Recipes</Text>
+        <Text variant="display">Your recipes</Text>
+        <Text variant="small" color="fgMuted" style={{ marginTop: 4 }}>
+          {recipes.length === 0 ? 'A good meal starts here.' : `${recipes.length} saved · keep the ones you love`}
+        </Text>
         <WavyDecoration variant="line" width={140} height={16} style={{ marginTop: 4 }} />
       </View>
 
@@ -135,6 +135,7 @@ export default function HomeScreen() {
       ) : error ? (
         <View style={styles.centered}>
           <Text variant="body" color="danger">{error}</Text>
+          <Button onPress={loadRecipes} style={{ marginTop: 16 }}>Try again</Button>
         </View>
       ) : recipes.length === 0 ? (
         <EmptyState
@@ -147,6 +148,13 @@ export default function HomeScreen() {
         <>
           {/* Filter bar — stays pinned above the scrolling grid. */}
           <View style={styles.filterBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow} style={{ marginBottom: theme.spacing.md }}>
+              {LIBRARY_FILTERS.map((option) => (
+                <Chip key={option.key} size="sm" onPress={() => setLibraryFilter(option.key)} variant={libraryFilter === option.key ? 'accent' : 'outline'}>
+                  {option.label}
+                </Chip>
+              ))}
+            </ScrollView>
             <View style={styles.searchWrap}>
               <Ionicons name="search" size={18} color={c.fgSubtle} style={styles.searchIcon} />
               <Input
@@ -207,6 +215,9 @@ export default function HomeScreen() {
           {visibleRecipes.length === 0 ? (
             <View style={styles.centered}>
               <Text variant="body" color="fgMuted">No recipes match your filters.</Text>
+              <Button variant="ghost" onPress={() => { setSearch(''); setActiveTags([]); setLibraryFilter('all'); }} style={{ marginTop: 12 }}>
+                Clear filters
+              </Button>
             </View>
           ) : (
             <FlatList
@@ -225,7 +236,7 @@ export default function HomeScreen() {
                     onEdit={() => router.push(`/new-recipe?id=${item.id}` as any)}
                     onDelete={() => handleDelete(item.id)}
                     onTagsChange={(tagIds) => {
-                      setRecipes(recipes.map(r =>
+                      setRecipes((current) => current.map(r =>
                         r.id === item.id ? { ...r, metadata: { ...r.metadata, tags: tagIds } } : r,
                       ));
                     }}
@@ -247,8 +258,6 @@ export default function HomeScreen() {
         onScanPhoto={() => { setShowAddModal(false); router.push('/scan-photo' as any); }}
         onPitch={() => { setShowAddModal(false); router.push('/pitch' as any); }}
       />
-
-      <ProfileQuestionnaireModal visible={showProfileModal} onComplete={handleProfileComplete} />
     </Screen>
   );
 }

@@ -31,6 +31,9 @@ class Recipe(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     source_url: Mapped[str | None] = mapped_column(Text)
     source_type: Mapped[str | None] = mapped_column(String(32))
+    source_recipe_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("recipes.id", ondelete="SET NULL")
+    )
     prep_time: Mapped[int | None] = mapped_column(Integer)
     cook_time: Mapped[int | None] = mapped_column(Integer)
     servings: Mapped[int | None] = mapped_column(Integer)

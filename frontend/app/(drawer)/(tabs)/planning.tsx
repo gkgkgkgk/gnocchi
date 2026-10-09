@@ -802,7 +802,7 @@ export default function PlanningScreen() {
           {shortList.length === 0 ? (
             <View style={styles.shortListEmpty}>
               <ThemedText style={styles.placeholderText}>
-                Add recipes you're considering but haven't scheduled yet
+                Add recipes you&apos;re considering but haven&apos;t scheduled yet
               </ThemedText>
             </View>
           ) : (

@@ -282,6 +282,7 @@ function makeStyles(theme: Theme) {
   },
   title: {
     fontSize: 32,
+    lineHeight: 40,
     fontWeight: 'bold',
     marginBottom: 8,
     textAlign: 'center',

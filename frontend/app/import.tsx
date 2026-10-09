@@ -102,6 +102,7 @@ export default function ImportScreen() {
       cookTime: String(preview.recipe.cook_time ?? ''),
       servings: String(preview.recipe.servings ?? ''),
       source: preview.source_url ?? '',
+      sourceType: preview.recipe.source_type ?? (mode === 'text' ? 'text' : source ?? 'website'),
     };
     (global as any).__pendingRecipeImport = importData;
     router.push({ pathname: '/new-recipe', params: { fromImport: 'true' } } as any);

@@ -47,6 +47,8 @@ async def call_structured(
     `user` can be a plain string or a list of Anthropic content blocks
     (for vision — pass image blocks alongside a text block).
     """
+    if not settings.anthropic_api_key:
+        raise HTTPException(status_code=503, detail="AI is not configured yet. Add an Anthropic API key to use this feature.")
     content = user if isinstance(user, list) else [{"type": "text", "text": user}]
     response = await client.messages.create(
         model=model,

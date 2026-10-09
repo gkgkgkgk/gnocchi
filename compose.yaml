@@ -1,0 +1,55 @@
+name: gnocchi
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gnocchi
+      POSTGRES_USER: gnocchi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - ${GNOCCHI_DATA_DIR:-./.data}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gnocchi -d gnocchi"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    logging:
+      options: {max-size: "10m", max-file: "3"}
+
+  api:
+    image: ${GNOCCHI_API_IMAGE:-gnocchi-api:local}
+    build:
+      context: ./gnocchi-api
+      dockerfile: Containerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://gnocchi:${POSTGRES_PASSWORD}@db:5432/gnocchi
+      IMAGE_STORAGE_DIR: /data/images
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes:
+      - ${GNOCCHI_DATA_DIR:-./.data}/images:/data/images
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8001/health"]
+      interval: 20s
+      timeout: 4s
+      retries: 5
+      start_period: 20s
+    logging:
+      options: {max-size: "10m", max-file: "3"}
+
+  web:
+    image: ${GNOCCHI_WEB_IMAGE:-gnocchi-web:local}
+    build:
+      context: ./frontend
+      dockerfile: Containerfile
+    restart: unless-stopped
+    ports:
+      - "${GNOCCHI_BIND_IP:-127.0.0.1}:${GNOCCHI_WEB_PORT:-9085}:8085"
+    depends_on:
+      api: {condition: service_healthy}
+    logging:
+      options: {max-size: "10m", max-file: "3"}

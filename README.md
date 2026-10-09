@@ -1,72 +1,29 @@
 # Gnocchi
 
-A household recipe app. Kitchen iPad, phone in the aisle, dinner on the
-table. Runs on our homeserver, private to the tailnet.
+A simple household recipe book for creating, importing, and adapting recipes. Recipes and photos live in Postgres and local storage; the optional AI features can suggest changes and save them as linked variations.
 
-Import from Pinterest, Instagram, arbitrary recipe sites, or a photo;
-scale servings, ask Claude to make it kosher or half the batch, keep
-notes on how each cook turned out, rate the ones we want to make again.
+## Local preview
 
-Currently mid-rebuild — see [`PLAN.md`](./PLAN.md) for the phased
-homelab-ification plan. Phase 1 (Supabase out, Postgres on homeserver in,
-one backend, no auth) is landed.
-
-## Layout
-
-```
-gnocchi/
-├── frontend/          Expo (React Native + web) — iOS, Android, web from one codebase
-├── gnocchi-api/       FastAPI + SQLAlchemy async + Alembic. Postgres-backed
-│                      recipes, cookbooks, meal plan, image store, LLM ops.
-├── flake.nix          Dev shell (Python + Node + Postgres)
-├── justfile           `just setup`, `just dev`, etc.
-└── PLAN.md            Multi-phase rebuild plan.
-```
-
-## Local dev
-
-Everything is in a Nix dev shell. First time:
+Enter the Nix shell, then run the one-time setup and the development servers:
 
 ```sh
-nix develop         # enter the shell; installs no system-wide state
-just setup          # init local postgres, install python + node deps, migrate
-just dev            # backend + frontend in parallel, ctrl-C stops both
+nix develop
+just setup
+just dev
 ```
 
-Then <http://localhost:8081> for the web app, <http://localhost:8001/docs> for
-the API. State lives entirely inside the repo — `./.pg` for postgres,
-`./gnocchi-api/.venv` for python, `./frontend/node_modules` for node. Delete
-those and you're back to a clean machine.
+Open <http://localhost:8081>. The API runs at <http://localhost:8001> and exposes interactive docs at `/docs`. The local database lives in `.pg`; images live in `gnocchi-api/.data`. Recipe management works without an AI key. Set `ANTHROPIC_API_KEY` in `gnocchi-api/.env` to enable AI operations.
 
-Other useful commands:
+If you run the API and Expo separately, use `just backend` and `just frontend`. Keep `frontend/node_modules` inside the checkout; linking it from another checkout makes Expo generate an invalid JavaScript bundle URL.
 
-```sh
-just db-up            # start postgres if it stopped
-just db-shell         # psql into the gnocchi database
-just migrate          # apply new migrations
-just migration "add foo"    # generate a new migration from model diffs
-just backend          # run just the API (dev-reloading uvicorn)
-just frontend         # run just Expo web
-just db-wipe          # nuke the local cluster; requires re-`just setup`
-```
+## Deployment
 
-Fill in an `OPENAI_API_KEY` in `gnocchi-api/.env` (`cp .env.example .env`) if
-you want LLM operations to work locally. Everything else works without keys.
+`compose.yaml` runs three services: Postgres, the API, and a Caddy web server. The web server proxies `/api/*` to the API, so browser requests use one origin. Persistent database and image files live under `GNOCCHI_DATA_DIR` outside the containers. Each image is a normal app image, not a bundled 20 GB copy of all dependencies and data.
 
-## Deploy
+GitHub Actions checks code, builds API and web images for each `main` commit, then calls the Unraid deployment script using a self-hosted runner. That script backs up the database and images, applies migrations, switches both app images to the exact commit, and checks health. See [deploy/README.md](deploy/README.md) for setup, release, and recovery details.
 
-Deploys to `homeserver` via the [serverkepets container
-pipeline](https://github.com/gkgkgkgk/serverkepets):
+## Recipe agent
 
-1. Push to `main` → GitHub Actions builds `ghcr.io/gkgkgkgk/gnocchi-api`
-   and `ghcr.io/gkgkgkgk/gnocchi-web` (paths-scoped: backend and frontend
-   have separate workflows so a touch to one doesn't rebuild the other).
-2. `podman auto-update` on the server pulls the new images within a
-   minute and swaps containers.
-3. Postgres, image storage, and firewall are provisioned by
-   `serverkepets/apps.nix` (single line for the DB, single line for the
-   internal-only backend, single line for the public web container).
-4. Reachable at `http://homeserver:8085` on the LAN and via tailscale
-   anywhere on the tailnet.
+`gnocchi-mcp/` provides local MCP tools to find, read, save, correct, and branch recipes through the same API used by the app. The [Gnocchi recipes skill](.agents/skills/gnocchi-recipes/SKILL.md) tells an agent when to save a variation versus correct the same recipe. See [gnocchi-mcp/README.md](gnocchi-mcp/README.md) for setup.
 
-Details in `PLAN.md` Phase 1.
+`PLAN.md` records the earlier rebuild work and historical audit; this README describes the current app.
