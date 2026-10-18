@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from app import prompts, schemas
+from app import prompts, schemas, storage
 from app.llm import MODEL_FAST, call_structured
 from app.scrape import scrape_pinterest, scrape_website
 
@@ -200,8 +200,8 @@ async def import_text(body: schemas.TextImportRequest):
 
 @router.post("/photo", response_model=schemas.ImportedRecipe)
 async def import_photo(image: UploadFile = File(...)):
-    image_bytes = await image.read()
-    media_type = image.content_type or "image/jpeg"
+    image_bytes = await storage.read_capped(image)
+    media_type = image.content_type
     encoded = base64.standard_b64encode(image_bytes).decode()
     parsed = await call_structured(
         model=MODEL_FAST,

@@ -37,6 +37,20 @@ async def save_upload(upload: UploadFile) -> str:
     return key
 
 
+async def read_capped(upload: UploadFile) -> bytes:
+    """Read an image upload into memory without exceeding MAX_UPLOAD_BYTES."""
+    if (upload.content_type or "") not in ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail=f"Unsupported image type: {upload.content_type}")
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await upload.read(CHUNK_BYTES):
+        size += len(chunk)
+        if size > MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail="Image must be 12 MB or smaller.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def path_for(key: str) -> Path:
     # Prevent path traversal.
     if "/" in key or ".." in key:
