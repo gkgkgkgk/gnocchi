@@ -13,3 +13,17 @@ On every push to `main`, the workflow runs lint, TypeScript, migrations, and API
 ## Recovery
 
 To restore a database backup, stop the app, retain the current data directory, and restore a selected `gnocchi-*.dump` with `pg_restore` into a fresh `gnocchi` database. Restore the matching `gnocchi-images-*.tar.gz` into the images directory. Then set `.release.env` to the image tags that match that schema and run `docker compose --env-file .env --env-file .release.env -f compose.yaml up -d --no-build --wait`. Verify `/api/health` and a saved recipe before discarding the retained data. Test this procedure before relying on the backups.
+
+## Deploy key restrictions and approval
+
+The `gnocchi-deploy` public key in Holocron's root `authorized_keys` (live in `/root/.ssh`, persisted in `/boot/config/ssh/root`) is restricted:
+
+```text
+restrict,command="/mnt/nvme_cache/appdata/gnocchi/deploy/ssh-entry.sh",from="192.168.1.7" ssh-ed25519 … gnocchi-deploy
+```
+
+`deploy/ssh-entry.sh` is a forced command installed **by hand** on the server (root, mode 700). CI never copies it. It accepts only `deploy <40-hex sha>`, reads `compose.yaml`, `host-deploy.sh` and the job's short-lived GHCR token from a tar stream on stdin (capped at 2 MB), installs the two files, logs in to GHCR, runs `host-deploy.sh`, and logs out. Anything else is refused and logged to syslog as `gnocchi-deploy`. If you change `ssh-entry.sh`, copy it to the server yourself.
+
+Because `compose.yaml` and `host-deploy.sh` still come from the repo and run as root, the main protection is the GitHub `production` environment: it requires the owner's approval before the deploy job runs, and only `main` may deploy. Third-party actions are pinned to commit SHAs.
+
+The runner starts at boot from `/boot/config/go` and logs to `/var/log/gnocchi-runner.log` (RAM-backed, so it resets on reboot). `start-runner.sh` waits up to 10 minutes for the NVMe pool to mount.

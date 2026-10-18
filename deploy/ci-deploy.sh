@@ -6,15 +6,18 @@ sha="${1:?commit SHA required}"
 [[ -n "${DEPLOY_SSH_KEY:-}" ]] || { echo "DEPLOY_SSH_KEY is missing" >&2; exit 2; }
 [[ -n "${DEPLOY_GHCR_TOKEN:-}" ]] || { echo "DEPLOY_GHCR_TOKEN is missing" >&2; exit 2; }
 
-keyfile="$(mktemp)"
-trap 'rm -f "$keyfile"' EXIT
-chmod 600 "$keyfile"
-printf '%s\n' "$DEPLOY_SSH_KEY" > "$keyfile"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+chmod 700 "$work"
+keyfile="$work/key"
+( umask 077; printf '%s\n' "$DEPLOY_SSH_KEY" > "$keyfile" )
+
+# The deploy key is restricted on Holocron to deploy/ssh-entry.sh, which only
+# accepts "deploy <sha>" and reads these three files from a tar stream on stdin.
+mkdir "$work/upload"
+cp compose.yaml deploy/host-deploy.sh "$work/upload/"
+( umask 077; printf '%s' "$DEPLOY_GHCR_TOKEN" > "$work/upload/ghcr-token" )
 
 host='root@192.168.1.7'
-project='/mnt/nvme_cache/appdata/gnocchi/deploy'
 ssh_options=(-i "$keyfile" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=deploy/known_hosts)
-printf '%s' "$DEPLOY_GHCR_TOKEN" | ssh "${ssh_options[@]}" "$host" 'docker login ghcr.io -u gkgkgkgk --password-stdin' > /dev/null
-ssh "${ssh_options[@]}" "$host" "mkdir -p '$project'"
-scp "${ssh_options[@]}" compose.yaml deploy/host-deploy.sh "$host:$project/"
-ssh "${ssh_options[@]}" "$host" "bash '$project/host-deploy.sh' '$sha'"
+tar -cf - -C "$work/upload" compose.yaml host-deploy.sh ghcr-token | ssh "${ssh_options[@]}" "$host" "deploy $sha"
