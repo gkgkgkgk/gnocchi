@@ -1,18 +1,24 @@
-import { useState, useEffect, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, ActivityIndicator, Pressable, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
 import { CookTimers, TimerSuggestion } from '@/components/cook-timers';
+import { Text } from '@/components/ui/Text';
+import { Button } from '@/components/ui/Button';
+import { blockPress, type PressState } from '@/components/ui/press';
+import { Mascot } from '@/components/kitchen/mascot';
+import { Board, Pot } from '@/components/kitchen/shapes';
+import { Bob, FadeIn, Pop, Rise, easeColors } from '@/components/kitchen/motion';
+import { Tablecloth } from '@/components/kitchen/tablecloth';
 import { fetchRecipeById, Recipe } from '@/services/recipe-service';
 import { fetchUnits, Unit } from '@/services/unit-service';
 import { getUnitPreference, type UnitPreference } from '@/services/profile-service';
 import { scaleForDisplay } from '@/utils/unit-conversion';
 import { formatAmount, groupBySection } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
-import { fonts, type Theme } from '@/constants/theme';
+import { useResponsive } from '@/hooks/use-responsive';
+import { fonts } from '@/constants/theme';
 
 const VERB_RE = /\b(bake|roast|simmer|boil|cook|fry|sauté|saute|steam|chill|rest|marinate|proof|rise|grill|braise|poach|refrigerate|freeze|knead|whisk|reduce|toast|broil|steep|soak)\b/i;
 const TIME_RE = /(\d+)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)/gi;
@@ -41,445 +47,225 @@ function deriveTimerSuggestions(steps: string[]): TimerSuggestion[] {
   return out.slice(0, 5);
 }
 
-export default function EasyRecipeViewer() {
+const SCALES: [number, string][] = [[0.5, '½×'], [1, '1×'], [1.5, '1½×'], [2, '2×'], [3, '3×']];
+
+/**
+ * Cook mode: big type to read from the stove, the mise en place to tick off,
+ * and the method one burner at a time. The current step is lit; "Done" moves
+ * the heat to the next one. Timers sit with the method.
+ */
+export default function CookMode() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
-  const styles = makeStyles(theme);
   const c = theme.colors;
+  const { isWide } = useResponsive();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
   const [multiplier, setMultiplier] = useState(1);
   const [units, setUnits] = useState<Unit[]>([]);
   const [unitPref, setUnitPref] = useState<UnitPreference>('as_written');
-  const { width } = useWindowDimensions();
-  const tintColor = c.accent;
-
-  // Use side-by-side layout if width is >= 768px (tablet landscape or desktop)
-  const useSideBySide = width >= 768;
+  const [prepped, setPrepped] = useState<Set<number>>(new Set());
+  const [current, setCurrent] = useState(0);
+  const [view, setView] = useState<'prep' | 'method'>('prep');
 
   const timerSuggestions = useMemo(() => deriveTimerSuggestions(recipe?.steps ?? []), [recipe?.steps]);
 
-  // Multiplier options
-  const multiplierOptions = [0.5, 0.75, 1, 1.25, 1.333, 1.5, 1.75, 2, 2.5, 3, 3.5, 4];
-  const multiplierLabels = ['1/2', '3/4', '1', '1 1/4', '1 1/3', '1 1/2', '1 3/4', '2', '2 1/2', '3', '3 1/2', '4'];
-  
-  const getMultiplierLabel = (value: number) => {
-    const index = multiplierOptions.findIndex(opt => Math.abs(opt - value) < 0.01);
-    return index >= 0 ? multiplierLabels[index] : value.toFixed(2);
-  };
-
-  // Step through the snap points with the − / + buttons on the ingredients header.
-  const stepSize = (dir: -1 | 1) => {
-    const idx = multiplierOptions.findIndex((o) => Math.abs(o - multiplier) < 0.01);
-    const cur = idx >= 0 ? idx : multiplierOptions.indexOf(1);
-    const next = Math.min(multiplierOptions.length - 1, Math.max(0, cur + dir));
-    setMultiplier(multiplierOptions[next]);
-  };
-  const atMin = Math.abs(multiplier - multiplierOptions[0]) < 0.01;
-  const atMax = Math.abs(multiplier - multiplierOptions[multiplierOptions.length - 1]) < 0.01;
-
   useEffect(() => {
-    loadRecipe();
+    (async () => {
+      try {
+        setRecipe(await fetchRecipeById(id as string));
+      } catch (error) {
+        console.error('Failed to load recipe:', error);
+      } finally {
+        setLoading(false);
+      }
+    })();
+    fetchUnits().then(setUnits).catch(() => {});
+    getUnitPreference().then(setUnitPref).catch(() => {});
   }, [id]);
 
-  useEffect(() => {
-    fetchUnits().then(setUnits).catch((e) => console.error('Failed to load units:', e));
-    getUnitPreference().then(setUnitPref).catch(() => {});
-  }, []);
-
-  const loadRecipe = async () => {
-    try {
-      setLoading(true);
-      const data = await fetchRecipeById(id as string);
-      setRecipe(data);
-    } catch (error) {
-      console.error('Failed to load recipe:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
+  if (loading || !recipe) {
     return (
-      <ThemedView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
-          <ThemedText style={styles.loadingText}>Loading recipe...</ThemedText>
-        </View>
-      </ThemedView>
+      <View style={[styles.fill, styles.center, { backgroundColor: c.bg }]}>
+        <Bob><Mascot size={110} /></Bob>
+        {loading ? <ActivityIndicator color={c.accent} style={{ marginTop: 18 }} /> : <Text variant="h2" style={{ marginTop: 18 }}>Recipe not found</Text>}
+      </View>
     );
   }
 
-  if (!recipe) {
-    return (
-      <ThemedView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ThemedText>Recipe not found</ThemedText>
+  const steps = recipe.steps ?? [];
+  const finished = current >= steps.length;
+  const togglePrep = (i: number) => setPrepped((prev) => {
+    const next = new Set(prev);
+    next.has(i) ? next.delete(i) : next.add(i);
+    return next;
+  });
+
+  const prepPanel = (
+    <View style={[styles.panel, { backgroundColor: c.bgElevated, borderColor: c.outline, ...theme.shadow.md }]}>
+      <View style={styles.panelHead}>
+        <Board size={42} rotate={-10} />
+        <Text variant="h2" accessibilityRole="header">Mise en place</Text>
+        <View style={{ flex: 1 }} />
+        <Text variant="label" color="fgMuted">{prepped.size}/{recipe.ingredients.length}</Text>
+      </View>
+      <View style={styles.scaleRow} accessibilityRole="radiogroup" accessibilityLabel="Recipe size">
+        {SCALES.map(([value, label]) => (
+          <Pressable key={label} onPress={() => setMultiplier(value)} accessibilityRole="radio" accessibilityState={{ checked: multiplier === value }}
+            style={[styles.scaleChip, easeColors, { borderColor: multiplier === value ? c.outline : c.borderStrong, backgroundColor: multiplier === value ? c.accentMuted : c.bgElevated }]}>
+            <Text variant="label" style={{ fontSize: 14 }}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {groupBySection(recipe.ingredients).map((group, gi) => (
+        <View key={gi}>
+          {group.section && <Text variant="label" color="accent" style={styles.section}>{group.section}</Text>}
+          {group.items.map(({ item, index }) => {
+            const name = item.ingredient?.name || item.text || 'Unknown';
+            const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units, unitPref);
+            const amount = formatAmount(scaled.quantity, scaled.unit);
+            const done = prepped.has(index);
+            return (
+              <Pressable key={index} onPress={() => togglePrep(index)} accessibilityRole="checkbox" accessibilityState={{ checked: done }} style={styles.prepRow}>
+                <Pop trigger={done} style={[styles.bowl, easeColors, { borderColor: c.outline, backgroundColor: done ? c.butter : c.bgElevated }]}>
+                  {done && <Ionicons name="checkmark" size={16} color={c.outline} />}
+                </Pop>
+                <Text style={[styles.prepText, { color: c.fgMuted }, done && { textDecorationLine: 'line-through', opacity: 0.6 }]}>
+                  <Text style={[styles.prepText, { color: c.fg, fontFamily: fonts.sansSb, fontWeight: '600' }]}>{name}</Text>
+                  {amount ? `, ${amount}` : ''}
+                  {item.optional ? ' (optional)' : ''}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
-      </ThemedView>
-    );
-  }
+      ))}
+    </View>
+  );
+
+  const methodPanel = (
+    <View style={{ gap: 20 }}>
+      <CookTimers suggestions={timerSuggestions} />
+      <View style={[styles.panel, { backgroundColor: c.bgElevated, borderColor: c.outline, ...theme.shadow.md }]}>
+        <View style={styles.panelHead}>
+          <Pot size={44} />
+          <Text variant="h2" accessibilityRole="header">Method</Text>
+          <View style={{ flex: 1 }} />
+          <Text variant="label" color="fgMuted">{Math.min(current + 1, steps.length)}/{steps.length}</Text>
+        </View>
+        {steps.map((step, i) => {
+          const lit = i === current;
+          const done = i < current;
+          return (
+            <Pressable
+              key={i}
+              onPress={() => setCurrent(i)}
+              accessibilityRole="button"
+              accessibilityLabel={`Step ${i + 1}${done ? ', done' : lit ? ', current' : ''}`}
+              style={[styles.step, easeColors, lit && [styles.stepLit, { backgroundColor: c.butterMuted, borderColor: c.outline, ...theme.shadow.sm }], done && { opacity: 0.45 }]}
+            >
+              <Pop trigger={lit}>
+                <View style={[styles.burner, easeColors, { borderColor: c.outline, backgroundColor: lit ? c.tomato : done ? c.bgMuted : c.bgElevated }]}>
+                  <View style={[styles.burnerRing, { borderColor: lit ? c.accentFg : c.borderStrong }]} />
+                  {done ? <Ionicons name="checkmark" size={18} color={c.fgMuted} />
+                    : <Text variant="label" style={{ color: lit ? c.accentFg : c.fg, fontSize: 15 }}>{i + 1}</Text>}
+                </View>
+              </Pop>
+              <View style={{ flex: 1, gap: 12 }}>
+                <Text style={[lit ? styles.stepTextLit : styles.stepText, !isWide && lit && { fontSize: 19, lineHeight: 29 }, { color: c.fg, fontFamily: theme.type.body.fontFamily }]}>{step}</Text>
+                {lit && (
+                  <Button onPress={() => setCurrent(i + 1)} icon={<Ionicons name="checkmark" size={18} color={c.accentFg} />}>
+                    {i + 1 < steps.length ? 'Done, next step' : 'Done'}
+                  </Button>
+                )}
+              </View>
+            </Pressable>
+          );
+        })}
+        {finished && steps.length > 0 && (
+          <Rise style={[styles.finished, { borderColor: c.outline, backgroundColor: c.basilMuted }]}>
+            <Bob><Mascot size={72} /></Bob>
+            <View style={{ flex: 1, gap: 8 }}>
+              <Text variant="h2">Dinner&apos;s up!</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                <Button size="sm" onPress={() => router.replace(`/recipe/${id}` as any)}>Back to the recipe</Button>
+                <Button size="sm" variant="secondary" onPress={() => setCurrent(0)}>Start over</Button>
+              </View>
+            </View>
+          </Rise>
+        )}
+      </View>
+    </View>
+  );
 
   return (
-    <ThemedView style={styles.container}>
-      {/* Back to Recipe Button */}
-      <View style={[styles.headerButtons, { paddingTop: insets.top + 12 }]}>
-        <Pressable 
-          onPress={() => router.push(`/recipe/${id}` as any)}
-          style={styles.backButton}
+    <FadeIn style={[styles.fill, { backgroundColor: c.bg }]}>
+      <Tablecloth />
+      <View style={[styles.topBar, { paddingTop: insets.top + 10, borderBottomColor: c.outline, backgroundColor: c.bg }]}>
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace(`/recipe/${id}` as any))}
+          accessibilityRole="button"
+          accessibilityLabel="Back to the recipe"
+          style={(state) => [styles.iconBlock, { backgroundColor: c.bgElevated, borderColor: c.outline }, blockPress(theme, state as PressState, 2, 2)]}
         >
-          <ThemedText style={styles.backButtonText}>← View Full Recipe</ThemedText>
+          <Ionicons name="chevron-back" size={20} color={c.fg} />
         </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text variant="label" color="accent">COOKING</Text>
+          <Text variant="h2" numberOfLines={1}>{recipe.title}</Text>
+        </View>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
-          {/* Recipe Title */}
-          <ThemedText style={styles.title}>{recipe.title}</ThemedText>
-
-          {/* Servings Info */}
-          {recipe.servings && (
-            <ThemedText style={styles.servings}>
-              Serves {recipe.servings}
-            </ThemedText>
-          )}
-
-          {/* Cook-along timers — start/stop named timers that beep when done
-              and keep the screen awake while they run. */}
-          <View style={styles.timersWrap}>
-            <CookTimers suggestions={timerSuggestions} />
-          </View>
-
-          {/* Main Content - Side by Side or Stacked */}
-          <View style={useSideBySide ? styles.sideBySideContainer : styles.stackedContainer}>
-            {/* Ingredients Section */}
-            <View style={[styles.section, useSideBySide && styles.sectionSideBySide]}>
-              <View style={styles.sectionHeaderRow}>
-                <ThemedText style={styles.sectionTitleInline}>Ingredients</ThemedText>
-                <View style={styles.sizeStepper}>
-                  <Pressable
-                    onPress={() => stepSize(-1)}
-                    disabled={atMin}
-                    hitSlop={6}
-                    style={[styles.stepBtn, { backgroundColor: c.bgElevated }, atMin && { opacity: 0.4 }]}
-                  >
-                    <Ionicons name="remove" size={18} color={c.fg} />
-                  </Pressable>
-                  <ThemedText style={styles.sizeLabel}>{getMultiplierLabel(multiplier)}×</ThemedText>
-                  <Pressable
-                    onPress={() => stepSize(1)}
-                    disabled={atMax}
-                    hitSlop={6}
-                    style={[styles.stepBtn, { backgroundColor: c.bgElevated }, atMax && { opacity: 0.4 }]}
-                  >
-                    <Ionicons name="add" size={18} color={c.fg} />
-                  </Pressable>
-                </View>
-              </View>
-              <View style={styles.ingredientsList}>
-                {recipe.ingredients && recipe.ingredients.length > 0 ? (
-                  groupBySection(recipe.ingredients).map((group, groupIndex) => (
-                    <View key={`${groupIndex}-${group.section ?? ''}`}>
-                      {group.section && (
-                        <ThemedText style={[styles.ingredientSection, groupIndex === 0 && { marginTop: 0 }]}>
-                          {group.section}
-                        </ThemedText>
-                      )}
-                      {group.items.map(({ item, index }) => {
-                        const ingredientName = item.ingredient?.name || item.text || 'Unknown';
-                        const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units, unitPref);
-                        const amount = formatAmount(scaled.quantity, scaled.unit);
-                        const isOptional = item.optional;
-
-                        return (
-                          <View key={index} style={[styles.ingredientItem, isOptional && { opacity: 0.55 }]}>
-                            <ThemedText style={styles.ingredientBullet}>•</ThemedText>
-                            <ThemedText style={[styles.ingredientText, { color: c.fgMuted }]}>
-                              <ThemedText style={styles.ingredientName}>{ingredientName}</ThemedText>
-                              {amount ? `, ${amount}` : ''}
-                              {isOptional ? ' (optional)' : ''}
-                            </ThemedText>
-                          </View>
-                        );
-                      })}
-                    </View>
-                  ))
-                ) : (
-                  <ThemedText style={styles.placeholderText}>
-                    No ingredients listed
-                  </ThemedText>
-                )}
-              </View>
-            </View>
-
-            {/* Instructions Section */}
-            <View style={[styles.section, useSideBySide && styles.sectionSideBySide]}>
-              <View style={styles.sectionHeaderRow}>
-                <ThemedText style={styles.sectionTitleInline}>Instructions</ThemedText>
-              </View>
-              <View style={styles.instructionsList}>
-                {recipe.steps && recipe.steps.length > 0 ? (
-                  recipe.steps.map((step, index) => (
-                    <View key={index} style={styles.stepItem}>
-                      <View style={styles.stepNumber}>
-                        <ThemedText style={styles.stepNumberText}>
-                          {index + 1}
-                        </ThemedText>
-                      </View>
-                      <ThemedText style={styles.stepText}>
-                        {step}
-                      </ThemedText>
-                    </View>
-                  ))
-                ) : (
-                  <ThemedText style={styles.placeholderText}>
-                    No instructions provided
-                  </ThemedText>
-                )}
-              </View>
-            </View>
-          </View>
+      {!isWide && (
+        <View style={[styles.segment, { borderColor: c.outline, backgroundColor: c.bgElevated }]} accessibilityRole="tablist">
+          {(['prep', 'method'] as const).map((v) => (
+            <Pressable key={v} onPress={() => setView(v)} accessibilityRole="tab" accessibilityState={{ selected: view === v }}
+              style={[styles.segmentItem, easeColors, view === v && { backgroundColor: c.accent }]}>
+              <Text variant="button" style={{ color: view === v ? c.accentFg : c.fg }}>{v === 'prep' ? 'Mise en place' : 'Method'}</Text>
+            </Pressable>
+          ))}
         </View>
+      )}
+
+      <ScrollView contentContainerStyle={[styles.content, isWide && styles.contentWide]}>
+        {isWide ? (
+          <View style={styles.twoPane}>
+            <Rise index={0} style={{ flex: 5, minWidth: 0 }}>{prepPanel}</Rise>
+            <Rise index={1} style={{ flex: 7, minWidth: 0 }}>{methodPanel}</Rise>
+          </View>
+        ) : (
+          <Rise key={view}>{view === 'prep' ? prepPanel : methodPanel}</Rise>
+        )}
       </ScrollView>
-    </ThemedView>
+    </FadeIn>
   );
 }
 
-function makeStyles(theme: Theme) {
-  const c = theme.colors;
-  return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: c.bg,
-  },
-  headerButtons: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: c.border,
-  },
-  backButton: {
-    backgroundColor: c.accentMuted,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: theme.radius.md,
-    alignSelf: 'flex-start',
-  },
-  backButtonText: {
-    ...theme.type.button,
-    color: c.accent,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 24,
-    maxWidth: 1400,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  title: {
-    fontSize: 32,
-    lineHeight: 40,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  servings: {
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 24,
-    opacity: 0.7,
-  },
-  timersWrap: {
-    maxWidth: 520,
-    width: '100%',
-    alignSelf: 'center',
-    marginBottom: 28,
-  },
-  sideBySideContainer: {
-    flexDirection: 'row',
-    gap: 32,
-    alignItems: 'flex-start',
-  },
-  stackedContainer: {
-    flexDirection: 'column',
-  },
-  section: {
-    marginBottom: 40,
-  },
-  sectionSideBySide: {
-    flex: 1,
-    marginBottom: 0,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: c.accent,
-  },
-  // Shared by both column headers so the accent underline lines up across
-  // Ingredients (which carries the size stepper) and Instructions.
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    minHeight: 50,
-    marginBottom: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 2,
-    borderBottomColor: c.accent,
-  },
-  sectionTitleInline: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  sizeStepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: c.bgMuted,
-    borderRadius: theme.radius.pill,
-    padding: 4,
-  },
-  stepBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...theme.shadow.sm,
-  },
-  sizeLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    minWidth: 44,
-    textAlign: 'center',
-    color: c.accent,
-  },
-  ingredientsList: {
-    gap: 8,
-  },
-  ingredientItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingVertical: 4,
-  },
-  ingredientBullet: {
-    fontSize: 18,
-    marginRight: 12,
-    marginTop: 2,
-  },
-  ingredientText: {
-    fontSize: 18,
-    lineHeight: 26,
-    flex: 1,
-  },
-  ingredientName: {
-    fontSize: 18,
-    lineHeight: 26,
-    fontFamily: fonts.sansSb,
-    fontWeight: '600',
-    color: c.fg,
-  },
-  ingredientSection: {
-    fontFamily: fonts.sansSb,
-    fontWeight: '600',
-    fontSize: 14,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: c.accent,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  instructionsList: {
-    gap: 20,
-  },
-  stepItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  stepNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: c.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-    marginTop: 2,
-  },
-  stepNumberText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: c.accentFg,
-  },
-  stepText: {
-    fontSize: 18,
-    lineHeight: 28,
-    flex: 1,
-  },
-  placeholderText: {
-    fontSize: 16,
-    opacity: 0.5,
-    fontStyle: 'italic',
-  },
-  multiplierContainer: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: c.bgMuted,
-    borderRadius: 12,
-    marginBottom: 24,
-    maxWidth: 400,
-    alignSelf: 'center',
-    width: '85%',
-  },
-  multiplierHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  multiplierLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  multiplierValueContainer: {
-    minWidth: 60,
-    alignItems: 'flex-end',
-  },
-  multiplierValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: c.accent,
-  },
-  sliderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  slider: {
-    flex: 1,
-    height: 40,
-  },
-  sliderEndLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    opacity: 0.5,
-    minWidth: 32,
-    textAlign: 'center',
-  },
-  });
-}
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  topBar: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 2 },
+  iconBlock: { width: 42, height: 42, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  segment: { flexDirection: 'row', margin: 16, marginBottom: 0, borderWidth: 2, borderRadius: 14, overflow: 'hidden' },
+  segmentItem: { flex: 1, alignItems: 'center', paddingVertical: 11 },
+  content: { padding: 16, paddingBottom: 64 },
+  contentWide: { width: '100%', maxWidth: 1240, alignSelf: 'center', padding: 28 },
+  twoPane: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  panel: { borderRadius: 24, borderWidth: 2, padding: 20 },
+  panelHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  scaleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  scaleChip: { borderWidth: 2, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  section: { textTransform: 'uppercase', letterSpacing: 0.8, fontSize: 14, marginTop: 18, marginBottom: 4 },
+  prepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, paddingVertical: 8 },
+  bowl: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  prepText: { flex: 1, fontSize: 19, lineHeight: 28 },
+  step: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, padding: 12, borderRadius: 18, borderWidth: 2, borderColor: 'transparent', marginBottom: 6 },
+  stepLit: { padding: 16 },
+  burner: { width: 44, height: 44, borderRadius: 22, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  burnerRing: { position: 'absolute', width: 32, height: 32, borderRadius: 16, borderWidth: 1.5, opacity: 0.8 },
+  stepText: { fontSize: 18, lineHeight: 28, paddingTop: 8 },
+  stepTextLit: { fontSize: 22, lineHeight: 33, paddingTop: 4 },
+  finished: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 18, borderWidth: 2, marginTop: 8 },
+});

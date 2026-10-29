@@ -11,6 +11,7 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Chip } from './ui/Chip';
 import { useTheme } from '@/hooks/use-theme';
+import { Rise, Sizzle } from './kitchen/motion';
 import { useWakeLock } from '@/hooks/use-wake-lock';
 
 export interface TimerSuggestion {
@@ -218,7 +219,7 @@ export function CookTimers({ suggestions = [] }: CookTimersProps) {
   const remove = (id: string) => commit(timersRef.current.filter((t) => t.id !== id));
 
   return (
-    <View style={[styles.panel, { backgroundColor: c.bgMuted, borderRadius: theme.radius.lg }]}>
+    <View style={[styles.panel, { backgroundColor: c.bgElevated, borderRadius: theme.radius.xl, borderWidth: 2, borderColor: c.outline, ...theme.shadow.md }]}>
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
           <Ionicons name="timer-outline" size={20} color={c.accent} />
@@ -304,37 +305,45 @@ export function CookTimers({ suggestions = [] }: CookTimersProps) {
       )}
 
       {timers.map((t) => (
-        <View
-          key={t.id}
-          style={[
-            styles.timerRow,
-            {
-              backgroundColor: t.finished ? c.accentMuted : c.bgElevated,
-              borderRadius: theme.radius.md,
-              borderColor: t.finished ? c.accent : c.border,
-            },
-          ]}
-        >
-          <View style={{ flex: 1 }}>
-            <Text variant="smallMedium" color={t.finished ? 'accent' : 'fgMuted'}>
-              {t.finished ? `${t.label} — done!` : t.label}
-            </Text>
-            <Text style={[styles.countdown, { color: t.finished ? c.accent : c.fg }]}>
-              {fmt(t.remaining)}
-            </Text>
-          </View>
-          <View style={styles.timerControls}>
-            <Pressable onPress={() => toggle(t.id)} hitSlop={6} style={[styles.ctrlBtn, { backgroundColor: c.accent }]}>
-              <Ionicons name={t.finished ? 'refresh' : t.running ? 'pause' : 'play'} size={18} color={c.accentFg} />
-            </Pressable>
-            <Pressable onPress={() => reset(t.id)} hitSlop={6} style={[styles.ctrlBtn, { backgroundColor: c.bgMuted }]}>
-              <Ionicons name="refresh-outline" size={16} color={c.fgMuted} />
-            </Pressable>
-            <Pressable onPress={() => remove(t.id)} hitSlop={6} style={[styles.ctrlBtn, { backgroundColor: c.bgMuted }]}>
-              <Ionicons name="close" size={16} color={c.fgMuted} />
-            </Pressable>
-          </View>
-        </View>
+        <Rise key={t.id}>
+          <Sizzle active={t.finished}>
+            <View
+              style={[
+                styles.timerRow,
+                {
+                  backgroundColor: t.finished ? c.butter : c.bgElevated,
+                  borderRadius: theme.radius.lg,
+                  borderColor: t.finished || t.running ? c.outline : c.borderStrong,
+                },
+                t.finished && theme.shadow.sm,
+              ]}
+              accessibilityLiveRegion={t.finished ? 'assertive' : 'none'}
+            >
+              <View style={{ flex: 1 }}>
+                <Text variant="smallMedium" color={t.finished ? 'fg' : 'fgMuted'}>
+                  {t.finished ? `${t.label}: done!` : t.label}
+                </Text>
+                <Text style={[styles.countdown, { color: c.fg, fontFamily: theme.type.display.fontFamily }]}>
+                  {fmt(t.remaining)}
+                </Text>
+              </View>
+              <View style={styles.timerControls}>
+                <Pressable onPress={() => toggle(t.id)} hitSlop={6} accessibilityRole="button" accessibilityLabel={t.finished ? 'Restart' : t.running ? 'Pause' : 'Start'}
+                  style={[styles.ctrlBtn, { backgroundColor: c.accent, borderColor: c.outline }]}>
+                  <Ionicons name={t.finished ? 'refresh' : t.running ? 'pause' : 'play'} size={18} color={c.accentFg} />
+                </Pressable>
+                <Pressable onPress={() => reset(t.id)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Reset"
+                  style={[styles.ctrlBtn, { backgroundColor: c.bgElevated, borderColor: c.borderStrong }]}>
+                  <Ionicons name="refresh-outline" size={16} color={c.fgMuted} />
+                </Pressable>
+                <Pressable onPress={() => remove(t.id)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Remove timer"
+                  style={[styles.ctrlBtn, { backgroundColor: c.bgElevated, borderColor: c.borderStrong }]}>
+                  <Ionicons name="close" size={16} color={c.fgMuted} />
+                </Pressable>
+              </View>
+            </View>
+          </Sizzle>
+        </Rise>
       ))}
     </View>
   );
@@ -353,9 +362,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    borderWidth: 1,
+    borderWidth: 2,
   },
-  countdown: { fontSize: 32, fontWeight: '700', fontVariant: ['tabular-nums'], lineHeight: 38 },
+  countdown: { fontSize: 34, fontWeight: '800', fontVariant: ['tabular-nums'], lineHeight: 40, letterSpacing: -0.5 },
   timerControls: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  ctrlBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  ctrlBtn: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });

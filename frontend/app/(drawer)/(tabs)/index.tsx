@@ -10,10 +10,12 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Chip } from '@/components/ui/Chip';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { WavyDecoration } from '@/components/wavy-decoration';
 import { RecipeCard } from '@/components/recipe-card';
 import { FloatingActionButton } from '@/components/floating-action-button';
-import { AddRecipeModal } from '@/components/add-recipe-modal';
+import { Pot, SheetTray, Skillet } from '@/components/kitchen/shapes';
+import { PageHeader } from '@/components/kitchen/page-header';
+import { Rise } from '@/components/kitchen/motion';
+import { originOf } from '@/utils/recipe-origin';
 import { fetchRecipes, deleteRecipe, Recipe } from '@/services/recipe-service';
 import { getUserTags, RecipeTag } from '@/services/profile-service';
 import { useTheme } from '@/hooks/use-theme';
@@ -42,7 +44,6 @@ export default function HomeScreen() {
   const [userTags, setUserTags] = useState<RecipeTag[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [search, setSearch] = useState('');
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilter>('all');
   const [activeTags, setActiveTags] = useState<string[]>([]);
@@ -57,10 +58,10 @@ export default function HomeScreen() {
   const visibleRecipes = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = recipes.filter((r) => {
-      const origin = r.source_type ?? (r.source_url ? 'website' : 'manual');
-      if (libraryFilter === 'made' && !['manual', 'ai'].includes(origin)) return false;
-      if (libraryFilter === 'adapted' && origin !== 'adapted' && !r.source_recipe_id) return false;
-      if (libraryFilter === 'imported' && !['website', 'pinterest', 'photo', 'text', 'instagram'].includes(origin)) return false;
+      const origin = originOf(r.source_type, r.source_recipe_id, r.source_url);
+      if (libraryFilter === 'made' && !['made', 'ai'].includes(origin)) return false;
+      if (libraryFilter === 'adapted' && origin !== 'adapted') return false;
+      if (libraryFilter === 'imported' && origin !== 'imported') return false;
       if (q) {
         const inTitle = r.title?.toLowerCase().includes(q);
         const inIngredients = r.ingredients?.some((i) => i.text?.toLowerCase().includes(q));
@@ -120,13 +121,11 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text variant="display">Your recipes</Text>
-        <Text variant="small" color="fgMuted" style={{ marginTop: 4 }}>
-          {recipes.length === 0 ? 'A good meal starts here.' : `${recipes.length} saved · keep the ones you love`}
-        </Text>
-        <WavyDecoration variant="line" width={140} height={16} style={{ marginTop: 4 }} />
-      </View>
+      <PageHeader
+        title="Your recipes"
+        subtitle={recipes.length === 0 ? 'A good meal starts here.' : `${recipes.length} on the shelf`}
+        art={<><Pot size={70} /><Skillet size={84} rotate={-30} /><SheetTray size={70} rotate={-6} /></>}
+      />
 
       {loading ? (
         <View style={styles.centered}>
@@ -140,21 +139,14 @@ export default function HomeScreen() {
       ) : recipes.length === 0 ? (
         <EmptyState
           doodle="bowl"
-          title="Your cookbook awaits"
-          line="Import from a website, paste a photo, or type one in."
-          action={<Button onPress={() => setShowAddModal(true)}>Add your first recipe</Button>}
+          title="The counter's clear"
+          line="Paste a link, snap a photo, or type one in."
+          action={<Button onPress={() => router.push('/import' as any)}>Add your first recipe</Button>}
         />
       ) : (
         <>
           {/* Filter bar — stays pinned above the scrolling grid. */}
           <View style={styles.filterBar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow} style={{ marginBottom: theme.spacing.md }}>
-              {LIBRARY_FILTERS.map((option) => (
-                <Chip key={option.key} size="sm" onPress={() => setLibraryFilter(option.key)} variant={libraryFilter === option.key ? 'accent' : 'outline'}>
-                  {option.label}
-                </Chip>
-              ))}
-            </ScrollView>
             <View style={styles.searchWrap}>
               <Ionicons name="search" size={18} color={c.fgSubtle} style={styles.searchIcon} />
               <Input
@@ -172,13 +164,16 @@ export default function HomeScreen() {
               ) : null}
             </View>
 
-            {userTags.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipRow}
-                style={{ marginTop: theme.spacing.sm }}
-              >
+            {/* One row of filters: where a recipe came from, then the
+                household's tags. Sort cycles from the trailing button. */}
+            <View style={styles.filterRow}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow} style={{ flex: 1 }}>
+                {LIBRARY_FILTERS.map((option) => (
+                  <Chip key={option.key} size="sm" onPress={() => setLibraryFilter(option.key)} variant={libraryFilter === option.key ? 'accent' : 'outline'}>
+                    {option.label}
+                  </Chip>
+                ))}
+                {userTags.length > 0 && <View style={[styles.chipDivider, { backgroundColor: c.borderStrong }]} />}
                 {userTags.map((tag) => {
                   const on = activeTags.includes(tag.id);
                   return (
@@ -187,28 +182,23 @@ export default function HomeScreen() {
                       size="sm"
                       onPress={() => toggleTag(tag.id)}
                       variant={on ? 'accent' : 'outline'}
-                      tone={on ? undefined : tag.color}
-                      icon={<Ionicons name={tag.icon as any} size={13} color={on ? c.accentFg : tag.color} />}
+                      tone={tag.color}
                     >
                       {tag.name}
                     </Chip>
                   );
                 })}
               </ScrollView>
-            )}
-
-            <View style={styles.sortRow}>
-              <Text variant="caption" color="fgSubtle" style={{ marginRight: theme.spacing.xs }}>Sort</Text>
-              {SORT_OPTIONS.map((opt) => (
-                <Chip
-                  key={opt.key}
-                  size="sm"
-                  onPress={() => setSortBy(opt.key)}
-                  variant={sortBy === opt.key ? 'accent' : 'default'}
-                >
-                  {opt.label}
-                </Chip>
-              ))}
+              <Pressable
+                onPress={() => setSortBy(SORT_OPTIONS[(SORT_OPTIONS.findIndex((o) => o.key === sortBy) + 1) % SORT_OPTIONS.length].key)}
+                accessibilityRole="button"
+                accessibilityLabel={`Sort: ${SORT_OPTIONS.find((o) => o.key === sortBy)?.label}. Tap to change.`}
+                style={styles.sortButton}
+                hitSlop={6}
+              >
+                <Ionicons name="swap-vertical" size={15} color={c.fgMuted} />
+                <Text variant="label" color="fgMuted">{SORT_OPTIONS.find((o) => o.key === sortBy)?.label}</Text>
+              </Pressable>
             </View>
           </View>
 
@@ -226,8 +216,8 @@ export default function HomeScreen() {
               numColumns={numColumns}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: theme.spacing['3xl'] }}
-              renderItem={({ item }) => (
-                <View style={{ flex: 1 / numColumns, minWidth: 0 }}>
+              renderItem={({ item, index }) => (
+                <Rise index={index} style={{ flex: 1 / numColumns, minWidth: 0 }}>
                   <RecipeCard
                     {...item}
                     tags={item.metadata?.tags || []}
@@ -241,29 +231,22 @@ export default function HomeScreen() {
                       ));
                     }}
                   />
-                </View>
+                </Rise>
               )}
             />
           )}
         </>
       )}
 
-      <FloatingActionButton onPress={() => setShowAddModal(true)} label="Add recipe" />
-
-      <AddRecipeModal
-        visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onImportLink={() => { setShowAddModal(false); router.push('/import' as any); }}
-        onAddManually={() => { setShowAddModal(false); router.push('/new-recipe' as any); }}
-        onScanPhoto={() => { setShowAddModal(false); router.push('/scan-photo' as any); }}
-        onPitch={() => { setShowAddModal(false); router.push('/pitch' as any); }}
-      />
+      <FloatingActionButton onPress={() => router.push('/import' as any)} label="Add recipe" />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4, marginHorizontal: -6 },
+  chipDivider: { width: 2, alignSelf: 'stretch', marginVertical: 4, borderRadius: 1 },
+  sortButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
   centered: {
     flex: 1,
     justifyContent: 'center',
@@ -288,10 +271,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 12,
   },
+  // Room around the chips so the selected chip's shadow and focus ring
+  // aren't clipped by the horizontal scroller.
   chipRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    paddingVertical: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
   },
   sortRow: {
     flexDirection: 'row',

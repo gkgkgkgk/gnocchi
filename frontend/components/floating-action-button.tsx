@@ -1,6 +1,7 @@
 import { StyleSheet, Pressable, Platform, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from './ui/Text';
+import { blockPress, type PressState } from './ui/press';
 import { useTheme } from '@/hooks/use-theme';
 
 interface FloatingActionButtonProps {
@@ -9,25 +10,30 @@ interface FloatingActionButtonProps {
   icon?: keyof typeof Ionicons.glyphMap;
 }
 
+/** The big tomato block in the corner. */
 export function FloatingActionButton({ onPress, label, icon = 'add' }: FloatingActionButtonProps) {
   const theme = useTheme();
   const c = theme.colors;
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={(state) => [
         styles.fab,
         {
-          backgroundColor: pressed ? c.accentHover : c.accent,
-          borderRadius: theme.radius.pill,
-          ...theme.shadow.lg,
+          backgroundColor: c.accent,
+          borderRadius: theme.radius.lg,
+          borderWidth: theme.outlineWidth,
+          borderColor: c.outline,
         },
+        blockPress(theme, state as PressState, 4),
       ]}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
         <Ionicons name={icon} size={22} color={c.accentFg} />
         {label && (
-          <Text variant="button" style={{ color: c.accentFg }}>
+          <Text variant="button" style={{ color: c.accentFg, fontSize: 16 }}>
             {label}
           </Text>
         )}
@@ -41,8 +47,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 24,
     right: 24,
-    paddingHorizontal: 22,
-    paddingVertical: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
     ...Platform.select({ web: { cursor: 'pointer' } }),
   },
 });

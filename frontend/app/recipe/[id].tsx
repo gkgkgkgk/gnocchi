@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, Pressable, ScrollView, Image, ActivityIndicator, Linking, TextInput } from 'react-native';
-import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +16,9 @@ import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Sheet } from '@/components/ui/Sheet';
 import { StarRating } from '@/components/ui/StarRating';
-import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags, setRecipeRating, addCookNote, setRecipeNotes } from '@/services/recipe-service';
+import { fetchRecipeById, Recipe, deleteRecipe, saveModifiedRecipe, updateRecipeTags, setRecipeRating, addCookNote, setRecipeNotes, setCookHistory, CookHistoryEntry } from '@/services/recipe-service';
+import { CookLog } from '@/components/cook-log';
+import { Toast, type ToastMessage } from '@/components/ui/Toast';
 import { executeAITool, AITool } from '@/services/ai-tools-service';
 import { fetchUnits, Unit } from '@/services/unit-service';
 import { getUnitPreference, type UnitPreference } from '@/services/profile-service';
@@ -25,6 +26,15 @@ import { scaleForDisplay, toggleMeasureType, findUnit } from '@/utils/unit-conve
 import { densityFor } from '@/utils/ingredient-density';
 import { formatAmount, groupBySection } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
+import { inputStyle } from '@/components/ui/Input';
+import { blockPress, type PressState } from '@/components/ui/press';
+import { RecipeCover } from '@/components/kitchen/recipe-cover';
+import { Tablecloth } from '@/components/kitchen/tablecloth';
+import { DishSticker } from '@/components/kitchen/dish-sticker';
+import { Mascot } from '@/components/kitchen/mascot';
+import { Board, Pot } from '@/components/kitchen/shapes';
+import { Bob, FadeIn, Pop, Rise } from '@/components/kitchen/motion';
+import { ORIGIN_ICON, ORIGIN_LABEL, originOf } from '@/utils/recipe-origin';
 import { useResponsive } from '@/hooks/use-responsive';
 
 function formatCookDate(iso: string): string {
@@ -51,7 +61,6 @@ export default function RecipeDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const [showIngredients, setShowIngredients] = useState(true);
   const [showToolModal, setShowToolModal] = useState(false);
   const [executingTool, setExecutingTool] = useState(false);
   const [selectedTool, setSelectedTool] = useState<AITool | null>(null);
@@ -70,6 +79,7 @@ export default function RecipeDetailScreen() {
   const [notesDraft, setNotesDraft] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   const theme = useTheme();
   const { isWide } = useResponsive();
@@ -83,40 +93,21 @@ export default function RecipeDetailScreen() {
     });
   };
 
+  const [doneSteps, setDoneSteps] = useState<Set<number>>(new Set());
+  const toggleStep = (index: number) => {
+    setDoneSteps((prev) => {
+      const next = new Set(prev);
+      next.has(index) ? next.delete(index) : next.add(index);
+      return next;
+    });
+  };
+
   const toggleUnitFlip = (index: number) => {
     setFlippedUnits((prev) => {
       const next = new Set(prev);
       next.has(index) ? next.delete(index) : next.add(index);
       return next;
     });
-  };
-  const menuBackgroundColor = c.bgElevated;
-  const cardBackgroundColor = c.bgElevated;
-  const tintColor = c.accent;
-
-  // Multiplier options: 1/2, 3/4, 1, 1 1/4, 1 1/3, 1 1/2, 1 3/4, 2, 2 1/2, 3, 3 1/2, 4
-  const multiplierOptions = [0.5, 0.75, 1, 1.25, 1.333, 1.5, 1.75, 2, 2.5, 3, 3.5, 4];
-  const multiplierLabels = ['1/2', '3/4', '1', '1 1/4', '1 1/3', '1 1/2', '1 3/4', '2', '2 1/2', '3', '3 1/2', '4'];
-  
-  const getMultiplierLabel = (value: number) => {
-    const index = multiplierOptions.findIndex(opt => Math.abs(opt - value) < 0.01);
-    return index >= 0 ? multiplierLabels[index] : value.toFixed(2);
-  };
-
-  const handleSliderChange = (value: number) => {
-    // Find closest snap point
-    let closestIndex = 0;
-    let minDiff = Math.abs(value - multiplierOptions[0]);
-    
-    for (let i = 1; i < multiplierOptions.length; i++) {
-      const diff = Math.abs(value - multiplierOptions[i]);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestIndex = i;
-      }
-    }
-    
-    setMultiplier(multiplierOptions[closestIndex]);
   };
 
   useEffect(() => {
@@ -169,11 +160,10 @@ export default function RecipeDetailScreen() {
 
   if (loading) {
     return (
-      <ThemedView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
-        </View>
-      </ThemedView>
+      <View style={[styles.container, styles.loadingContainer, { backgroundColor: c.bg }]}>
+        <Bob><Mascot size={110} /></Bob>
+        <ActivityIndicator color={c.accent} style={{ marginTop: 18 }} />
+      </View>
     );
   }
 
@@ -212,6 +202,17 @@ export default function RecipeDetailScreen() {
     }
   };
 
+  const saveCookLog = async (next: CookHistoryEntry[], prev: CookHistoryEntry[]) => {
+    setRecipe((r) => (r ? { ...r, cook_history: next } : r)); // optimistic
+    try {
+      setRecipe(await setCookHistory(id as string, next));
+    } catch (error) {
+      console.error('Failed to update the cook log:', error);
+      setRecipe((r) => (r ? { ...r, cook_history: prev } : r));
+      setToast({ text: "Couldn't update the cook log." });
+    }
+  };
+
   const handleCookedIt = async () => {
     if (!recipe || loggingCook) return;
     setLoggingCook(true);
@@ -221,12 +222,31 @@ export default function RecipeDetailScreen() {
     try {
       const updated = await addCookNote(id as string, entry);
       setRecipe(updated);
+      // A mis-tap is easy; offer the way back right away.
+      setToast({
+        text: 'Logged as cooked today',
+        actionLabel: 'Undo',
+        onAction: () => saveCookLog(prevHistory, updated.cook_history ?? []),
+      });
     } catch (error) {
       console.error('Failed to log cook:', error);
       setRecipe((prev) => (prev ? { ...prev, cook_history: prevHistory } : prev));
     } finally {
       setLoggingCook(false);
     }
+  };
+
+  const removeCook = (index: number) => {
+    if (!recipe) return;
+    const prev = recipe.cook_history ?? [];
+    saveCookLog(prev.filter((_, i) => i !== index), prev);
+    setToast({ text: 'Removed from the cook log', actionLabel: 'Undo', onAction: () => saveCookLog(prev, prev) });
+  };
+
+  const addPastCook = async (entry: CookHistoryEntry) => {
+    if (!recipe) return;
+    const prev = recipe.cook_history ?? [];
+    await saveCookLog([...prev, entry], prev);
   };
 
   const startEditNotes = () => {
@@ -459,14 +479,9 @@ export default function RecipeDetailScreen() {
         onPress={() => toggleIngredient(index)}
         style={[styles.ingredientRow, isOptional && { opacity: 0.55 }]}
       >
-        <View
-          style={[
-            styles.checkbox,
-            { borderColor: checked ? c.accent : c.borderStrong, backgroundColor: checked ? c.accent : 'transparent' },
-          ]}
-        >
-          {checked && <Ionicons name="checkmark" size={14} color={c.accentFg} />}
-        </View>
+        <Pop trigger={checked} style={[styles.bowl, { borderColor: c.outline, backgroundColor: checked ? c.butter : c.bgElevated }]}>
+          {checked && <Ionicons name="checkmark" size={14} color={c.outline} />}
+        </Pop>
         <Text
           variant="body"
           color="fgMuted"
@@ -501,355 +516,267 @@ export default function RecipeDetailScreen() {
 
   const renderStepsList = () => {
     if (!recipe.steps || recipe.steps.length === 0) {
-      return <Text variant="body" color="fgSubtle" style={{ fontStyle: 'italic' }}>No instructions provided</Text>;
+      return <Text variant="body" color="fgSubtle" style={{ fontStyle: 'italic' }}>No steps yet.</Text>;
     }
+    // The first step not yet done is "on the heat".
+    const current = recipe.steps.findIndex((_, i) => !doneSteps.has(i));
     return recipe.steps.map((step, index) => {
       const annotatedSteps = (recipe as any).annotated_steps;
       const annotatedText = annotatedSteps?.[index] || step;
       const { cleanText, ingredients } = parseAnnotatedStep(annotatedText);
+      const done = doneSteps.has(index);
+      const lit = index === current;
       return (
-        <View key={index} style={styles.stepItem}>
-          <View style={[styles.stepNumber, { backgroundColor: c.accent }]}>
-            <Text style={[styles.stepNumberText, { color: c.accentFg }]}>{index + 1}</Text>
-          </View>
+        <Pressable
+          key={index}
+          onPress={() => toggleStep(index)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: done }}
+          style={[styles.stepItem, done && { opacity: 0.45 }]}
+        >
+          <Pop trigger={lit}>
+            <View style={[styles.burner, { borderColor: c.outline, backgroundColor: lit ? c.tomato : done ? c.bgMuted : c.bgElevated }]}>
+              <View style={[styles.burnerRing, { borderColor: lit ? c.accentFg : c.borderStrong }]} />
+              {done
+                ? <Ionicons name="checkmark" size={16} color={c.fgMuted} />
+                : <Text variant="label" style={{ color: lit ? c.accentFg : c.fg, fontSize: 14 }}>{index + 1}</Text>}
+            </View>
+          </Pop>
           <View style={styles.stepTextContainer}>
-            <Text variant="body" style={styles.stepText}>{cleanText}</Text>
+            <Text variant="body" style={[styles.stepText, done && { textDecorationLine: 'line-through' }]}>{cleanText}</Text>
             {ingredients.length > 0 && (
               <View style={[styles.ingredientReferences, { borderTopColor: c.border }]}>
                 {ingredients.map((ing, idx) => (
-                  <Text key={idx} variant="small" color="fgMuted" style={{ fontStyle: 'italic', marginBottom: 4 }}>
+                  <Text key={idx} variant="small" color="fgMuted" style={{ marginBottom: 4 }}>
                     • {ing.fullText}
                   </Text>
                 ))}
               </View>
             )}
           </View>
-        </View>
+        </Pressable>
       );
     });
   };
 
-  return (
-    <ThemedView style={[styles.container, { backgroundColor: c.bg }]}>
-      {/* Floating nav over the hero */}
-      <View style={[styles.navOverlay, { top: insets.top + 8 }]} pointerEvents="box-none">
-        <Pressable onPress={() => router.push('/(drawer)/(tabs)' as any)} style={styles.navButton}>
-          <Ionicons name="chevron-back" size={22} color="#fff" />
-        </Pressable>
+  const facts = [
+    servings > 0 && { label: 'Serves', value: `${Math.round(servings * multiplier * 10) / 10}` },
+    prepTime > 0 && { label: 'Prep', value: `${prepTime} min` },
+    cookTime > 0 && { label: 'Cook', value: `${cookTime} min` },
+    totalTime > 0 && { label: 'Total', value: `${totalTime} min` },
+  ].filter(Boolean) as { label: string; value: string }[];
+  const origin = originOf(recipe.source_type, recipe.source_recipe_id, recipe.source_url);
+  const cookCount = recipe.cook_history?.length ?? 0;
 
-        <Pressable onPress={() => setShowMenu(!showMenu)} style={styles.navButton}>
-          <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
-        </Pressable>
+  const panel = [styles.panel, { backgroundColor: c.bgElevated, borderColor: c.outline, ...theme.shadow.md }];
 
-        {/* Dropdown Menu */}
-        {showMenu && (
-          <View style={[styles.menuDropdown, { backgroundColor: c.bgElevated, borderColor: c.border, ...theme.shadow.md }]}>
-            <Pressable
-              style={[styles.menuItem, { borderBottomColor: c.border }]}
-              onPress={() => { setShowMenu(false); router.push(`/easy-recipe/${id}` as any); }}
-            >
-              <Text variant="bodyMedium">Easy view</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.menuItem, { borderBottomColor: c.border }]}
-              onPress={() => { setShowMenu(false); setShowChat(true); }}
-            >
-              <Text variant="bodyMedium">Ask AI</Text>
-            </Pressable>
-            <Pressable style={[styles.menuItem, { borderBottomColor: c.border }]} onPress={handleEdit}>
-              <Text variant="bodyMedium">Edit</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.menuItem, { borderBottomColor: c.border }]}
-              onPress={() => { setShowMenu(false); setShowEditTags(true); }}
-            >
-              <Text variant="bodyMedium">Edit tags</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.menuItem, styles.menuItemLast]}
-              onPress={() => { setShowMenu(false); setShowDeleteConfirm(true); }}
-            >
-              <Text variant="bodyMedium" color="danger">Delete</Text>
-            </Pressable>
-          </View>
+  const ingredientsPanel = (
+    <View style={panel}>
+      <View style={styles.panelHead}>
+        <Board size={40} rotate={-10} />
+        <Text variant="h2" accessibilityRole="header">Ingredients</Text>
+        <View style={{ flex: 1 }} />
+      </View>
+      <View style={styles.scaleRow} accessibilityRole="radiogroup" accessibilityLabel="Recipe size">
+        <Text variant="label" color="fgMuted" style={{ marginRight: 4 }}>Make</Text>
+        {SCALES.map(([value, label]) => (
+          <Chip key={label} size="sm" variant={multiplier === value ? 'accent' : 'outline'} onPress={() => setMultiplier(value)}>
+            {label}
+          </Chip>
+        ))}
+      </View>
+      {renderIngredientsList()}
+    </View>
+  );
+
+  const methodPanel = (
+    <View style={panel}>
+      <View style={styles.panelHead}>
+        <Pot size={42} />
+        <Text variant="h2" accessibilityRole="header">Method</Text>
+        <View style={{ flex: 1 }} />
+        {doneSteps.size > 0 && (
+          <Pressable onPress={() => setDoneSteps(new Set())} hitSlop={6} accessibilityRole="button">
+            <Text variant="smallMedium" color="accent">Reset</Text>
+          </Pressable>
         )}
       </View>
+      <Text variant="small" color="fgSubtle" style={{ marginBottom: 12 }}>Tap a step when it&apos;s done.</Text>
+      {renderStepsList()}
+    </View>
+  );
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Banner Image */}
-        {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={styles.bannerImage} />
-        ) : (
-          <View style={[styles.bannerPlaceholder, { backgroundColor: c.bgMuted }]}>
-            <ThemedText style={styles.bannerEmoji}>🍽️</ThemedText>
-          </View>
-        )}
+  return (
+    <FadeIn style={[styles.container, { backgroundColor: c.bg }]}>
+      <Tablecloth />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        {/* Hero: the photo, or the dish drawn on the counter */}
+        <View style={{ borderBottomWidth: theme.outlineWidth, borderBottomColor: c.outline, zIndex: 2 }}>
+          {imageUrl ? (
+            <>
+              <Image source={{ uri: imageUrl }} style={[styles.heroImage, { height: isWide ? 340 : 260 }]} accessibilityIgnoresInvertColors />
+              <DishSticker
+                title={recipe.title}
+                tags={recipeTags}
+                ingredients={(recipe.ingredients ?? []).map((i) => i.text)}
+                id={recipe.id}
+                size={isWide ? 130 : 96}
+                style={{ right: isWide ? 40 : 16, bottom: isWide ? -34 : -26, zIndex: 2 }}
+              />
+            </>
+          ) : (
+            <RecipeCover
+              title={recipe.title}
+              tags={recipeTags}
+              ingredients={(recipe.ingredients ?? []).map((i) => i.text)}
+              id={recipe.id}
+              height={isWide ? 300 : 230}
+              steam
+            />
+          )}
+        </View>
 
-        {/* Recipe Content */}
         <View style={[styles.content, isWide && styles.contentWide]}>
-          <Text variant="display">{recipe.title}</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
-            {recipe.source_recipe_id ? (
-              <Chip onPress={() => router.push(`/recipe/${recipe.source_recipe_id}` as any)} variant="outline" icon={<Ionicons name="git-branch-outline" size={14} color={c.accent} />}>
-                Adapted from another recipe · view original
+          <Rise index={0}>
+            <View style={styles.chipRow}>
+              <Chip variant="outline" size="sm" icon={<Ionicons name={ORIGIN_ICON[origin]} size={13} color={c.accent} />}>
+                {ORIGIN_LABEL[origin]}
               </Chip>
-            ) : recipe.source_type === 'ai' ? (
-              <Chip variant="outline" icon={<Ionicons name="sparkles-outline" size={14} color={c.accent} />}>Created with AI</Chip>
-            ) : recipe.source_type === 'manual' || !recipe.source_type ? (
-              <Chip variant="outline" icon={<Ionicons name="create-outline" size={14} color={c.accent} />}>Made by me</Chip>
-            ) : (
-              <Chip variant="outline" icon={<Ionicons name="download-outline" size={14} color={c.accent} />}>Imported recipe</Chip>
-            )}
-            {recipe.source_url?.startsWith('http') && (
-              <Chip onPress={() => Linking.openURL(recipe.source_url!)} variant="outline" icon={<Ionicons name="open-outline" size={14} color={c.accent} />}>
-                View source
-              </Chip>
-            )}
-          </View>
-
-          {/* Metadata chips */}
-          {(servings > 0 || prepTime > 0 || cookTime > 0) && (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.md }}>
-              {servings > 0 && (
-                <Chip icon={<Ionicons name="people-outline" size={14} color={c.fg} />}>
-                  {`${servings} ${servings === 1 ? 'serving' : 'servings'}`}
+              {recipe.source_recipe_id && (
+                <Chip size="sm" variant="outline" onPress={() => router.push(`/recipe/${recipe.source_recipe_id}` as any)} icon={<Ionicons name="git-branch-outline" size={13} color={c.accent} />}>
+                  View original
                 </Chip>
               )}
-              {prepTime > 0 && (
-                <Chip icon={<Ionicons name="cut-outline" size={14} color={c.fg} />}>
-                  {`${prepTime} min prep`}
-                </Chip>
-              )}
-              {cookTime > 0 && (
-                <Chip icon={<Ionicons name="flame-outline" size={14} color={c.fg} />}>
-                  {`${cookTime} min cook`}
-                </Chip>
-              )}
-              {totalTime > 0 && (
-                <Chip tone={c.accent} icon={<Ionicons name="time-outline" size={14} color={c.accent} />}>
-                  {`${totalTime} min total`}
+              {recipe.source_url?.startsWith('http') && (
+                <Chip size="sm" variant="outline" onPress={() => Linking.openURL(recipe.source_url!)} icon={<Ionicons name="open-outline" size={13} color={c.accent} />}>
+                  Source
                 </Chip>
               )}
             </View>
+            <Text variant="display" style={{ marginTop: 12 }} accessibilityRole="header">{recipe.title}</Text>
+            <View style={styles.ratingRow}>
+              <StarRating value={recipe.rating} onChange={handleRate} size={24} gap={3} />
+              <Text variant="small" color="fgMuted">
+                {cookCount > 0
+                  ? `Cooked ${cookCount} ${cookCount === 1 ? 'time' : 'times'} · last ${formatRelative(recipe.cook_history[cookCount - 1].date)}`
+                  : 'Not cooked yet'}
+              </Text>
+            </View>
+          </Rise>
+
+          {facts.length > 0 && (
+            <Rise index={1}>
+              <View style={styles.facts}>
+                {facts.map((f) => (
+                  <View key={f.label} style={[styles.fact, !isWide && styles.factNarrow, { borderColor: c.outline, backgroundColor: c.bgElevated, ...theme.shadow.sm }]}>
+                    <Text variant="caption" color="fgMuted" numberOfLines={1}>{f.label}</Text>
+                    <Text variant="h2" style={{ fontSize: isWide ? 19 : 16 }} numberOfLines={1}>{f.value}</Text>
+                  </View>
+                ))}
+              </View>
+            </Rise>
           )}
 
-          {/* Rating */}
-          <View style={styles.ratingRow}>
-            <Text variant="label" color="fgMuted">Your rating</Text>
-            <StarRating value={recipe.rating} onChange={handleRate} size={26} gap={4} />
-          </View>
-
-          {/* AI Insights Banner */}
-          <AIInsightsBanner
-            insight={recipe.ai_insight?.text === '__GENERATING__' ? 'Chef Gnocchi is analyzing this recipe...' : recipe.ai_insight?.text}
-            recommendedAction={recipe.ai_insight?.suggested_tool ? formatToolName(recipe.ai_insight.suggested_tool) : undefined}
-            loading={recipe.ai_insight?.text === '__GENERATING__'}
-            onActionPress={async () => {
-              // Handle recommended action button click
-              if (recipe.ai_insight?.suggested_tool) {
-                // Fetch the tool from the database by name
-                const { fetchAIToolByName } = await import('@/services/ai-tools-service');
-                const tool = await fetchAIToolByName(recipe.ai_insight.suggested_tool);
-                if (tool) {
-                  handleToolPress(tool);
-                }
-              }
-            }}
-            onToolPress={handleToolPress}
-            onRefresh={handleRefreshInsight}
-          />
-
-          {/* Easy Recipe Viewer Button */}
-          <View style={{ marginTop: theme.spacing.xl }}>
-            <Button
-              variant="secondary"
-              fullWidth
-              size="lg"
-              icon={<Ionicons name="book-outline" size={18} color={c.fg} />}
-              iconRight={<Ionicons name="arrow-forward" size={18} color={c.fg} />}
-              onPress={() => router.push(`/easy-recipe/${id}` as any)}
-            >
-              Open kitchen reader
-            </Button>
-          </View>
-
-          {/* Cook log */}
-          <View style={[styles.section, { marginTop: theme.spacing.xl }]}>
-            <View style={styles.cookLogHeader}>
-              <View style={{ flex: 1 }}>
-                <Text variant="h2">Cook log</Text>
-                <Text variant="small" color="fgMuted" style={{ marginTop: 2 }}>
-                  {recipe.cook_history && recipe.cook_history.length > 0
-                    ? `Made ${recipe.cook_history.length} ${recipe.cook_history.length === 1 ? 'time' : 'times'} · last ${formatRelative(recipe.cook_history[recipe.cook_history.length - 1].date)}`
-                    : 'Not cooked yet — log it the next time you make it.'}
-                </Text>
-              </View>
+          <Rise index={2}>
+            <View style={styles.actions}>
               <Button
-                size="sm"
+                size="lg"
+                onPress={() => router.push(`/easy-recipe/${id}` as any)}
+                icon={<Ionicons name="flame" size={18} color={c.accentFg} />}
+                style={{ flexGrow: 1 }}
+              >
+                Start cooking
+              </Button>
+              <Button
+                size="lg"
+                variant="secondary"
                 loading={loggingCook}
                 onPress={handleCookedIt}
-                icon={!loggingCook ? <Ionicons name="restaurant-outline" size={16} color={c.accentFg} /> : undefined}
+                icon={!loggingCook ? <Ionicons name="checkmark-done" size={18} color={c.fg} /> : undefined}
+                style={{ flexGrow: 1 }}
               >
                 I cooked this
               </Button>
             </View>
+          </Rise>
 
-            {recipe.cook_history && recipe.cook_history.length > 0 && (
-              <View style={{ marginTop: theme.spacing.lg, gap: theme.spacing.sm }}>
-                {[...recipe.cook_history].reverse().slice(0, 6).map((entry, i) => (
-                  <View key={i} style={styles.cookLogRow}>
-                    <View style={[styles.cookLogDot, { backgroundColor: c.accent }]} />
-                    <Text variant="bodyMedium">{formatCookDate(entry.date)}</Text>
-                    {!!entry.note && <Text variant="body" color="fgMuted"> — {entry.note}</Text>}
-                  </View>
-                ))}
-                {recipe.cook_history.length > 6 && (
-                  <Text variant="small" color="fgSubtle" style={{ marginLeft: 18 }}>
-                    + {recipe.cook_history.length - 6} more
-                  </Text>
-                )}
+          <Rise index={3}>
+            {isWide ? (
+              <View style={styles.twoPane}>
+                <View style={styles.paneLeft}>{ingredientsPanel}</View>
+                <View style={styles.paneRight}>{methodPanel}</View>
               </View>
+            ) : (
+              <View style={{ gap: 20 }}>{ingredientsPanel}{methodPanel}</View>
             )}
+          </Rise>
+
+          <View style={{ marginTop: 24 }}>
+            <AIInsightsBanner
+              insight={recipe.ai_insight?.text === '__GENERATING__' ? 'Chef Gnocchi is reading this recipe…' : recipe.ai_insight?.text}
+              recommendedAction={recipe.ai_insight?.suggested_tool ? formatToolName(recipe.ai_insight.suggested_tool) : undefined}
+              loading={recipe.ai_insight?.text === '__GENERATING__'}
+              onActionPress={async () => {
+                if (recipe.ai_insight?.suggested_tool) {
+                  const { fetchAIToolByName } = await import('@/services/ai-tools-service');
+                  const tool = await fetchAIToolByName(recipe.ai_insight.suggested_tool);
+                  if (tool) handleToolPress(tool);
+                }
+              }}
+              onToolPress={handleToolPress}
+              onRefresh={handleRefreshInsight}
+            />
           </View>
 
-          {/* Notes Section — editable free-text on every recipe */}
-          <View style={styles.section}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md }}>
-              <Text variant="h2">Notes</Text>
+          {/* Notes: editable free text on every recipe */}
+          <View style={[panel, { marginTop: 24 }]}>
+            <View style={styles.panelHead}>
+              <Text variant="h2" accessibilityRole="header">Notes</Text>
+              <View style={{ flex: 1 }} />
               {!editingNotes && (
-                <Pressable onPress={startEditNotes} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Pressable onPress={startEditNotes} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} accessibilityRole="button">
                   <Ionicons name={notes ? 'create-outline' : 'add'} size={18} color={c.accent} />
-                  <Text variant="smallMedium" style={{ color: c.accent }}>{notes ? 'Edit' : 'Add note'}</Text>
+                  <Text variant="smallMedium" color="accent">{notes ? 'Edit' : 'Add a note'}</Text>
                 </Pressable>
               )}
             </View>
-
             {editingNotes ? (
               <View>
                 <TextInput
                   value={notesDraft}
                   onChangeText={setNotesDraft}
-                  placeholder="Add your notes — tweaks, substitutions, what you'd change next time…"
+                  placeholder="Tweaks, swaps, what you'd change next time"
                   placeholderTextColor={c.fgSubtle}
                   multiline
                   autoFocus
-                  style={{
-                    minHeight: 100,
-                    borderWidth: 1,
-                    borderColor: c.border,
-                    borderRadius: theme.radius.md,
-                    padding: theme.spacing.md,
-                    color: c.fg,
-                    backgroundColor: c.bgElevated,
-                    fontSize: 16,
-                    lineHeight: 24,
-                    textAlignVertical: 'top',
-                  }}
+                  accessibilityLabel="Notes"
+                  style={[inputStyle(theme, { focused: true }), { minHeight: 110, padding: 12, fontSize: 16, lineHeight: 24, textAlignVertical: 'top' }]}
                 />
-                <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.md }}>
-                  <Button variant="ghost" onPress={() => setEditingNotes(false)} style={{ flex: 1 }}>Cancel</Button>
-                  <Button onPress={handleSaveNotes} loading={savingNotes} style={{ flex: 2 }}>Save notes</Button>
+                <View style={{ flexDirection: 'row', gap: 12, marginTop: 14, justifyContent: 'flex-end' }}>
+                  <Button variant="ghost" onPress={() => setEditingNotes(false)}>Cancel</Button>
+                  <Button onPress={handleSaveNotes} loading={savingNotes}>Save notes</Button>
                 </View>
               </View>
             ) : notes ? (
               <Pressable onPress={startEditNotes}>
-                <Text variant="body" color="fgMuted" style={{ lineHeight: 22 }}>{notes}</Text>
+                <Text variant="body" color="fgMuted">{notes}</Text>
               </Pressable>
             ) : (
               <Pressable onPress={startEditNotes}>
-                <Text variant="body" color="fgSubtle" style={{ fontStyle: 'italic' }}>
-                  No notes yet. Tap to jot down tweaks or reminders.
-                </Text>
+                <Text variant="body" color="fgSubtle">Nothing yet. Tap to jot down tweaks or reminders.</Text>
               </Pressable>
             )}
           </View>
 
-          {/* Recipe Multiplier Slider */}
-          <View style={[styles.section, { backgroundColor: c.bgMuted, borderRadius: theme.radius.lg, padding: theme.spacing.lg, marginTop: theme.spacing.xl }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.spacing.md }}>
-              <Text variant="label" color="fgMuted">Recipe size</Text>
-              <View style={{ backgroundColor: c.accent, paddingHorizontal: theme.spacing.md, paddingVertical: 4, borderRadius: theme.radius.pill }}>
-                <Text style={{ color: c.accentFg, fontWeight: '700', fontSize: 15 }}>{getMultiplierLabel(multiplier)}×</Text>
-              </View>
+          {/* Cook log */}
+          <View style={[panel, { marginTop: 24 }]}>
+            <View style={styles.panelHead}>
+              <Text variant="h2" accessibilityRole="header">Cook log</Text>
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-              <Text variant="caption" color="fgSubtle">½×</Text>
-              <Slider
-                style={{ flex: 1, height: 40 }}
-                minimumValue={0.5}
-                maximumValue={4}
-                value={multiplier}
-                onValueChange={handleSliderChange}
-                minimumTrackTintColor={c.accent}
-                maximumTrackTintColor={c.border}
-                thumbTintColor={c.accent}
-                step={0.01}
-              />
-              <Text variant="caption" color="fgSubtle">4×</Text>
-            </View>
+            <CookLog entries={recipe.cook_history ?? []} onRemove={removeCook} onAdd={addPastCook} />
           </View>
-
-          {/* Ingredients + Instructions. Wide screens (iPad landscape /
-              desktop) get a side-by-side two-pane; phones keep the tabbed
-              flip-card so both fit one thumb-width column. */}
-          {isWide ? (
-            <View style={styles.twoPane}>
-              <View style={styles.paneLeft}>
-                <Text variant="h2" style={{ marginBottom: theme.spacing.md }}>Ingredients</Text>
-                <ThemedView style={[styles.flipCard, { backgroundColor: cardBackgroundColor, minHeight: 0, marginTop: 0 }]}>
-                  {renderIngredientsList()}
-                </ThemedView>
-              </View>
-              <View style={styles.paneRight}>
-                <Text variant="h2" style={{ marginBottom: theme.spacing.md }}>Instructions</Text>
-                <ThemedView style={[styles.flipCard, { backgroundColor: cardBackgroundColor, minHeight: 0, marginTop: 0 }]}>
-                  {renderStepsList()}
-                </ThemedView>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.section}>
-              <View style={styles.flipCardContainer}>
-                {/* Tab Headers */}
-                <View style={[styles.tabHeaders, { backgroundColor: c.bgMuted, borderRadius: theme.radius.pill, padding: 4 }]}>
-                  <Pressable
-                    style={[
-                      styles.tabHeader,
-                      { borderRadius: theme.radius.pill },
-                      showIngredients && { backgroundColor: c.bgElevated, ...theme.shadow.sm },
-                    ]}
-                    onPress={() => setShowIngredients(true)}
-                  >
-                    <Text variant="bodyMedium" color={showIngredients ? 'fg' : 'fgMuted'}>
-                      Ingredients
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.tabHeader,
-                      { borderRadius: theme.radius.pill },
-                      !showIngredients && { backgroundColor: c.bgElevated, ...theme.shadow.sm },
-                    ]}
-                    onPress={() => setShowIngredients(false)}
-                  >
-                    <Text variant="bodyMedium" color={!showIngredients ? 'fg' : 'fgMuted'}>
-                      Instructions
-                    </Text>
-                  </Pressable>
-                </View>
-
-                {/* Card Content */}
-                <ThemedView style={[styles.flipCard, { backgroundColor: cardBackgroundColor }]}>
-                  <View style={styles.cardContent}>
-                    {showIngredients ? renderIngredientsList() : renderStepsList()}
-                  </View>
-                </ThemedView>
-              </View>
-            </View>
-          )}
         </View>
 
-        {/* Photo Gallery */}
         <RecipePhotoGallery
           recipeId={recipe.id}
           photos={recipe.photos ?? []}
@@ -858,13 +785,39 @@ export default function RecipeDetailScreen() {
         />
       </ScrollView>
 
-      {/* Floating "Ask AI" button */}
+      {/* Floating controls over the hero */}
+      <View style={[styles.navOverlay, { top: insets.top + 12 }]} pointerEvents="box-none">
+        <IconBlock icon="chevron-back" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.push('/(drawer)/(tabs)' as any))} />
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <IconBlock icon="create-outline" label="Edit recipe" onPress={handleEdit} />
+          <IconBlock icon="ellipsis-horizontal" label="More" onPress={() => setShowMenu(!showMenu)} />
+        </View>
+        {showMenu && (
+          <Rise style={[styles.menuDropdown, { backgroundColor: c.bgElevated, borderColor: c.outline, ...theme.shadow.md }]}>
+            {[
+              { label: 'Start cooking', go: () => router.push(`/easy-recipe/${id}` as any) },
+              { label: 'Ask AI', go: () => setShowChat(true) },
+              { label: 'Edit tags', go: () => setShowEditTags(true) },
+            ].map((item) => (
+              <Pressable key={item.label} style={[styles.menuItem, { borderBottomColor: c.border }]} onPress={() => { setShowMenu(false); item.go(); }}>
+                <Text variant="bodyMedium">{item.label}</Text>
+              </Pressable>
+            ))}
+            <Pressable style={styles.menuItem} onPress={() => { setShowMenu(false); setShowDeleteConfirm(true); }}>
+              <Text variant="bodyMedium" color="danger">Delete</Text>
+            </Pressable>
+          </Rise>
+        )}
+      </View>
+
+      {/* Ask AI */}
       <Pressable
         onPress={() => setShowChat(true)}
-        style={[styles.askAiFab, { backgroundColor: c.accent, bottom: insets.bottom + 20, ...theme.shadow.lg }]}
+        accessibilityRole="button"
+        style={(state) => [styles.askAiFab, { backgroundColor: c.butter, borderColor: c.outline, bottom: insets.bottom + 20 }, blockPress(theme, state as PressState, 4)]}
       >
-        <Ionicons name="sparkles" size={20} color={c.accentFg} />
-        <Text variant="button" style={{ color: c.accentFg }}>Ask AI</Text>
+        <Ionicons name="sparkles" size={18} color={c.fg} />
+        <Text variant="button" style={{ color: c.fg }}>Ask AI</Text>
       </Pressable>
 
       {recipe && (
@@ -879,7 +832,8 @@ export default function RecipeDetailScreen() {
         />
       )}
 
-      {/* Tool Execution Modal */}
+      <Toast message={toast} onDismiss={() => setToast(null)} bottom={insets.bottom + 84} />
+
       <ToolExecutionModal
         visible={showToolModal}
         tool={selectedTool}
@@ -931,425 +885,73 @@ export default function RecipeDetailScreen() {
         recipeName={recipe?.title}
         ingredients={(recipe?.ingredients ?? []).map((i) => i.text)}
       />
-    </ThemedView>
+    </FadeIn>
+  );
+}
+
+const SCALES: [number, string][] = [[0.5, '½×'], [1, '1×'], [1.5, '1½×'], [2, '2×'], [3, '3×']];
+
+/** A square outlined button that floats over the hero. */
+function IconBlock({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  const theme = useTheme();
+  const c = theme.colors;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={6}
+      style={(state) => [styles.iconBlock, { backgroundColor: c.bgElevated, borderColor: c.outline }, blockPress(theme, state as PressState, 2, 2)]}
+    >
+      <Ionicons name={icon} size={20} color={c.fg} />
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  container: { flex: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  heroImage: { width: '100%', resizeMode: 'cover' },
   navOverlay: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
-    zIndex: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    position: 'absolute', left: 16, right: 16, zIndex: 10,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
   },
-  navButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  askAiFab: {
-    position: 'absolute',
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 18,
-    height: 48,
-    borderRadius: 24,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  bannerImage: {
-    width: '100%',
-    height: 300,
-    resizeMode: 'cover',
-  },
-  bannerPlaceholder: {
-    width: '100%',
-    height: 300,
-    backgroundColor: '#e0e0e0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  bannerEmoji: {
-    fontSize: 80,
-  },
-  content: {
-    padding: 20,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 20,
-  },
-  cookLogHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  cookLogRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cookLogDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 10,
-  },
-  contentWide: {
-    width: '100%',
-    maxWidth: 1100,
-    alignSelf: 'center',
-    paddingHorizontal: 32,
-  },
-  twoPane: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 24,
-    marginBottom: 32,
-  },
-  paneLeft: {
-    flex: 4,
-    minWidth: 260,
-  },
-  paneRight: {
-    flex: 6,
-    minWidth: 320,
-  },
-  ingredientRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 10,
-  },
-  ingredientName: {
-    fontFamily: fonts.sansSb,
-    fontWeight: '600',
-  },
-  ingredientSection: {
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginTop: 18,
-    marginBottom: 10,
-  },
-  flipButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    borderWidth: 1,
-    marginTop: 1,
-  },
-  checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    lineHeight: 38,
-  },
-  quickInfo: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-    marginBottom: 32,
-    paddingBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    minWidth: '45%',
-  },
-  infoIcon: {
-    fontSize: 24,
-  },
-  infoLabel: {
-    fontSize: 12,
-    opacity: 0.6,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-  },
-  infoValue: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
-  },
-  sectionContent: {
-    paddingLeft: 8,
-  },
-  placeholderText: {
-    fontSize: 16,
-    opacity: 0.5,
-    fontStyle: 'italic',
-  },
-  ingredientItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-    paddingLeft: 4,
-  },
-  ingredientBullet: {
-    fontSize: 24,
-    marginRight: 12,
-    marginTop: -6,
-    color: '#E07856',
-    fontWeight: '700',
-  },
-  ingredientText: {
-    fontSize: 16,
-    lineHeight: 24,
-    flex: 1,
-  },
-  stepItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 20,
-    paddingLeft: 4,
-  },
-  stepNumber: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#E07856',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-    marginTop: 0,
-  },
-  stepNumberText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  stepTextContainer: {
-    flex: 1,
-  },
-  stepText: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  ingredientReferences: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.1)',
-  },
-  ingredientReference: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    opacity: 0.7,
-    lineHeight: 20,
-    marginBottom: 4,
-  },
+  iconBlock: { width: 42, height: 42, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   menuDropdown: {
-    position: 'absolute',
-    top: 48,
-    right: 0,
-    minWidth: 160,
-    zIndex: 11,
-    borderRadius: 12,
-    borderWidth: 1,
-    overflow: 'hidden',
+    position: 'absolute', top: 52, right: 0, minWidth: 190,
+    borderRadius: 14, borderWidth: 2, overflow: 'hidden',
   },
-  menuItem: {
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+  menuItem: { paddingHorizontal: 16, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: 'transparent' },
+  askAiFab: {
+    position: 'absolute', right: 20, flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 18, paddingVertical: 13, borderRadius: 16, borderWidth: 2,
   },
-  menuItemLast: {
-    borderBottomWidth: 0,
+  content: { padding: 20, gap: 20 },
+  contentWide: { width: '100%', maxWidth: 1180, alignSelf: 'center', paddingHorizontal: 32 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 10 },
+  facts: { flexDirection: 'row', gap: 10 },
+  fact: { minWidth: 92, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, borderWidth: 2 },
+  factNarrow: { flex: 1, minWidth: 0, paddingHorizontal: 10 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  twoPane: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  paneLeft: { flex: 5, minWidth: 0 },
+  paneRight: { flex: 7, minWidth: 0 },
+  panel: { borderRadius: 24, borderWidth: 2, padding: 20 },
+  panelHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12, minHeight: 36 },
+  scaleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
+  ingredientRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 6 },
+  ingredientName: { fontFamily: fonts.sansSb, fontWeight: '600' },
+  ingredientSection: { textTransform: 'uppercase', letterSpacing: 0.8, marginTop: 18, marginBottom: 6 },
+  bowl: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  flipButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1.5, marginTop: 1,
   },
-  menuItemText: {
-    fontSize: 16,
-  },
-  menuItemTextDanger: {
-    color: '#ff3b30',
-  },
-  notesText: {
-    fontSize: 16,
-    lineHeight: 24,
-    opacity: 0.8,
-  },
-  confirmOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  confirmModal: {
-    width: '100%',
-    maxWidth: 400,
-  },
-  confirmContent: {
-    borderRadius: 16,
-    padding: 24,
-  },
-  confirmTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
-  confirmMessage: {
-    fontSize: 16,
-    opacity: 0.8,
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  confirmButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#e0e0e0',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-  },
-  deleteButton: {
-    backgroundColor: '#ff3b30',
-  },
-  deleteButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  flipCardContainer: {
-    marginBottom: 16,
-  },
-  tabHeaders: {
-    flexDirection: 'row',
-    marginBottom: 0,
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
-    overflow: 'hidden',
-  },
-  tabHeader: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  flipCard: {
-    borderRadius: 16,
-    padding: 20,
-    minHeight: 300,
-    marginTop: 12,
-  },
-  cardContent: {
-    flex: 1,
-  },
-  easyViewButton: {
-    backgroundColor: '#E07856',
-    padding: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 24,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  easyViewButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  easyViewButtonSubtext: {
-    fontSize: 14,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  multiplierContainer: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(0,0,0,0.03)',
-    borderRadius: 12,
-    marginBottom: 16,
-    maxWidth: 400,
-    alignSelf: 'center',
-    width: '85%',
-  },
-  multiplierHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  multiplierLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  multiplierValueContainer: {
-    minWidth: 60,
-    alignItems: 'flex-end',
-  },
-  multiplierValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#E07856',
-  },
-  sliderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  slider: {
-    flex: 1,
-    height: 40,
-  },
-  sliderEndLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    opacity: 0.5,
-    minWidth: 32,
-    textAlign: 'center',
-  },
+  stepItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 18 },
+  burner: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  burnerRing: { position: 'absolute', width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, opacity: 0.8 },
+  stepTextContainer: { flex: 1, paddingTop: 6 },
+  stepText: { fontSize: 17, lineHeight: 26 },
+  ingredientReferences: { marginTop: 10, paddingTop: 8, borderTopWidth: 1 },
 });

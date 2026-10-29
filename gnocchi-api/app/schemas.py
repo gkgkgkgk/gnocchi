@@ -72,6 +72,8 @@ class RecipeUpdate(BaseModel):
     tags: list[str] | None = None
     cover_image: str | None = None
     ai_insight: dict[str, Any] | None = None
+    # The whole cook log, for removing a mistaken entry or adding a past one.
+    cook_history: list[CookNote] | None = None
 
 
 class RecipeOut(RecipeBase):

@@ -7,7 +7,9 @@ import { Screen } from '@/components/ui/Screen';
 import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { WavyDecoration } from '@/components/wavy-decoration';
+import { PageHeader } from '@/components/kitchen/page-header';
+import { Rise } from '@/components/kitchen/motion';
+import { Plate, SheetTray } from '@/components/kitchen/shapes';
 import { CookbookCard } from '@/components/cookbook-card';
 import { FloatingActionButton } from '@/components/floating-action-button';
 import { CreateCookbookModal } from '@/components/create-cookbook-modal';
@@ -83,10 +85,11 @@ export default function CookbooksScreen() {
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text variant="display">Cookbooks</Text>
-        <WavyDecoration variant="line" width={140} height={16} style={{ marginTop: 4 }} />
-      </View>
+      <PageHeader
+        title="Cookbooks"
+        subtitle={cookbooks.length ? `${cookbooks.length} on the shelf` : undefined}
+        art={<><SheetTray size={64} rotate={-8} /><Plate size={62} /></>}
+      />
 
       {loading ? (
         <View style={styles.centered}><ActivityIndicator color={c.accent} /></View>
@@ -109,8 +112,8 @@ export default function CookbooksScreen() {
           numColumns={numColumns}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: theme.spacing.md, paddingBottom: theme.spacing['3xl'] }}
-          renderItem={({ item }) => (
-            <View style={{ flex: 1 / numColumns, minWidth: 0 }}>
+          renderItem={({ item, index }) => (
+            <Rise index={index} style={{ flex: 1 / numColumns, minWidth: 0 }}>
               <CookbookCard
                 {...item}
                 cover_color={item.cover_color ?? undefined}
@@ -118,7 +121,7 @@ export default function CookbooksScreen() {
                 onEdit={() => handleEditPress(item.id)}
                 onDelete={() => handleDelete(item.id)}
               />
-            </View>
+            </Rise>
           )}
         />
       )}

@@ -22,6 +22,8 @@ export function Sheet({ visible, onClose, children, size = 'auto', style }: Shee
               {
                 backgroundColor: theme.colors.bgElevated,
                 borderRadius: theme.radius.xl,
+                borderWidth: theme.outlineWidth,
+                borderColor: theme.colors.outline,
                 padding: theme.spacing.xl,
                 width: size === 'full' ? '95%' : '100%',
                 maxWidth: 480,

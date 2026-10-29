@@ -3,12 +3,13 @@ import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import * as Haptics from 'expo-haptics';
 
 import { useTheme } from '@/hooks/use-theme';
+import { easeColors, Pop } from '@/components/kitchen/motion';
 import { useResponsive } from '@/hooks/use-responsive';
 
 /** Width of the vertical nav rail shown on tablet / desktop. */
 export const RAIL_WIDTH = 96;
 
-const LOGO = require('@/assets/images/gnocchi_logo.png');
+const LOGO = require('@/assets/images/gnocchi_chef.png');
 
 /**
  * Responsive primary navigation. On phones it renders the familiar bottom
@@ -40,6 +41,7 @@ function BottomBar(props: BottomTabBarProps) {
   const theme = useTheme();
   const c = theme.colors;
   const onPress = useTabPress(props);
+  const tileOn = { backgroundColor: c.accentMuted, borderColor: c.outline, ...theme.shadow.sm };
 
   return (
     <View
@@ -47,14 +49,15 @@ function BottomBar(props: BottomTabBarProps) {
         styles.bottomBar,
         {
           backgroundColor: c.bgElevated,
-          borderTopColor: c.border,
+          borderTopColor: c.outline,
+          borderTopWidth: theme.outlineWidth,
           paddingBottom: Math.max(insets.bottom, 8),
         },
       ]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const focused = state.index === index;
-        const color = focused ? c.accent : c.tabIconDefault;
+        const color = focused ? c.fg : c.tabIconDefault;
         const label = (options.title ?? route.name) as string;
 
         return (
@@ -62,9 +65,12 @@ function BottomBar(props: BottomTabBarProps) {
             key={route.key}
             onPress={() => onPress(route.key, route.name, focused)}
             style={styles.bottomItem}
-            accessibilityRole="button">
-            {options.tabBarIcon?.({ focused, color, size: 26 })}
-            <Text style={[styles.bottomLabel, { color }]} numberOfLines={1}>
+            accessibilityRole="tab"
+            accessibilityState={{ selected: focused }}>
+            <Pop trigger={focused} style={[styles.tabTile, easeColors, focused && tileOn]}>
+              {options.tabBarIcon?.({ focused, color: focused ? c.accent : color, size: 22 })}
+            </Pop>
+            <Text style={[styles.bottomLabel, theme.type.label, { color, fontSize: 11 }]} numberOfLines={1}>
               {label}
             </Text>
           </Pressable>
@@ -81,12 +87,13 @@ function NavRail(props: BottomTabBarProps) {
   const theme = useTheme();
   const c = theme.colors;
   const onPress = useTabPress(props);
+  const tileOn = { backgroundColor: c.accentMuted, borderColor: c.outline, ...theme.shadow.sm };
 
   const renderItem = (routeKey: string, index: number) => {
     const route = state.routes[index];
     const { options } = descriptors[routeKey];
     const focused = state.index === index;
-    const color = focused ? c.accent : c.tabIconDefault;
+    const color = focused ? c.fg : c.tabIconDefault;
     const label = (options.title ?? route.name) as string;
 
     return (
@@ -94,11 +101,12 @@ function NavRail(props: BottomTabBarProps) {
         key={routeKey}
         onPress={() => onPress(routeKey, route.name, focused)}
         style={styles.railItem}
-        accessibilityRole="button">
-        <View style={[styles.railIcon, focused && { backgroundColor: c.accentMuted }]}>
-          {options.tabBarIcon?.({ focused, color, size: 24 })}
-        </View>
-        <Text style={[styles.railLabel, { color }]} numberOfLines={1}>
+        accessibilityRole="tab"
+        accessibilityState={{ selected: focused }}>
+        <Pop trigger={focused} style={[styles.railIcon, easeColors, focused && tileOn]}>
+          {options.tabBarIcon?.({ focused, color: focused ? c.accent : color, size: 24 })}
+        </Pop>
+        <Text style={[styles.railLabel, theme.type.label, { color, fontSize: 12 }]} numberOfLines={1}>
           {label}
         </Text>
       </Pressable>
@@ -116,7 +124,8 @@ function NavRail(props: BottomTabBarProps) {
         {
           width: RAIL_WIDTH,
           backgroundColor: c.bgElevated,
-          borderRightColor: c.border,
+          borderRightColor: c.outline,
+          borderRightWidth: theme.outlineWidth,
           paddingTop: Math.max(insets.top, 12) + 8,
           paddingBottom: Math.max(insets.bottom, 12),
         },
@@ -136,7 +145,6 @@ const styles = StyleSheet.create({
   // Bottom bar
   bottomBar: {
     flexDirection: 'row',
-    borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: 8,
   },
   bottomItem: {
@@ -147,7 +155,15 @@ const styles = StyleSheet.create({
   },
   bottomLabel: {
     fontSize: 11,
-    fontWeight: '600',
+  },
+  tabTile: {
+    width: 46,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Rail
   rail: {
@@ -155,12 +171,11 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    borderRightWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
   },
   logo: {
-    width: 48,
-    height: 48,
+    width: 60,
+    height: 60,
     marginBottom: 20,
   },
   railItems: {
@@ -177,14 +192,15 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   railIcon: {
-    width: 52,
-    height: 34,
-    borderRadius: 999,
+    width: 54,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
   },
   railLabel: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
   },
 });

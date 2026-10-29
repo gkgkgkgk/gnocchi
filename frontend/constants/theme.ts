@@ -1,6 +1,7 @@
 /**
- * Gnocchi design tokens. Warm off-white base, terracotta accent, sage
- * secondary, Fraunces + Inter typography.
+ * Gnocchi design tokens. Warm paper ground, white panels, deep-ink outlines
+ * with hard offset shadows, one tomato accent with sage for secondary
+ * touches. Host Grotesk for headings, Instrument Sans for reading.
  *
  * The tokens are consumed via `useTheme()` (returns the current scheme's
  * token set) and via `useThemeColor()` (kept for backward compat with
@@ -12,87 +13,108 @@ import { Platform } from 'react-native';
 // --- Colors -------------------------------------------------------------
 
 const lightColors = {
-  bg:            '#FBF7F1',   // warm cream — main screen background
-  bgElevated:    '#FFFFFF',   // cards, sheets
-  bgMuted:       '#F1EBE0',   // subtle surfaces (chips, filter bar)
-  bgHover:       '#EFE7D8',
+  bg:            '#FFF8EE',   // warm paper — main screen background
+  bgElevated:    '#FFFFFF',   // panels, cards, sheets, inputs
+  bgMuted:       '#F6ECDF',   // quiet surfaces (chips, segmented controls)
+  bgHover:       '#F0E3D2',
 
-  fg:            '#1E1B18',   // primary text (ink)
-  fgMuted:       '#5C544A',   // secondary text
-  fgSubtle:      '#8B8377',   // tertiary text, placeholder
+  fg:            '#2A2420',   // ink
+  fgMuted:       '#5F554C',   // secondary text
+  fgSubtle:      '#7A7064',   // tertiary text, placeholders
 
-  border:        '#E5DDD0',
-  borderStrong:  '#C8BEAA',
+  border:        '#E9DDCC',   // hairline dividers
+  borderStrong:  '#B9AC9B',   // unselected controls
+  outline:       '#2A2420',   // outlined pieces: cards, buttons, inputs
 
-  accent:        '#E07856',   // terracotta — primary CTA
-  accentHover:   '#CE6944',
+  accent:        '#CF4A25',   // tomato — primary action
+  accentHover:   '#B83F1E',
   accentFg:      '#FFFFFF',
-  accentMuted:   '#F5D9CE',
+  accentMuted:   '#FCE3D7',   // selection tint
 
-  secondary:     '#7A9B76',   // sage — secondary CTA
+  secondary:     '#4F7D57',   // sage — secondary marks
   secondaryFg:   '#FFFFFF',
-  secondaryMuted:'#D6E1D2',
+  secondaryMuted:'#E2F0E1',
 
-  danger:        '#B84B3B',
+  danger:        '#B3372B',
   dangerFg:      '#FFFFFF',
-  dangerMuted:   '#F1D3CD',
+  dangerMuted:   '#F8DAD5',
 
-  warning:       '#D89533',
-  success:       '#5F8D64',
+  warning:       '#C98A1E',
+  success:       '#4F7D57',
 
-  overlay:       'rgba(30, 27, 24, 0.5)',
+  // The kitchen pieces: tomato, butter (gnocchi) and basil, on paper.
+  tomato:        '#E2603C',
+  tomatoMuted:   '#FBDCD0',
+  butter:        '#F5C24C',
+  butterMuted:   '#FFF0C8',
+  basil:         '#6FA371',
+  basilMuted:    '#DDEEDB',
+  cocoa:         '#9C5A3C',   // seared, roasted, baked brown
+  steel:         '#D9D2C7',   // pans, pots and sheet trays
+
+  overlay:       'rgba(42, 36, 32, 0.45)',
 
   // Legacy names still consumed by older screens.
-  text:          '#1E1B18',
-  background:    '#FBF7F1',
-  tint:          '#E07856',
-  icon:          '#5C544A',
-  tabIconDefault:'#8B8377',
-  tabIconSelected: '#E07856',
+  text:          '#2A2420',
+  background:    '#FFF8EE',
+  tint:          '#CF4A25',
+  icon:          '#5F554C',
+  tabIconDefault:'#7A7064',
+  tabIconSelected: '#CF4A25',
   card:          '#FFFFFF',
-  wave:          '#E07856',
+  wave:          '#CF4A25',
 };
 
-const darkColors = {
-  bg:            '#1A1613',
-  bgElevated:    '#211C18',
-  bgMuted:       '#28221E',
-  bgHover:       '#2E2823',
+const darkColors: typeof lightColors = {
+  bg:            '#191512',
+  bgElevated:    '#241F1B',
+  bgMuted:       '#2D2722',
+  bgHover:       '#352E28',
 
-  fg:            '#F5EEE1',
-  fgMuted:       '#B0A797',
-  fgSubtle:      '#7A7365',
+  fg:            '#F7EFE4',
+  fgMuted:       '#C0B5A6',
+  fgSubtle:      '#968A7C',
 
-  border:        '#302923',
-  borderStrong:  '#4A403A',
+  border:        '#3A322B',
+  borderStrong:  '#5C5147',
+  outline:       '#6B5F54',
 
-  accent:        '#EA8869',
-  accentHover:   '#F09A7E',
-  accentFg:      '#1A1613',
-  accentMuted:   '#3A2620',
+  accent:        '#F27A55',
+  accentHover:   '#F58E6D',
+  accentFg:      '#1D1410',
+  accentMuted:   '#3D261D',
 
-  secondary:     '#94B58F',
-  secondaryFg:   '#1A1613',
-  secondaryMuted:'#243024',
+  secondary:     '#8CBF92',
+  secondaryFg:   '#14201A',
+  secondaryMuted:'#22302A',
 
-  danger:        '#D96555',
-  dangerFg:      '#1A1613',
-  dangerMuted:   '#3A2320',
+  danger:        '#E2705F',
+  dangerFg:      '#1D1410',
+  dangerMuted:   '#3D2320',
 
-  warning:       '#E4A754',
-  success:       '#7DAF82',
+  warning:       '#E4AE55',
+  success:       '#8CBF92',
+
+  tomato:        '#E8714D',
+  tomatoMuted:   '#4A2A20',
+  butter:        '#EDBE52',
+  butterMuted:   '#40351C',
+  basil:         '#7FB381',
+  basilMuted:    '#24352A',
+  cocoa:         '#A8664A',
+  steel:         '#5E5650',
 
   overlay:       'rgba(0, 0, 0, 0.6)',
 
   // Legacy.
-  text:          '#F5EEE1',
-  background:    '#1A1613',
-  tint:          '#EA8869',
-  icon:          '#B0A797',
-  tabIconDefault:'#7A7365',
-  tabIconSelected: '#EA8869',
-  card:          '#211C18',
-  wave:          '#EA8869',
+  text:          '#F7EFE4',
+  background:    '#191512',
+  tint:          '#F27A55',
+  icon:          '#C0B5A6',
+  tabIconDefault:'#968A7C',
+  tabIconSelected: '#F27A55',
+  card:          '#241F1B',
+  wave:          '#F27A55',
 };
 
 // --- Spacing / radii / shadows ------------------------------------------
@@ -109,12 +131,15 @@ export const spacing = {
 };
 
 export const radius = {
-  sm: 6,
-  md: 10,
-  lg: 16,
-  xl: 24,
+  sm: 8,
+  md: 12,
+  lg: 18,
+  xl: 26,
   pill: 999,
 };
+
+/** Width of outlines on cards, buttons and inputs. */
+export const outlineWidth = 2;
 
 // Screen-width breakpoints (min-width, in px). Devices we actually run on:
 // phones below `sm`, iPad portrait around `md`, iPad landscape / desktop at
@@ -125,54 +150,52 @@ export const breakpoints = {
   lg: 1200,  // desktop / wide tablet landscape
 };
 
-export const shadow = {
-  sm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-};
+// Hard offset shadows: a solid copy of the outline nudged down-right, no
+// blur. `sm` for chips and small controls, `md` for cards and buttons, `lg`
+// for floating pieces.
+function hardShadows(color: string) {
+  const hard = (offset: number) => ({
+    shadowColor: color,
+    shadowOffset: { width: offset, height: offset },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 0,
+  });
+  return { sm: hard(2), md: hard(3), lg: hard(5) };
+}
+
+export const shadow = hardShadows(lightColors.outline);
+const darkShadow = hardShadows('#000000');
 
 // --- Typography ---------------------------------------------------------
 
+// On web the families load from Google Fonts (see app/+html.tsx) so every
+// weight renders natively; on device they come from @expo-google-fonts.
+const webDisplay = '"Host Grotesk", system-ui, -apple-system, sans-serif';
+const webReading = '"Instrument Sans", system-ui, -apple-system, sans-serif';
+
 export const fonts = {
-  serif:   Platform.select({ web: '"Fraunces", ui-serif, Georgia, serif',                default: 'Fraunces_400Regular' })!,
-  serifBd: Platform.select({ web: '"Fraunces", ui-serif, Georgia, serif',                default: 'Fraunces_700Bold' })!,
-  sans:    Platform.select({ web: '"Inter", system-ui, -apple-system, sans-serif',       default: 'Inter_400Regular' })!,
-  sansMd:  Platform.select({ web: '"Inter", system-ui, -apple-system, sans-serif',       default: 'Inter_500Medium' })!,
-  sansSb:  Platform.select({ web: '"Inter", system-ui, -apple-system, sans-serif',       default: 'Inter_600SemiBold' })!,
-  sansBd:  Platform.select({ web: '"Inter", system-ui, -apple-system, sans-serif',       default: 'Inter_700Bold' })!,
+  display:   Platform.select({ web: webDisplay, default: 'HostGrotesk_700Bold' })!,
+  displayBd: Platform.select({ web: webDisplay, default: 'HostGrotesk_800ExtraBold' })!,
+  sans:      Platform.select({ web: webReading, default: 'InstrumentSans_400Regular' })!,
+  sansMd:    Platform.select({ web: webReading, default: 'InstrumentSans_500Medium' })!,
+  sansSb:    Platform.select({ web: webReading, default: 'InstrumentSans_600SemiBold' })!,
+  sansBd:    Platform.select({ web: webReading, default: 'InstrumentSans_700Bold' })!,
 };
 
 // Typography presets used across the app.
 export const type = {
-  display:    { fontFamily: fonts.serifBd, fontSize: 34, lineHeight: 40, fontWeight: '700' as const },
-  h1:         { fontFamily: fonts.serifBd, fontSize: 26, lineHeight: 32, fontWeight: '700' as const },
-  h2:         { fontFamily: fonts.serifBd, fontSize: 20, lineHeight: 26, fontWeight: '700' as const },
-  h3:         { fontFamily: fonts.sansSb,  fontSize: 17, lineHeight: 22, fontWeight: '600' as const },
-  body:       { fontFamily: fonts.sans,    fontSize: 15, lineHeight: 22, fontWeight: '400' as const },
-  bodyMedium: { fontFamily: fonts.sansMd,  fontSize: 15, lineHeight: 22, fontWeight: '500' as const },
-  small:      { fontFamily: fonts.sans,    fontSize: 13, lineHeight: 18, fontWeight: '400' as const },
-  smallMedium:{ fontFamily: fonts.sansMd,  fontSize: 13, lineHeight: 18, fontWeight: '500' as const },
-  caption:    { fontFamily: fonts.sans,    fontSize: 11, lineHeight: 14, fontWeight: '400' as const },
-  button:     { fontFamily: fonts.sansSb,  fontSize: 15, lineHeight: 18, fontWeight: '600' as const },
-  label:      { fontFamily: fonts.sansSb,  fontSize: 13, lineHeight: 18, fontWeight: '600' as const },
+  display:    { fontFamily: fonts.displayBd, fontSize: 36, lineHeight: 38, fontWeight: '800' as const, letterSpacing: -1 },
+  h1:         { fontFamily: fonts.displayBd, fontSize: 28, lineHeight: 32, fontWeight: '800' as const, letterSpacing: -0.6 },
+  h2:         { fontFamily: fonts.display,   fontSize: 21, lineHeight: 26, fontWeight: '700' as const, letterSpacing: -0.3 },
+  h3:         { fontFamily: fonts.sansSb,    fontSize: 17, lineHeight: 22, fontWeight: '600' as const },
+  body:       { fontFamily: fonts.sans,      fontSize: 16, lineHeight: 24, fontWeight: '400' as const },
+  bodyMedium: { fontFamily: fonts.sansMd,    fontSize: 16, lineHeight: 24, fontWeight: '500' as const },
+  small:      { fontFamily: fonts.sans,      fontSize: 14, lineHeight: 20, fontWeight: '400' as const },
+  smallMedium:{ fontFamily: fonts.sansMd,    fontSize: 14, lineHeight: 20, fontWeight: '500' as const },
+  caption:    { fontFamily: fonts.sans,      fontSize: 12, lineHeight: 16, fontWeight: '400' as const },
+  button:     { fontFamily: fonts.sansSb,    fontSize: 15, lineHeight: 18, fontWeight: '600' as const },
+  label:      { fontFamily: fonts.sansSb,    fontSize: 13, lineHeight: 18, fontWeight: '600' as const, letterSpacing: 0.2 },
 };
 
 // --- Assembled theme ---------------------------------------------------
@@ -184,11 +207,12 @@ export type Theme = {
   radius: typeof radius;
   shadow: typeof shadow;
   type: typeof type;
+  outlineWidth: number;
   scheme: 'light' | 'dark';
 };
 
-export const lightTheme: Theme = { colors: lightColors, spacing, radius, shadow, type, scheme: 'light' };
-export const darkTheme:  Theme = { colors: darkColors,  spacing, radius, shadow, type, scheme: 'dark' };
+export const lightTheme: Theme = { colors: lightColors, spacing, radius, shadow, type, outlineWidth, scheme: 'light' };
+export const darkTheme:  Theme = { colors: darkColors,  spacing, radius, shadow: darkShadow, type, outlineWidth, scheme: 'dark' };
 
 // --- Legacy Colors export (backward compat with un-refactored screens) --
 
@@ -211,9 +235,9 @@ export const Fonts = Platform.select({
     mono:   'monospace',
   },
   web: {
-    sans:   "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif:  "Georgia, 'Times New Roman', serif",
-    rounded:"'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    sans:   webReading,
+    serif:  webDisplay,
+    rounded:webDisplay,
     mono:   "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });

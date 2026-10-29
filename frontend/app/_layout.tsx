@@ -4,19 +4,18 @@ import { StatusBar } from 'expo-status-bar';
 import { MenuProvider } from 'react-native-popup-menu';
 import 'react-native-reanimated';
 import {
-  Fraunces_400Regular,
-  Fraunces_500Medium,
-  Fraunces_700Bold,
-  useFonts as useFraunces,
-} from '@expo-google-fonts/fraunces';
+  HostGrotesk_700Bold,
+  HostGrotesk_800ExtraBold,
+  useFonts as useHostGrotesk,
+} from '@expo-google-fonts/host-grotesk';
 import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-  useFonts as useInter,
-} from '@expo-google-fonts/inter';
-import { ActivityIndicator, View } from 'react-native';
+  InstrumentSans_400Regular,
+  InstrumentSans_500Medium,
+  InstrumentSans_600SemiBold,
+  InstrumentSans_700Bold,
+  useFonts as useInstrumentSans,
+} from '@expo-google-fonts/instrument-sans';
+import { ActivityIndicator, Platform, View } from 'react-native';
 
 import { ThemeProvider as ThemePreferenceProvider } from '@/contexts/theme-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -27,10 +26,14 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
-  const [interLoaded] = useInter({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
-  const [frLoaded] = useFraunces({ Fraunces_400Regular, Fraunces_500Medium, Fraunces_700Bold });
+  // Web loads these families from Google Fonts in +html.tsx instead.
+  const native = Platform.OS !== 'web';
+  const [readingLoaded] = useInstrumentSans(native ? {
+    InstrumentSans_400Regular, InstrumentSans_500Medium, InstrumentSans_600SemiBold, InstrumentSans_700Bold,
+  } : {});
+  const [displayLoaded] = useHostGrotesk(native ? { HostGrotesk_700Bold, HostGrotesk_800ExtraBold } : {});
 
-  if (!interLoaded || !frLoaded) {
+  if (!readingLoaded || !displayLoaded) {
     return <FontsLoading />;
   }
 

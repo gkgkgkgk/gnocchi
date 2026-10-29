@@ -9,6 +9,9 @@ import { Text } from '@/components/ui/Text';
 import { Button } from '@/components/ui/Button';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { useTheme } from '@/hooks/use-theme';
+import { Mascot } from '@/components/kitchen/mascot';
+import { Plate } from '@/components/kitchen/shapes';
+import { Bob } from '@/components/kitchen/motion';
 import { takePhoto, pickImage, parseRecipeFromImage } from '@/services/image-service';
 
 export default function ScanPhotoScreen() {
@@ -92,21 +95,25 @@ export default function ScanPhotoScreen() {
 
   return (
     <Screen>
-      <ScreenHeader title="Scan Recipe Photo" onBack={() => router.back()} />
+      <ScreenHeader title="Snap a recipe" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.content}>
         {imageUri ? (
-          <View style={[styles.imageContainer, { backgroundColor: c.bgMuted, borderRadius: theme.radius.lg }]}>
+          <View style={[styles.imageContainer, { backgroundColor: c.bgMuted, borderRadius: theme.radius.xl, borderWidth: 2, borderColor: c.outline }]}>
             <Image source={{ uri: imageUri }} style={styles.image} contentFit="contain" />
             <Pressable style={styles.retakeButton} onPress={() => setImageUri(null)}>
               <Ionicons name="close-circle" size={32} color="#fff" />
             </Pressable>
           </View>
         ) : (
-          <View style={[styles.placeholder, { borderColor: c.borderStrong, borderRadius: theme.radius.lg }]}>
-            <Ionicons name="camera-outline" size={72} color={c.fgSubtle} />
-            <Text variant="body" color="fgMuted" style={{ marginTop: 16, textAlign: 'center' }}>
-              Take a photo or select from gallery
+          <View style={[styles.placeholder, { borderColor: c.borderStrong, borderRadius: theme.radius.xl, backgroundColor: c.bgElevated }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+              <Bob><Mascot size={110} /></Bob>
+              <Plate size={84} />
+            </View>
+            <Text variant="h2" style={{ marginTop: 16, textAlign: 'center' }}>A cookbook page, a card, a screenshot</Text>
+            <Text variant="body" color="fgMuted" style={{ marginTop: 6, textAlign: 'center', maxWidth: 360 }}>
+              Gnocchi reads the ingredients and steps, then you check them over before saving.
             </Text>
           </View>
         )}
@@ -115,10 +122,10 @@ export default function ScanPhotoScreen() {
           {!imageUri ? (
             <>
               <Button onPress={handleTakePhoto} fullWidth size="lg" icon={<Ionicons name="camera" size={20} color={c.accentFg} />}>
-                Take Photo
+                Take a photo
               </Button>
               <Button onPress={handlePickImage} variant="secondary" fullWidth size="lg" icon={<Ionicons name="images" size={20} color={c.fg} />}>
-                Choose from Gallery
+                Choose a photo
               </Button>
             </>
           ) : (
@@ -130,23 +137,18 @@ export default function ScanPhotoScreen() {
               size="lg"
               icon={!busy ? <Ionicons name="sparkles" size={20} color={c.accentFg} /> : undefined}
             >
-              {busy ? (uploading ? 'Uploading…' : 'Processing…') : 'Process Recipe'}
+              {busy ? (uploading ? 'Uploading…' : 'Reading the recipe…') : 'Read this recipe'}
             </Button>
           )}
         </View>
 
-        <View style={[styles.info, { backgroundColor: c.bgMuted, borderRadius: theme.radius.lg }]}>
-          <Text variant="small" color="fgMuted">📸 Take a clear photo of the recipe</Text>
-          <Text variant="small" color="fgMuted">✨ AI will extract ingredients and instructions</Text>
-          <Text variant="small" color="fgMuted">✏️ Review and edit before saving</Text>
-        </View>
       </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20 },
+  content: { padding: 20, width: '100%', maxWidth: 720, alignSelf: 'center' },
   imageContainer: {
     position: 'relative',
     width: '100%',
@@ -172,5 +174,4 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   buttons: { gap: 12, marginBottom: 24 },
-  info: { gap: 8, padding: 16 },
 });

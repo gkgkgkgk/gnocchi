@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Text } from '@/components/ui/Text';
 import { useTheme } from '@/hooks/use-theme';
+import { blockPress, type PressState } from './press';
 
 interface ScreenHeaderProps {
   title?: string;
@@ -16,15 +17,17 @@ interface ScreenHeaderProps {
 export function ScreenHeader({ title, onBack, right }: ScreenHeaderProps) {
   const theme = useTheme();
   return (
-    <View style={[styles.row, { borderBottomColor: theme.colors.border, paddingHorizontal: theme.spacing.lg }]}>
+    <View style={[styles.row, { borderBottomColor: theme.colors.outline, paddingHorizontal: theme.spacing.lg }]}>
       <View style={styles.side}>
         {onBack && (
           <Pressable
             onPress={onBack}
             hitSlop={8}
-            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            style={(state) => [styles.backBtn, { backgroundColor: theme.colors.bgElevated, borderColor: theme.colors.outline }, blockPress(theme, state as PressState, 2, 2)]}
           >
-            <Ionicons name="chevron-back" size={26} color={theme.colors.fg} />
+            <Ionicons name="chevron-back" size={22} color={theme.colors.fg} />
           </Pressable>
         )}
       </View>
@@ -47,11 +50,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    minHeight: 48,
+    borderBottomWidth: 2,
+    minHeight: 58,
   },
-  side: { width: 44, justifyContent: 'center' },
+  side: { width: 52, justifyContent: 'center' },
   right: { alignItems: 'flex-end' },
-  backBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', marginLeft: -6 },
+  backBtn: { width: 38, height: 38, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, textAlign: 'center' },
 });

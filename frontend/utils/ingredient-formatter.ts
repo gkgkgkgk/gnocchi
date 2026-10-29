@@ -125,3 +125,91 @@ export function groupBySection<T extends { section?: string | null }>(
   });
   return groups;
 }
+
+const UNICODE_FRACTIONS: Record<string, number> = {
+  '¼': 0.25, '½': 0.5, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875,
+};
+
+// Spoken and written unit spellings → the short form the app stores.
+const UNIT_ALIASES: Record<string, string> = {
+  cup: 'cup', cups: 'cup', c: 'cup',
+  tablespoon: 'tbsp', tablespoons: 'tbsp', tbsp: 'tbsp', tbs: 'tbsp', tbl: 'tbsp', T: 'tbsp',
+  teaspoon: 'tsp', teaspoons: 'tsp', tsp: 'tsp', t: 'tsp',
+  ounce: 'oz', ounces: 'oz', oz: 'oz',
+  pound: 'lb', pounds: 'lb', lb: 'lb', lbs: 'lb',
+  gram: 'g', grams: 'g', g: 'g', kilogram: 'kg', kilograms: 'kg', kg: 'kg',
+  milliliter: 'ml', milliliters: 'ml', millilitre: 'ml', millilitres: 'ml', ml: 'ml',
+  liter: 'l', liters: 'l', litre: 'l', litres: 'l', l: 'l',
+  pint: 'pt', pints: 'pt', pt: 'pt', quart: 'qt', quarts: 'qt', qt: 'qt', gallon: 'gal', gallons: 'gal',
+  clove: 'clove', cloves: 'clove', can: 'can', cans: 'can', pinch: 'pinch', pinches: 'pinch',
+  dash: 'dash', dashes: 'dash', slice: 'slice', slices: 'slice', stick: 'stick', sticks: 'stick',
+  bunch: 'bunch', bunches: 'bunch', sprig: 'sprig', sprigs: 'sprig', handful: 'handful', handfuls: 'handful',
+  piece: 'piece', pieces: 'piece', package: 'package', packages: 'package', pkg: 'package',
+  head: 'head', heads: 'head', stalk: 'stalk', stalks: 'stalk', jar: 'jar', jars: 'jar',
+};
+
+function amountValue(token: string): number {
+  const t = token.trim().replace(',', '.');
+  const mixed = t.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (mixed) return +mixed[1] + +mixed[2] / +mixed[3];
+  const frac = t.match(/^(\d+)\/(\d+)$/);
+  if (frac) return +frac[1] / +frac[2];
+  const uni = t.match(new RegExp(`^(\\d*)\\s*([${FRACTION_CHARS}])$`));
+  if (uni) return (+uni[1] || 0) + UNICODE_FRACTIONS[uni[2]];
+  const n = parseFloat(t);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+export interface ParsedIngredient {
+  quantity: number;
+  unit: string;
+  name: string;
+  optional: boolean;
+}
+
+/**
+ * Read one written ingredient line: "1 1/2 cups flour, sifted",
+ * "½ tsp salt (optional)", "2 cloves garlic". A range like "1–2 tbsp" keeps
+ * its first amount. Lines without an amount become just a name.
+ */
+export function parseIngredientLine(line: string): ParsedIngredient {
+  let s = line.trim().replace(/^[-*•·▪◦□☐▢]+\s*/, '');
+  let optional = false;
+  s = s.replace(/\s*\(optional\)|,?\s*optional$/i, () => { optional = true; return ''; });
+
+  let quantity = 0;
+  const amount = s.match(LEADING_AMOUNT);
+  if (amount) {
+    const first = amount[0].trim().split(/\s*(?:-|–|—|to)\s*(?=[\d¼½¾⅓⅔⅛⅜⅝⅞])/i)[0];
+    quantity = amountValue(first);
+    s = s.slice(amount[0].length);
+  }
+
+  let unit = '';
+  const word = s.match(/^([A-Za-z]+)\.?(?=\s|$)/);
+  if (word && quantity > 0) {
+    const alias = UNIT_ALIASES[word[1]] ?? UNIT_ALIASES[word[1].toLowerCase()];
+    if (alias) {
+      unit = alias;
+      s = s.slice(word[0].length);
+    }
+  }
+  const name = s.replace(/^\s*of\s+/i, '').trim();
+  return { quantity, unit, name, optional };
+}
+
+/**
+ * A heading line inside a pasted ingredient list, like "For the marinade:" or
+ * "SAUCE". Returns the section name, or null for an ordinary ingredient.
+ */
+export function sectionHeading(line: string): string | null {
+  const s = line.trim();
+  const colon = s.match(/^(?:for\s+(?:the\s+)?)?([^:\d][^:]{0,40}):$/i);
+  if (colon) return capitalize(colon[1].trim());
+  if (/^[A-Z][A-Z &]{2,30}$/.test(s)) return capitalize(s.toLowerCase());
+  return null;
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}

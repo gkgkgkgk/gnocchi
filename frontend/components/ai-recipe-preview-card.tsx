@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Text } from './ui/Text';
 import { Chip } from './ui/Chip';
 import { useTheme } from '@/hooks/use-theme';
+import { RecipeCover } from './kitchen/recipe-cover';
+import { Rise } from './kitchen/motion';
 
 interface AiRecipePreviewCardProps {
   /** AIRecipePayload shape: { title, ingredients:[{quantity,unit,text}], instructions|steps, notes, metadata }. */
@@ -29,8 +31,15 @@ export function AiRecipePreviewCard({ recipe, showSteps, footer }: AiRecipePrevi
   const totalTime = (md.prep_time ?? 0) + (md.cook_time ?? 0);
 
   return (
-    <View style={[styles.card, { backgroundColor: c.bgElevated, borderColor: c.border }]}>
-      <Text variant="h3">{recipe.title || 'Untitled recipe'}</Text>
+    <Rise style={[styles.card, { backgroundColor: c.bgElevated, borderColor: c.outline, ...theme.shadow.md }]}>
+      <RecipeCover
+        title={recipe.title || ''}
+        ingredients={ingredients.map((i: any) => i.text ?? '')}
+        height={120}
+        steam
+        style={{ marginHorizontal: -16, marginTop: -16, marginBottom: 14, borderBottomWidth: 2, borderBottomColor: c.outline }}
+      />
+      <Text variant="h2">{recipe.title || 'Untitled recipe'}</Text>
 
       <View style={styles.metaRow}>
         <Chip size="sm" icon={<Ionicons name="list-outline" size={13} color={c.fg} />}>
@@ -82,7 +91,7 @@ export function AiRecipePreviewCard({ recipe, showSteps, footer }: AiRecipePrevi
       )}
 
       {footer}
-    </View>
+    </Rise>
   );
 }
 
@@ -90,8 +99,9 @@ const styles = StyleSheet.create({
   card: {
     marginTop: 8,
     padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: 20,
+    borderWidth: 2,
+    overflow: 'hidden',
     alignSelf: 'stretch',
   },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },

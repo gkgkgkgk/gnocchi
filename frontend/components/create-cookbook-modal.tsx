@@ -8,6 +8,8 @@ import { ThemedView } from './themed-view';
 import { fetchRecipes, Recipe } from '@/services/recipe-service';
 import { Image } from 'expo-image';
 import { useTheme } from '@/hooks/use-theme';
+import { inputStyle } from './ui/Input';
+import { DishTile } from './kitchen/dish-sticker';
 import { type Theme } from '@/constants/theme';
 
 interface CreateCookbookModalProps {
@@ -199,7 +201,7 @@ export function CreateCookbookModal({
                             />
                           ) : (
                             <View style={styles.selectedRecipePlaceholder}>
-                              <Ionicons name="restaurant" size={20} color={c.fgSubtle} />
+                              <DishTile title={item.title} id={item.id} size={46} />
                             </View>
                           )}
                           
@@ -211,7 +213,7 @@ export function CreateCookbookModal({
                             onPress={() => toggleRecipe(item.id)}
                             style={styles.removeButton}
                           >
-                            <Ionicons name="close-circle" size={24} color={c.danger} />
+                            <Ionicons name="close" size={20} color={c.fgMuted} />
                           </Pressable>
                         </Pressable>
                       </ScaleDecorator>
@@ -249,12 +251,12 @@ export function CreateCookbookModal({
                               />
                             ) : (
                               <View style={styles.placeholderImage}>
-                                <Ionicons name="restaurant" size={32} color={c.fgSubtle} />
+                                <DishTile title={recipe.title} id={recipe.id} size={150} />
                               </View>
                             )}
                             
                             <View style={styles.checkbox}>
-                              <Ionicons name="add" size={16} color={c.fgMuted} />
+                              <Ionicons name="add" size={18} color={c.fg} />
                             </View>
                           </View>
 
@@ -288,8 +290,8 @@ function makeStyles(theme: Theme) {
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: c.border,
+    borderBottomWidth: 2,
+    borderBottomColor: c.outline,
   },
   headerButton: {
     padding: 8,
@@ -307,30 +309,31 @@ function makeStyles(theme: Theme) {
   },
   inputContainer: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: c.border,
   },
   inputLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    opacity: 0.6,
+    ...theme.type.label,
+    color: c.fgMuted,
     marginBottom: 8,
   },
   input: {
-    fontSize: 18,
-    fontWeight: '600',
-    paddingVertical: 8,
-    color: c.fg,
+    ...inputStyle(theme),
+    ...theme.type.h2,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   selectedCountContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: c.accentMuted,
+    marginHorizontal: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: c.outline,
+    backgroundColor: c.butterMuted,
+    alignSelf: 'flex-start',
   },
   selectedCount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: c.accent,
+    ...theme.type.label,
+    color: c.fg,
   },
   loadingContainer: {
     flex: 1,
@@ -357,12 +360,14 @@ function makeStyles(theme: Theme) {
   selectedRecipeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 14,
+    padding: 10,
     marginBottom: 8,
     gap: 12,
-    borderWidth: 1,
-    borderColor: c.border,
+    borderWidth: 2,
+    borderColor: c.outline,
+    backgroundColor: c.bgElevated,
+    ...theme.shadow.sm,
   },
   draggingItem: {
     opacity: 0.7,
@@ -372,17 +377,17 @@ function makeStyles(theme: Theme) {
     padding: 4,
   },
   selectedRecipeImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
+    width: 46,
+    height: 46,
+    borderRadius: 10,
   },
   selectedRecipePlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    backgroundColor: c.bgMuted,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 46,
+    height: 46,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: c.outline,
   },
   selectedRecipeTitle: {
     flex: 1,
@@ -400,7 +405,7 @@ function makeStyles(theme: Theme) {
     flexWrap: 'wrap',
   },
   recipeCard: {
-    padding: 4,
+    padding: 8,
   },
   newRow: {
     marginTop: 0,
@@ -408,9 +413,12 @@ function makeStyles(theme: Theme) {
   imageContainer: {
     position: 'relative',
     aspectRatio: 1,
-    borderRadius: 8,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: c.outline,
     overflow: 'hidden',
-    marginBottom: 4,
+    marginBottom: 6,
+    ...theme.shadow.sm,
   },
   recipeImage: {
     width: '100%',
@@ -419,7 +427,7 @@ function makeStyles(theme: Theme) {
   placeholderImage: {
     width: '100%',
     height: '100%',
-    backgroundColor: c.bgMuted,
+    overflow: 'hidden',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -435,18 +443,17 @@ function makeStyles(theme: Theme) {
     position: 'absolute',
     top: 8,
     right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: c.bgElevated,
     borderWidth: 2,
-    borderColor: c.accent,
+    borderColor: c.outline,
     justifyContent: 'center',
     alignItems: 'center',
   },
   recipeTitle: {
-    fontSize: 12,
-    fontWeight: '500',
+    ...theme.type.smallMedium,
     textAlign: 'center',
   },
   });

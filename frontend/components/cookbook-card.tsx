@@ -7,6 +7,8 @@ import { Text } from './ui/Text';
 import { Sheet } from './ui/Sheet';
 import { Button } from './ui/Button';
 import { useTheme } from '@/hooks/use-theme';
+import { type ColorTokens } from '@/constants/theme';
+import { blockPress, type PressState } from './ui/press';
 
 interface CookbookCardProps {
   id: string;
@@ -22,10 +24,22 @@ interface CookbookCardProps {
 /** A stylized "book cover" tile: colored cover + spine, title in serif,
  *  small recipe-count pill, top-right menu. Uses the theme palette for
  *  contrast text so wild cover colors still stay readable. */
+/** A cookbook's cloth colour from the kitchen palette, picked by name so it keeps its look. */
+export function clothFor(name: string, c: ColorTokens): { bg: string; fg: string } {
+  const cloths = [
+    { bg: c.tomato, fg: '#FFFFFF' },
+    { bg: c.butter, fg: c.fg },
+    { bg: c.basil, fg: '#FFFFFF' },
+    { bg: c.cocoa, fg: '#FFFFFF' },
+  ];
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return cloths[h % cloths.length];
+}
+
 export function CookbookCard({
   name,
   description,
-  cover_color = '#E07856',
   recipe_count = 0,
   onPress,
   onEdit,
@@ -35,36 +49,32 @@ export function CookbookCard({
   const c = theme.colors;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const cloth = clothFor(name, c);
+
   return (
     <>
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [styles.container, pressed && { opacity: 0.92 }]}
+        accessibilityRole="button"
+        accessibilityLabel={`${name}, ${recipe_count} ${recipe_count === 1 ? 'recipe' : 'recipes'}`}
+        style={(state) => [styles.container, blockPress(theme, state as PressState, 4)]}
       >
-        {/* Book spine — offset behind the cover */}
-        <View style={[styles.spine, { backgroundColor: cover_color }]} />
-
-        {/* Cover */}
-        <View style={[styles.cover, { backgroundColor: cover_color, borderRadius: theme.radius.lg, ...theme.shadow.md }]}>
-          <View style={styles.decor}>
-            <View style={styles.decorLine} />
-            <View style={styles.decorLine} />
-          </View>
-
-          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 4 }}>
-            <Text variant="h1" style={styles.title} numberOfLines={2}>
+        <View style={[styles.cover, { backgroundColor: cloth.bg, borderColor: c.outline }]}>
+          {/* the spine */}
+          <View style={[styles.spine, { borderColor: c.outline }]} />
+          <View style={[styles.label, { backgroundColor: c.bgElevated, borderColor: c.outline }]}>
+            <Text variant="h2" style={styles.title} numberOfLines={3}>
               {name}
             </Text>
             {description ? (
-              <Text variant="small" style={styles.description} numberOfLines={2}>
+              <Text variant="small" color="fgMuted" style={styles.description} numberOfLines={2}>
                 {description}
               </Text>
             ) : null}
           </View>
-
-          <View style={styles.badge}>
-            <Ionicons name="restaurant" size={12} color="#fff" />
-            <Text variant="caption" style={{ color: '#fff', fontWeight: '600' }}>
+          <View style={[styles.badge, { backgroundColor: c.bgElevated, borderColor: c.outline }]}>
+            <Ionicons name="restaurant" size={12} color={c.accent} />
+            <Text variant="label" style={{ fontSize: 12 }}>
               {recipe_count} {recipe_count === 1 ? 'recipe' : 'recipes'}
             </Text>
           </View>
@@ -74,7 +84,7 @@ export function CookbookCard({
           <View style={styles.menuWrap}>
             <Menu>
               <MenuTrigger customStyles={{ triggerWrapper: styles.menuButton }}>
-                <Ionicons name="ellipsis-vertical" size={16} color="#fff" />
+                <Ionicons name="ellipsis-vertical" size={16} color={cloth.fg} />
               </MenuTrigger>
               <MenuOptions
                 customStyles={{
@@ -83,6 +93,8 @@ export function CookbookCard({
                     padding: 4,
                     minWidth: 160,
                     backgroundColor: c.bgElevated,
+                    borderWidth: 2,
+                    borderColor: c.outline,
                     ...theme.shadow.md,
                   },
                 }}
@@ -126,53 +138,25 @@ export function CookbookCard({
 }
 
 const styles = StyleSheet.create({
-  container: { position: 'relative', margin: 6, aspectRatio: 3 / 4 },
-  spine: {
-    position: 'absolute',
-    left: -4,
-    top: 8,
-    bottom: 8,
-    width: 8,
-    borderRadius: 4,
-    opacity: 0.85,
-  },
+  container: { margin: 10, aspectRatio: 3 / 4, borderRadius: 18 },
   cover: {
-    flex: 1,
-    padding: 16,
-    justifyContent: 'space-between',
+    flex: 1, borderRadius: 18, borderWidth: 2, overflow: 'hidden',
+    paddingVertical: 18, paddingLeft: 30, paddingRight: 16, justifyContent: 'space-between',
   },
-  title: {
-    color: '#fff',
-    textAlign: 'center',
+  spine: {
+    position: 'absolute', left: 0, top: 0, bottom: 0, width: 16,
+    borderRightWidth: 2, backgroundColor: 'rgba(0,0,0,0.14)',
   },
-  description: {
-    color: 'rgba(255,255,255,0.85)',
-    textAlign: 'center',
-    marginTop: 6,
-  },
+  label: { borderWidth: 2, borderRadius: 12, padding: 12, marginTop: 6 },
+  title: { textAlign: 'center' },
+  description: { textAlign: 'center', marginTop: 6 },
   badge: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-    borderRadius: 999,
-  },
-  decor: { gap: 4 },
-  decorLine: {
-    height: 1.5,
-    backgroundColor: 'rgba(255,255,255,0.35)',
-    borderRadius: 999,
+    alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 2,
   },
   menuWrap: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    borderRadius: 999,
+    position: 'absolute', top: 8, right: 8,
   },
-  menuButton: { padding: 6 },
+  menuButton: { padding: 6, borderRadius: 999 },
   menuItem: { padding: 12 },
 });

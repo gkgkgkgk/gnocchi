@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Image, Pressable, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -9,87 +9,60 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Chip } from '@/components/ui/Chip';
 import { Card } from '@/components/ui/Card';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { Board, Plate, Pot, Skillet, Tomato } from '@/components/kitchen/shapes';
+import { Mascot } from '@/components/kitchen/mascot';
+import { Bob, Rise, Sizzle } from '@/components/kitchen/motion';
 import { importFromPinterest, importFromWebsite, importFromText, ImportResponse } from '@/services/pinterest-service';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsive } from '@/hooks/use-responsive';
 
-type Mode = 'link' | 'text';
-type Source = 'pinterest' | 'instagram' | 'website';
+type Source = 'pinterest' | 'instagram' | 'website' | 'text';
 
 const SOURCE_META: Record<Source, { label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   pinterest: { label: 'Pinterest pin', icon: 'logo-pinterest' },
   instagram: { label: 'Instagram post', icon: 'logo-instagram' },
-  website:   { label: 'Recipe website', icon: 'globe-outline' },
+  website:   { label: 'Recipe link', icon: 'link-outline' },
+  text:      { label: 'Recipe text', icon: 'document-text-outline' },
 };
 
-function detectSource(url: string): Source {
-  const u = url.toLowerCase();
-  if (u.includes('pinterest.') || u.includes('pin.it')) return 'pinterest';
-  if (u.includes('instagram.')) return 'instagram';
-  return 'website';
+/** A lone URL is a link to fetch; anything else is recipe text to read. */
+function detectSource(input: string): Source | null {
+  const s = input.trim();
+  if (!s) return null;
+  if (/^(https?:\/\/|www\.)\S+$/i.test(s)) {
+    const u = s.toLowerCase();
+    if (u.includes('pinterest.') || u.includes('pin.it')) return 'pinterest';
+    if (u.includes('instagram.')) return 'instagram';
+    return 'website';
+  }
+  return 'text';
 }
 
-export default function ImportScreen() {
+/**
+ * "What's cooking?" — the one place to add a recipe. Paste a link or a whole
+ * recipe into the box and it's read straight into the editor to check over;
+ * or snap a photo, pitch an idea, or start from a blank board.
+ */
+export default function AddRecipeScreen() {
   const router = useRouter();
   const theme = useTheme();
   const c = theme.colors;
   const { isWide } = useResponsive();
-  const [mode, setMode] = useState<Mode>('link');
-  const [url, setUrl] = useState('');
-  const [text, setText] = useState('');
-  // When we bounce an Instagram link over to paste-text, remember it as the
-  // recipe's source so the saved recipe still links back to the post.
-  const [textSourceUrl, setTextSourceUrl] = useState<string | null>(null);
+  const [input, setInput] = useState('');
+  // After an Instagram link, the pasted caption keeps the post as its source.
+  const [captionFor, setCaptionFor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [preview, setPreview] = useState<ImportResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const source = useMemo(() => (url.trim() ? detectSource(url) : null), [url]);
+  const source = useMemo(() => detectSource(input), [input]);
+  const tooShort = source === 'text' && input.trim().length < 20;
+  const canRead = !!source && source !== 'instagram' && !tooShort && !loading;
 
-  const switchToText = (fromUrl?: string) => {
-    setMode('text');
-    setPreview(null);
-    setTextSourceUrl(fromUrl ?? null);
-  };
-
-  const handlePreview = async () => {
-    setLoading(true);
-    setPreview(null);
-    try {
-      let result: ImportResponse;
-      if (mode === 'text') {
-        const body = text.trim();
-        if (body.length < 20) {
-          Alert.alert('Paste a recipe', 'Paste the full caption or recipe text — that was too short to read.');
-          return;
-        }
-        result = await importFromText(body, textSourceUrl ?? undefined);
-      } else {
-        const trimmed = url.trim();
-        if (!trimmed) {
-          Alert.alert('Add a link', 'Paste a recipe URL to import.');
-          return;
-        }
-        const src = detectSource(trimmed);
-        // Instagram walls automated reading of its posts (no ToS-clean scrape),
-        // so the URL can't be previewed — the IG guidance block handles it.
-        if (src === 'instagram') return;
-        result = src === 'pinterest' ? await importFromPinterest(trimmed) : await importFromWebsite(trimmed);
-      }
-      setPreview(result);
-    } catch (error: any) {
-      console.error('Import preview failed:', error);
-      Alert.alert('Import failed', error.message || 'Could not read a recipe from that.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUseRecipe = () => {
-    if (!preview) return;
-    const importData = {
-      title: preview.recipe.title,
-      ingredients: (preview.recipe.ingredients ?? []).map((ing: any) => ({
+  const openEditor = (result: ImportResponse, sourceType: string) => {
+    const r = result.recipe;
+    (global as any).__pendingRecipeImport = {
+      title: r.title,
+      ingredients: (r.ingredients ?? []).map((ing: any) => ({
         text: ing.text,
         id: '',
         quantity: String(ing.quantity ?? ''),
@@ -97,209 +70,175 @@ export default function ImportScreen() {
         optional: !!ing.optional,
         section: ing.section ?? null,
       })),
-      steps: preview.recipe.steps ?? [],
-      notes: preview.recipe.notes ?? '',
-      imageUrl: preview.source_image ?? '',
-      prepTime: String(preview.recipe.prep_time ?? ''),
-      cookTime: String(preview.recipe.cook_time ?? ''),
-      servings: String(preview.recipe.servings ?? ''),
-      source: preview.source_url ?? '',
-      sourceType: preview.recipe.source_type ?? (mode === 'text' ? 'text' : source ?? 'website'),
+      steps: r.steps ?? [],
+      notes: r.notes ?? '',
+      imageUrl: result.source_image ?? '',
+      prepTime: String(r.prep_time ?? ''),
+      cookTime: String(r.cook_time ?? ''),
+      servings: String(r.servings ?? ''),
+      source: result.source_url ?? '',
+      sourceType: r.source_type ?? sourceType,
     };
-    (global as any).__pendingRecipeImport = importData;
-    router.push({ pathname: '/new-recipe', params: { fromImport: 'true' } } as any);
+    router.replace({ pathname: '/new-recipe', params: { fromImport: 'true' } } as any);
   };
 
-  // Instagram can't be previewed from its URL (walled) — its guidance card
-  // routes to screenshot-scan or paste-text instead.
-  const igLink = mode === 'link' && source === 'instagram';
-  const canPreview = mode === 'link' ? !!url.trim() : text.trim().length >= 20;
-  const r = preview?.recipe;
-  const ingredientCount = r?.ingredients?.length ?? 0;
-  const stepCount = r?.steps?.length ?? 0;
+  const read = async () => {
+    if (!canRead || !source) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const body = input.trim();
+      const result =
+        source === 'text' ? await importFromText(body, captionFor ?? undefined)
+        : source === 'pinterest' ? await importFromPinterest(body)
+        : await importFromWebsite(body);
+      const r = result.recipe;
+      if (!(r.ingredients?.length) && !(r.steps?.length)) {
+        setError("Couldn't find ingredients or steps in that. Try the whole page or caption, or start from scratch.");
+        return;
+      }
+      openEditor(result, source);
+    } catch (err: any) {
+      console.error('Import failed:', err);
+      setError(err?.message || "Couldn't read a recipe from that.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const ways = [
+    { key: 'photo', title: 'Snap a photo', line: 'A cookbook page, a card, a screenshot', Art: Plate, go: () => router.push('/scan-photo' as any) },
+    { key: 'pitch', title: 'Pitch an idea', line: 'Describe a craving and AI writes it', Art: Pot, go: () => router.push('/pitch' as any) },
+    { key: 'scratch', title: 'Start from scratch', line: 'Type it in yourself', Art: Board, go: () => router.replace('/new-recipe' as any) },
+  ];
 
   return (
     <Screen>
-      <ScreenHeader title="Import a recipe" onBack={() => router.back()} />
-
-      <ScrollView contentContainerStyle={[styles.content, isWide && styles.contentWide]}>
-        <Text variant="body" color="fgMuted">
-          Paste a link from Pinterest or any recipe site — or paste the text of a recipe (an
-          Instagram caption, a message from a friend) and we&apos;ll pull out the ingredients and steps.
-        </Text>
-
-        {/* Link vs. paste-text toggle */}
-        <View style={[styles.segment, { backgroundColor: c.bgMuted, borderColor: c.border }]}>
-          {(['link', 'text'] as Mode[]).map((m) => {
-            const active = mode === m;
-            return (
-              <Pressable
-                key={m}
-                onPress={() => { setMode(m); setPreview(null); }}
-                style={[styles.segmentItem, active && { backgroundColor: c.bgElevated, ...theme.shadow.sm }]}
-              >
-                <Ionicons
-                  name={m === 'link' ? 'link-outline' : 'clipboard-outline'}
-                  size={15}
-                  color={active ? c.accent : c.fgMuted}
-                />
-                <Text variant="bodyMedium" style={{ color: active ? c.fg : c.fgMuted }}>
-                  {m === 'link' ? 'Paste a link' : 'Paste text'}
-                </Text>
-              </Pressable>
-            );
-          })}
+      <ScrollView contentContainerStyle={[styles.content, isWide && styles.contentWide]} keyboardShouldPersistTaps="handled">
+        <View style={styles.topRow}>
+          <Pressable
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={8}
+            style={[styles.close, { borderColor: c.outline, backgroundColor: c.bgElevated, ...theme.shadow.sm }]}
+          >
+            <Ionicons name="close" size={20} color={c.fg} />
+          </Pressable>
         </View>
 
-        {mode === 'link' ? (
-          <View style={{ marginTop: theme.spacing.lg }}>
-            <View style={styles.labelRow}>
-              <Text variant="label" color="fgMuted">Recipe link</Text>
-              {source && (
-                <Chip size="sm" icon={<Ionicons name={SOURCE_META[source].icon} size={13} color={c.accent} />} tone={c.accent}>
-                  {SOURCE_META[source].label}
-                </Chip>
-              )}
-            </View>
-            <Input
-              value={url}
-              onChangeText={(t) => { setUrl(t); if (preview) setPreview(null); }}
-              placeholder="https://example.com/recipe"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              editable={!loading}
-              size="lg"
-              style={{ marginTop: theme.spacing.sm }}
-              onSubmitEditing={handlePreview}
-              returnKeyType="go"
-            />
-            {source === 'instagram' && (
-              <Card inset style={{ marginTop: theme.spacing.md, gap: theme.spacing.sm }}>
-                <Text variant="bodyMedium">Instagram blocks automated reading of posts.</Text>
-                <Text variant="small" color="fgMuted">
-                  On your phone the easiest way is to screenshot the caption and let the AI read it.
-                  (On desktop you can select &amp; copy the caption, then use Paste text.)
-                </Text>
-                <Button
-                  onPress={() => router.push('/scan-photo' as any)}
-                  fullWidth
-                  icon={<Ionicons name="camera" size={18} color={c.accentFg} />}
-                  style={{ marginTop: theme.spacing.xs }}
-                >
-                  Screenshot &amp; scan
-                </Button>
-                <Button variant="ghost" onPress={() => switchToText(url)} fullWidth>
-                  I copied the caption — paste it
-                </Button>
-              </Card>
+        <View style={styles.hero}>
+          <View style={{ flex: 1 }}>
+            <Text variant="display">What&apos;s cooking?</Text>
+            <Text variant="body" color="fgMuted" style={{ marginTop: theme.spacing.sm, maxWidth: 420 }}>
+              Paste a link or a whole recipe. Gnocchi pulls out the ingredients and steps for you to check over.
+            </Text>
+          </View>
+          <View style={styles.heroArt} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Bob><Mascot size={isWide ? 120 : 84} /></Bob>
+            <Sizzle active={loading} style={{ marginLeft: -18, marginBottom: -6 }}>
+              <Skillet size={isWide ? 92 : 64} rotate={-24} />
+            </Sizzle>
+            <View style={{ position: 'absolute', right: -4, top: -6 }}><Tomato size={isWide ? 34 : 26} /></View>
+          </View>
+        </View>
+
+        <Card inset elevated style={{ marginTop: theme.spacing.xl }}>
+          <View style={styles.labelRow}>
+            <Text variant="label" color="fgMuted">{captionFor ? 'Paste the caption' : 'Link or recipe'}</Text>
+            {source && (
+              <Chip size="sm" icon={<Ionicons name={SOURCE_META[source].icon} size={13} color={c.accent} />}>
+                {SOURCE_META[source].label}
+              </Chip>
             )}
           </View>
-        ) : (
-          <View style={{ marginTop: theme.spacing.lg }}>
-            <View style={styles.labelRow}>
-              <Text variant="label" color="fgMuted">Recipe text</Text>
-              {textSourceUrl && (
-                <Chip size="sm" icon={<Ionicons name="logo-instagram" size={13} color={c.accent} />} tone={c.accent}>
-                  From link
-                </Chip>
-              )}
-            </View>
-            <Input
-              value={text}
-              onChangeText={(t) => { setText(t); if (preview) setPreview(null); }}
-              placeholder={'Paste a recipe here — an Instagram caption, a text from a friend, anything with ingredients and steps.'}
-              editable={!loading}
-              multiline
-              textAlignVertical="top"
-              style={{ marginTop: theme.spacing.sm, minHeight: 180, lineHeight: 22 }}
-            />
-          </View>
-        )}
+          <Input
+            value={input}
+            onChangeText={(t) => { setInput(t); setError(null); }}
+            placeholder={captionFor
+              ? 'Paste the Instagram caption here'
+              : 'https://… or paste the ingredients and steps, a caption, a text from a friend'}
+            editable={!loading}
+            multiline
+            autoCapitalize="none"
+            autoCorrect={source === 'text'}
+            textAlignVertical="top"
+            accessibilityLabel="Recipe link or text"
+            style={{ marginTop: theme.spacing.sm, minHeight: source === 'text' ? 200 : 96, lineHeight: 22 }}
+          />
 
-        {!igLink && (
-          <Button
-            onPress={handlePreview}
-            loading={loading}
-            disabled={loading || !canPreview}
-            fullWidth
-            size="lg"
-            icon={!loading ? <Ionicons name="sparkles" size={18} color={c.accentFg} /> : undefined}
-            style={{ marginTop: theme.spacing.xl }}
-          >
-            {loading ? 'Reading recipe…' : 'Preview recipe'}
-          </Button>
-        )}
-
-        {/* Preview — confirm the right recipe came through before dropping into
-            the full edit form. */}
-        {r && (
-          <Card inset style={{ marginTop: theme.spacing.xl }}>
-            {preview?.source_image ? (
-              <Image source={{ uri: preview.source_image }} style={styles.previewImage} />
-            ) : (
-              <View style={[styles.previewImage, styles.previewImagePlaceholder, { backgroundColor: c.bgMuted }]}>
-                <Text style={{ fontSize: 40 }}>🍽️</Text>
+          {source === 'instagram' && (
+            <View style={[styles.note, { backgroundColor: c.butterMuted, borderColor: c.outline }]}>
+              <Text variant="bodyMedium">Instagram keeps its posts from being read by apps.</Text>
+              <Text variant="small" color="fgMuted">Copy the caption and paste it here, or screenshot it and snap a photo.</Text>
+              <View style={styles.noteActions}>
+                <Button size="sm" onPress={() => { setCaptionFor(input.trim()); setInput(''); }}>Paste the caption</Button>
+                <Button size="sm" variant="secondary" onPress={() => router.push('/scan-photo' as any)}>Scan a screenshot</Button>
               </View>
-            )}
-
-            <Text variant="h2" style={{ marginTop: theme.spacing.md }}>{r.title || 'Untitled recipe'}</Text>
-
-            <View style={styles.metaRow}>
-              <Chip size="sm" icon={<Ionicons name="list-outline" size={13} color={c.fg} />}>
-                {`${ingredientCount} ${ingredientCount === 1 ? 'ingredient' : 'ingredients'}`}
-              </Chip>
-              <Chip size="sm" icon={<Ionicons name="footsteps-outline" size={13} color={c.fg} />}>
-                {`${stepCount} ${stepCount === 1 ? 'step' : 'steps'}`}
-              </Chip>
-              {!!r.servings && (
-                <Chip size="sm" icon={<Ionicons name="people-outline" size={13} color={c.fg} />}>
-                  {`${r.servings} servings`}
-                </Chip>
-              )}
-              {!!(r.prep_time || r.cook_time) && (
-                <Chip size="sm" tone={c.accent} icon={<Ionicons name="time-outline" size={13} color={c.accent} />}>
-                  {`${(r.prep_time ?? 0) + (r.cook_time ?? 0)} min`}
-                </Chip>
-              )}
             </View>
+          )}
 
-            {ingredientCount === 0 && stepCount === 0 && (
-              <Text variant="small" color="danger" style={{ marginTop: theme.spacing.sm }}>
-                We couldn&apos;t find ingredients or steps in that. Try the full caption/page, or add it manually.
-              </Text>
-            )}
+          {error && (
+            <Text variant="small" color="danger" style={{ marginTop: theme.spacing.md }} accessibilityLiveRegion="polite">
+              {error}
+            </Text>
+          )}
 
-            <View style={{ flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.lg }}>
-              <Button variant="ghost" onPress={() => setPreview(null)} style={{ flex: 1 }}>
-                Start over
-              </Button>
-              <Button onPress={handleUseRecipe} style={{ flex: 2 }} iconRight={<Ionicons name="arrow-forward" size={18} color={c.accentFg} />}>
-                Edit &amp; save
-              </Button>
-            </View>
-          </Card>
-        )}
+          {source !== 'instagram' && (
+            <Button
+              onPress={read}
+              loading={loading}
+              disabled={!canRead}
+              fullWidth
+              size="lg"
+              style={{ marginTop: theme.spacing.lg }}
+              iconRight={!loading ? <Ionicons name="arrow-forward" size={18} color={c.accentFg} /> : undefined}
+            >
+              {loading ? 'Reading…' : tooShort ? 'Keep pasting…' : 'Read the recipe'}
+            </Button>
+          )}
+          {loading && (
+            <Text variant="small" color="fgMuted" style={{ marginTop: theme.spacing.sm, textAlign: 'center' }}>
+              This takes a few seconds.
+            </Text>
+          )}
+        </Card>
+
+        <Text variant="label" color="fgSubtle" style={{ marginTop: theme.spacing['2xl'], marginBottom: theme.spacing.md }}>
+          OR
+        </Text>
+        <View style={[styles.ways, isWide && { flexDirection: 'row' }]}>
+          {ways.map(({ key, title, line, Art, go }, i) => (
+            <Rise key={key} index={i + 1} style={isWide ? { flex: 1 } : undefined}>
+              <Card onPress={go} style={[styles.way, isWide && { flexDirection: 'column', alignItems: 'flex-start', flex: 1 }]}>
+                <Art size={56} />
+                <View style={{ flex: isWide ? undefined : 1 }}>
+                  <Text variant="h3">{title}</Text>
+                  <Text variant="small" color="fgMuted">{line}</Text>
+                </View>
+              </Card>
+            </Rise>
+          ))}
+        </View>
+
+        <Text variant="small" color="fgSubtle" style={{ marginTop: theme.spacing.xl }}>
+          You can also tell Claude a recipe out loud; it saves straight into Gnocchi.
+        </Text>
       </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 24 },
-  contentWide: { width: '100%', maxWidth: 640, alignSelf: 'center' },
-  segment: { flexDirection: 'row', gap: 4, marginTop: 24, padding: 4, borderRadius: 12, borderWidth: 1 },
-  segmentItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 9,
-  },
-  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  previewImage: { width: '100%', height: 200, borderRadius: 12, resizeMode: 'cover' },
-  previewImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  content: { padding: 20, paddingBottom: 48 },
+  contentWide: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingTop: 32 },
+  topRow: { flexDirection: 'row' },
+  close: { width: 40, height: 40, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  hero: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 20 },
+  heroArt: { flexDirection: 'row', alignItems: 'flex-end' },
+  labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 28 },
+  note: { marginTop: 14, padding: 14, borderRadius: 14, borderWidth: 2, gap: 4 },
+  noteActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
+  ways: { gap: 14 },
+  way: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
 });

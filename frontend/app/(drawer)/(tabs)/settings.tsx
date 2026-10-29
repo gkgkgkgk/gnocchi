@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
+import { PageHeader } from '@/components/kitchen/page-header';
 import { useTheme } from '@/hooks/use-theme';
 import { type Theme } from '@/constants/theme';
 import { useThemePreference, type ThemePreference } from '@/contexts/theme-context';
@@ -153,9 +153,12 @@ function UnitsSection() {
         style={{
           flexDirection: 'row',
           gap: theme.spacing.sm,
-          backgroundColor: theme.colors.bgMuted,
+          backgroundColor: theme.colors.bgElevated,
           padding: theme.spacing.xs,
           borderRadius: theme.radius.lg,
+          borderWidth: 2,
+          borderColor: theme.colors.outline,
+          ...theme.shadow.sm,
         }}
       >
         {UNIT_OPTIONS.map((opt) => {
@@ -214,9 +217,12 @@ function AppearanceSection() {
         style={{
           flexDirection: 'row',
           gap: theme.spacing.sm,
-          backgroundColor: theme.colors.bgMuted,
+          backgroundColor: theme.colors.bgElevated,
           padding: theme.spacing.xs,
           borderRadius: theme.radius.lg,
+          borderWidth: 2,
+          borderColor: theme.colors.outline,
+          ...theme.shadow.sm,
         }}
       >
         {APPEARANCE_OPTIONS.map((opt) => {
@@ -432,7 +438,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      <ScreenHeader title="Settings" />
+      <PageHeader title="Settings" subtitle="How Gnocchi looks and what it knows about your kitchen" />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.contentContainer}>
         {/* Appearance Section */}
         <AppearanceSection />
@@ -507,9 +513,9 @@ export default function SettingsScreen() {
           ) : (
             <View style={styles.tagsContainer}>
               {tags.map((tag) => (
-                <ThemedView key={tag.id} lightColor="#fff" darkColor="#2a2a2a" style={[styles.tagCard, { borderLeftColor: tag.color }]}>
+                <ThemedView key={tag.id} lightColor={c.bgElevated} darkColor={c.bgElevated} style={[styles.tagCard, { borderColor: c.outline }]}>
                   <View style={styles.tagLeft}>
-                    <View style={[styles.tagIconContainer, { backgroundColor: tag.color }]}>
+                    <View style={[styles.tagIconContainer, { backgroundColor: tag.color, borderColor: c.outline }]}>
                       <Ionicons name={tag.icon as any} size={20} color="#fff" />
                     </View>
                     <ThemedText style={styles.tagName}>{tag.name}</ThemedText>
@@ -677,7 +683,7 @@ export default function SettingsScreen() {
               {/* Preview */}
               <View style={styles.previewSection}>
                 <ThemedText style={styles.inputLabel}>Preview</ThemedText>
-                <ThemedView lightColor="#fff" darkColor="#2a2a2a" style={[styles.tagPreview, { borderLeftColor: newTagColor }]}>
+                <ThemedView lightColor={c.bgElevated} darkColor={c.bgElevated} style={[styles.tagPreview, { borderColor: c.outline }]}>
                   <View style={[styles.tagIconContainer, { backgroundColor: newTagColor }]}>
                     <Ionicons name={newTagIcon as any} size={20} color="#fff" />
                   </View>
@@ -796,14 +802,10 @@ function makeStyles(theme: Theme) {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    ...theme.shadow.sm,
   },
   tagLeft: {
     flexDirection: 'row',
@@ -815,6 +817,7 @@ function makeStyles(theme: Theme) {
     width: 36,
     height: 36,
     borderRadius: 18,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1068,7 +1071,8 @@ function makeStyles(theme: Theme) {
     padding: 20,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: c.warning,
+    borderColor: c.outline,
+    backgroundColor: c.butterMuted,
     ...theme.shadow.sm,
   },
   foodContent: {
@@ -1087,7 +1091,7 @@ function makeStyles(theme: Theme) {
   },
   foodValue: {
     fontWeight: '700',
-    color: c.warning,
+    color: c.fg,
   },
   foodPlaceholder: {
     opacity: 0.6,

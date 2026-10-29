@@ -1,402 +1,52 @@
-import { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator, Alert, LayoutChangeEvent, Platform, Pressable, ScrollView, StyleSheet, TextInput, View,
+} from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Image } from 'expo-image';
+import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-// Alert.alert() is unreliable on web (silent in some Expo builds). Route
-// through window.alert directly so validation errors always surface.
+import { Text } from '@/components/ui/Text';
+import { Button } from '@/components/ui/Button';
+import { Chip } from '@/components/ui/Chip';
+import { inputStyle } from '@/components/ui/Input';
+import { Mascot } from '@/components/kitchen/mascot';
+import { Tablecloth } from '@/components/kitchen/tablecloth';
+import { Bob, easeColors, Pop, Rise } from '@/components/kitchen/motion';
+import { Board, Pot, Skillet } from '@/components/kitchen/shapes';
+import { fetchUnits } from '@/services/unit-service';
+import { createRecipe, fetchRecipeById, setRecipeCover, unitToString, updateRecipe, uploadRecipePhoto } from '@/services/recipe-service';
+import { pickImage } from '@/services/image-service';
+import { findUnit } from '@/utils/unit-conversion';
+import { decimalToFraction, parseIngredientLine, sectionHeading, stripLeadingAmount } from '@/utils/ingredient-formatter';
+import { IMPORT_TYPES, originOf, type Origin } from '@/utils/recipe-origin';
+import { useTheme } from '@/hooks/use-theme';
+import { useResponsive } from '@/hooks/use-responsive';
+import { type Theme } from '@/constants/theme';
+
+// Alert.alert() is unreliable on web (silent in some Expo builds), so route
+// through window.alert / window.confirm there.
 function notify(title: string, message: string) {
-  console.log(`[${title}] ${message}`);
+  if (Platform.OS === 'web') window.alert(`${title}\n\n${message}`);
+  else Alert.alert(title, message);
+}
+function confirmDiscard(onDiscard: () => void) {
+  const message = 'Your changes to this recipe will be lost.';
   if (Platform.OS === 'web') {
-    if (typeof window !== 'undefined') window.alert(`${title}\n\n${message}`);
+    if (window.confirm(`Discard changes?\n\n${message}`)) onDiscard();
   } else {
-    Alert.alert(title, message);
+    Alert.alert('Discard changes?', message, [
+      { text: 'Keep editing', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: onDiscard },
+    ]);
   }
 }
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Image } from 'expo-image';
-import { ThemedView } from '@/components/themed-view';
-import { ThemedText } from '@/components/themed-text';
-import { UnitPickerModal } from '@/components/unit-picker-modal';
-import { IngredientPickerModal } from '@/components/ingredient-picker-modal';
-import { Unit, fetchUnits } from '@/services/unit-service';
-import { Ingredient } from '@/services/ingredient-service';
-import { createRecipe, updateRecipe, fetchRecipeById, uploadRecipePhoto, setRecipeCover, unitToString } from '@/services/recipe-service';
-import { pickImage } from '@/services/image-service';
-import { useTheme } from '@/hooks/use-theme';
-import { type Theme } from '@/constants/theme';
-import { stripLeadingAmount } from '@/utils/ingredient-formatter';
 
-function makeStyles(theme: Theme) {
-  const c = theme.colors;
-  return StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: c.bg,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 48,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: c.border,
-  },
-  backButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  backButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerTitle: {
-    ...theme.type.h3,
-  },
-  saveButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: c.accent,
-    borderRadius: 8,
-  },
-  saveButtonText: {
-    color: c.accentFg,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-  },
-  fieldGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    ...theme.type.label,
-    color: c.fgMuted,
-    marginBottom: 8,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-    color: c.fg,
-    backgroundColor: c.bgElevated,
-  },
-  errorField: {
-    borderColor: c.danger,
-    borderWidth: 2,
-  },
-  optionalToggle: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: c.border,
-  },
-  optionalToggleActive: {
-    backgroundColor: c.accent,
-    borderColor: c.accent,
-  },
-  optionalToggleText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: c.fgMuted,
-  },
-  optionalToggleTextActive: {
-    color: c.accentFg,
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  quickInfoRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  quickInfoField: {
-    flex: 1,
-  },
-  quickInput: {
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-    color: c.fg,
-    backgroundColor: c.bgElevated,
-  },
-  section: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    ...theme.type.h2,
-    marginBottom: 16,
-  },
-  ingredientRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  ingredientCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 12,
-  },
-  ingredientInput: {
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-    color: c.fg,
-    backgroundColor: c.bgElevated,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  ingredientNameInput: {
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-    flex: 2,
-    justifyContent: 'center',
-  },
-  removeButton: {
-    padding: 8,
-  },
-  removeButtonText: {
-    fontSize: 18,
-    color: c.danger,
-    fontWeight: 'bold',
-  },
-  addButton: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: c.bgMuted,
-    borderRadius: 10,
-    marginTop: 8,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
-    marginBottom: 10,
-  },
-  sectionNameInput: {
-    flex: 1,
-    fontWeight: '600',
-  },
-  addButtonText: {
-    ...theme.type.smallMedium,
-    color: c.accent,
-  },
-  stepContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  stepNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: c.accent,
-    color: c.accentFg,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    lineHeight: 28,
-    overflow: 'hidden',
-    marginRight: 12,
-    marginTop: 2,
-  },
-  stepInput: {
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: 10,
-    padding: 12,
-    fontSize: 16,
-    color: c.fg,
-    backgroundColor: c.bgElevated,
-    flex: 1,
-    textAlignVertical: 'top',
-  },
-  stepContent: {
-    paddingBottom: 20,
-  },
-  photoButton: {
-    backgroundColor: c.bgMuted,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  photoButtonText: {
-    ...theme.type.bodyMedium,
-  },
-  orText: {
-    ...theme.type.small,
-    color: c.fgSubtle,
-    textAlign: 'center',
-    marginVertical: 8,
-  },
-  timeline: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: c.border,
-    backgroundColor: c.bgMuted,
-  },
-  timelineItem: {
-    flex: 1,
-    alignItems: 'center',
-    position: 'relative',
-  },
-  timelineCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: c.borderStrong,
-    backgroundColor: c.bgElevated,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  timelineCircleActive: {
-    borderColor: c.accent,
-    backgroundColor: c.accent,
-  },
-  timelineCircleCompleted: {
-    borderColor: c.accent,
-    backgroundColor: c.accent,
-  },
-  timelineNumber: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: c.fgSubtle,
-  },
-  timelineNumberActive: {
-    color: c.accentFg,
-  },
-  timelineLabel: {
-    ...theme.type.caption,
-    color: c.fgMuted,
-    textAlign: 'center',
-  },
-  timelineLabelActive: {
-    fontWeight: '600',
-    color: c.fg,
-  },
-  timelineLine: {
-    position: 'absolute',
-    top: 18,
-    left: '50%',
-    right: '-50%',
-    height: 2,
-    backgroundColor: c.borderStrong,
-    zIndex: -1,
-  },
-  timelineLineCompleted: {
-    backgroundColor: c.accent,
-  },
-  navigationContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: c.border,
-    backgroundColor: c.bgElevated,
-  },
-  navButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: c.borderStrong,
-  },
-  navButtonPrimary: {
-    backgroundColor: c.accent,
-    borderColor: c.accent,
-  },
-  navButtonText: {
-    ...theme.type.button,
-    color: c.fg,
-  },
-  navButtonTextPrimary: {
-    ...theme.type.button,
-    color: c.accentFg,
-  },
-  navButtonDisabled: {
-    opacity: 0.6,
-  },
-  selectedText: {
-    fontSize: 16,
-    color: c.fg,
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: c.fgSubtle,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: c.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  loadingCard: {
-    padding: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    gap: 16,
-    ...theme.shadow.lg,
-  },
-  loadingText: {
-    ...theme.type.h3,
-  },
-  imagePreviewContainer: {
-    marginTop: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: c.border,
-  },
-  imagePreview: {
-    width: '100%',
-    height: 200,
-  },
-  });
-}
-
-interface RecipeIngredient {
-  ingredientId: string;
-  ingredientName: string;
+interface FormIngredient {
   quantity: string;
-  unitId: string;
-  unitAbbreviation: string;
-  text: string;  // Raw ingredient text
+  unit: string;
+  name: string;
   optional: boolean;
   // Group heading, e.g. "Marinade". null = ungrouped; '' = a heading being typed.
   section: string | null;
@@ -404,896 +54,868 @@ interface RecipeIngredient {
 
 interface RecipeFormData {
   title: string;
-  description: string;
+  notes: string;
   prepTime: string;
   cookTime: string;
   servings: string;
-  ingredients: RecipeIngredient[];
+  ingredients: FormIngredient[];
   steps: string[];
-  imageUrl?: string;
-  sourceUrl?: string | null;
-  sourceType?: string | null;
-  sourceRecipeId?: string | null;
+  imageUrl: string;
+  sourceUrl: string | null;
+  sourceType: string | null;
+  sourceRecipeId: string | null;
 }
 
-export default function NewRecipeScreen() {
+type FieldError = 'title' | 'ingredients' | 'steps';
+
+const blankIngredient = (section: string | null = null): FormIngredient =>
+  ({ quantity: '', unit: '', name: '', optional: false, section });
+
+const EMPTY: RecipeFormData = {
+  title: '', notes: '', prepTime: '', cookTime: '', servings: '',
+  ingredients: [blankIngredient()], steps: [''], imageUrl: '',
+  sourceUrl: null, sourceType: 'manual', sourceRecipeId: null,
+};
+
+/** Quantity as the cook would type it: 0.5 → "1/2", 0 → "". */
+function amountText(q: unknown): string {
+  const n = typeof q === 'number' ? q : parseFloat(String(q ?? ''));
+  return n > 0 ? decimalToFraction(n) : '';
+}
+
+/**
+ * Add or edit a recipe on one page: the dish, its mise en place, and the
+ * method. Imports (link, text, photo, pitch) arrive here pre-filled to check
+ * over before saving.
+ */
+export default function RecipeEditorScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const recipeId = params.id as string | undefined;
   const isEditing = !!recipeId;
-  
-  const [currentStep, setCurrentStep] = useState(0);
+  const theme = useTheme();
+  const c = theme.colors;
+  const { isWide } = useResponsive();
+  const styles = makeStyles(theme);
+
+  const [form, setForm] = useState<RecipeFormData>(EMPTY);
   const [loading, setLoading] = useState(isEditing);
-  const [loadingImport, setLoadingImport] = useState(false);
-  const [formData, setFormData] = useState<RecipeFormData>({
-    title: '',
-    description: '',
-    prepTime: '',
-    cookTime: '',
-    servings: '',
-    ingredients: [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false, section: null }],
-    steps: [''],
-    imageUrl: '',
-    sourceType: 'manual',
-  });
-  
-  // Load recipe data if editing
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [importedFrom, setImportedFrom] = useState<string | null>(null);
+  // A picked photo (blob:/file: URI) is uploaded once the recipe row exists.
+  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
+  const [showPhotoLink, setShowPhotoLink] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [errors, setErrors] = useState<Set<FieldError>>(new Set());
+  const [stepHeights, setStepHeights] = useState<Record<number, number>>({});
+
+  const scrollRef = useRef<ScrollView>(null);
+  const sectionY = useRef<Partial<Record<FieldError, number>>>({});
+  const nameRefs = useRef<Record<number, TextInput | null>>({});
+  const stepRefs = useRef<Record<number, TextInput | null>>({});
+  const [focusNext, setFocusNext] = useState<{ kind: 'ingredient' | 'step'; index: number } | null>(null);
+
+  // --- Loading ----------------------------------------------------------
+
   useEffect(() => {
-    if (isEditing && recipeId) {
-      loadRecipe(recipeId);
-    }
-  }, [recipeId, isEditing]);
-  
-  const loadRecipe = async (id: string) => {
-    try {
-      setLoading(true);
-      const recipe = await fetchRecipeById(id);
-      
-      if (!recipe) {
-        notify('Error', 'Recipe not found');
-        router.back();
-        return;
-      }
-
-      const allUnits = await fetchUnits();
-
-      const transformedIngredients = recipe.ingredients?.map((ing: any) => {
-        let matchedUnit: Unit | undefined;
-        if (ing.unit_id) {
-          matchedUnit = allUnits.find(u => u.id === ing.unit_id);
-        } else if (ing.unit) {
-          const unitName = unitToString(ing.unit);
-          matchedUnit = allUnits.find(u =>
-            u.id.toLowerCase() === unitName.toLowerCase() ||
-            u.name?.toLowerCase() === unitName.toLowerCase() ||
-            u.abbreviation?.toLowerCase() === unitName.toLowerCase()
-          );
+    if (!recipeId) return;
+    (async () => {
+      try {
+        const [recipe, units] = await Promise.all([fetchRecipeById(recipeId), fetchUnits().catch(() => [])]);
+        if (!recipe) {
+          notify('Not found', 'That recipe no longer exists.');
+          router.back();
+          return;
         }
+        setForm({
+          title: recipe.title || '',
+          notes: recipe.notes || '',
+          prepTime: recipe.prep_time ? String(recipe.prep_time) : '',
+          cookTime: recipe.cook_time ? String(recipe.cook_time) : '',
+          servings: recipe.servings ? String(recipe.servings) : '',
+          ingredients: recipe.ingredients?.length
+            ? recipe.ingredients.map((ing) => {
+                const unit = unitToString(ing.unit);
+                return {
+                  quantity: amountText(ing.quantity),
+                  unit: findUnit(units, unit)?.abbreviation || unit,
+                  name: ing.quantity > 0 ? stripLeadingAmount(ing.text || '', unit) : (ing.text || ''),
+                  optional: !!ing.optional,
+                  section: ing.section || null,
+                };
+              })
+            : [blankIngredient()],
+          steps: recipe.steps?.length ? recipe.steps : [''],
+          imageUrl: recipe.image_url || '',
+          sourceUrl: recipe.source_url ?? null,
+          sourceType: recipe.source_type ?? null,
+          sourceRecipeId: recipe.source_recipe_id ?? null,
+        });
+      } catch (error) {
+        console.error('Failed to load recipe:', error);
+        notify('Error', 'Could not load that recipe.');
+        router.back();
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [recipeId]);
 
-        const ingredientName = ing.quantity > 0
-          ? stripLeadingAmount(ing.text || '', unitToString(ing.unit))
-          : (ing.text || '');
-
+  // Link, text, photo and pitch imports hand over their draft through a global
+  // (no URL length limits); the URL param is the older route.
+  useEffect(() => {
+    const pending = (global as any).__pendingRecipeImport;
+    const param = params.importedData;
+    if (!pending && typeof param !== 'string') return;
+    delete (global as any).__pendingRecipeImport;
+    (async () => {
+      const imported = pending ?? JSON.parse(param as string);
+      const units = await fetchUnits().catch(() => []);
+      const ingredients: FormIngredient[] = (imported.ingredients ?? []).map((ing: any) => {
+        const qty = parseFloat(ing.quantity) || 0;
+        const unit = ing.unit ?? '';
         return {
-          ingredientId: ing.id || ing.ingredient_id || '',
-          ingredientName: ingredientName || ing.ingredient?.name || '',
-          quantity: ing.quantity ? ing.quantity.toString() : '',
-          unitId: matchedUnit?.id || ing.unit_id || '',
-          unitAbbreviation: matchedUnit?.abbreviation || unitToString(ing.unit) || '',
-          text: ing.text || '',
+          quantity: amountText(qty),
+          unit: findUnit(units, unit)?.abbreviation || unit,
+          name: qty > 0 ? stripLeadingAmount(ing.text || '', unit) : (ing.text || ''),
           optional: !!ing.optional,
           section: ing.section || null,
         };
-      }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false, section: null }];
-
-      setFormData({
-        title: recipe.title || '',
-        description: (recipe as any).notes || '',
-        prepTime: (recipe as any).metadata?.prepTime?.toString() || (recipe as any).prep_time?.toString() || '',
-        cookTime: (recipe as any).metadata?.cookTime?.toString() || (recipe as any).cook_time?.toString() || '',
-        servings: (recipe as any).metadata?.servings?.toString() || (recipe as any).servings?.toString() || '',
-        ingredients: transformedIngredients,
-        steps: recipe.steps || [''],
-        imageUrl: (recipe as any).image_url || recipe.imageUrl || '',
-        sourceUrl: recipe.source_url,
-        sourceType: recipe.source_type,
-        sourceRecipeId: recipe.source_recipe_id,
       });
-    } catch (error) {
-      console.error('Failed to load recipe:', error);
-      notify('Error', 'Failed to load recipe');
-      router.back();
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  // Load imported data if available
-  useEffect(() => {
-    // Check for data in global state (new method - no URL length limits)
-    const pendingImport = (global as any).__pendingRecipeImport;
-    
-    // Also support legacy URL param method for backwards compatibility
-    const importedDataParam = params.importedData;
-    
-    if (pendingImport || (importedDataParam && typeof importedDataParam === 'string')) {
-      const loadImportedData = async () => {
-        setLoadingImport(true);
-        try {
-          // Use pending import if available, otherwise parse from URL param
-          const imported = pendingImport || JSON.parse(
-            typeof importedDataParam === 'string' ? importedDataParam : importedDataParam[0]
-          );
-          
-          // Clear the global state after reading
-          if (pendingImport) {
-            delete (global as any).__pendingRecipeImport;
-          }
-          
-          // Fetch all units to match against
-          const allUnits = await fetchUnits();
-          
-          // Transform imported ingredients to match form structure
-          const transformedIngredients = imported.ingredients?.map((ing: any) => {
-            // Try to find a matching unit by name or abbreviation with fuzzy matching
-            let matchedUnit: Unit | undefined;
-            if (ing.unit) {
-              const unitLower = ing.unit.toLowerCase().trim();
-              
-              // First try exact match
-              matchedUnit = allUnits.find(u => 
-                u.name?.toLowerCase() === unitLower || 
-                u.abbreviation?.toLowerCase() === unitLower
-              );
-              
-              // If no exact match, try fuzzy matching
-              if (!matchedUnit) {
-                // Remove trailing 's' for plural matching
-                const unitSingular = unitLower.endsWith('s') ? unitLower.slice(0, -1) : unitLower;
-                
-                matchedUnit = allUnits.find(u => {
-                  const nameLower = u.name?.toLowerCase() || '';
-                  const abbrevLower = u.abbreviation?.toLowerCase() || '';
-                  const nameSingular = nameLower.endsWith('s') ? nameLower.slice(0, -1) : nameLower;
-                  
-                  // Check if singular forms match
-                  return nameSingular === unitSingular || 
-                         abbrevLower === unitSingular ||
-                         nameLower === unitSingular ||
-                         // Check if the unit contains the search term or vice versa
-                         nameLower.includes(unitLower) ||
-                         unitLower.includes(nameLower);
-                });
-              }
-            }
-            
-            // Extract ingredient name from the full text
-            // The text is like "2 cups flour" - we need to extract just "flour"
-            const ingredientName = parseFloat(ing.quantity) > 0
-              ? stripLeadingAmount(ing.text || '', ing.unit)
-              : (ing.text || '');
-            
-            return {
-              ingredientId: ing.id || '',
-              ingredientName: ingredientName,
-              quantity: parseFloat(ing.quantity) > 0 ? String(ing.quantity) : '',
-              unitId: matchedUnit?.id || '',
-              unitAbbreviation: matchedUnit?.abbreviation || ing.unit || '',
-              text: ing.text || '',
-              optional: !!ing.optional,
-              section: ing.section || null,
-            };
-          }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false, section: null }];
-          
-          setFormData({
-            title: imported.title || '',
-            description: imported.notes || '',
-            prepTime: imported.prepTime || '',
-            cookTime: imported.cookTime || '',
-            servings: imported.servings || '',
-            ingredients: transformedIngredients,
-            steps: imported.steps || [''],
-            // A scanned photo comes through as localPhotoUri — show it as the
-            // preview and mark it local so it's uploaded + set as cover on save.
-            imageUrl: imported.imageUrl || imported.localPhotoUri || '',
-            sourceUrl: imported.source || null,
-            sourceType: imported.sourceType || (imported.source ? 'website' : 'manual'),
-          });
-          if (imported.localPhotoUri) {
-            setLocalPhotoUri(imported.localPhotoUri);
-          }
-        } catch (error) {
-          console.error('Failed to parse imported data:', error);
-        } finally {
-          setLoadingImport(false);
-        }
-      };
-      
-      loadImportedData();
-    }
+      setForm({
+        ...EMPTY,
+        title: imported.title || '',
+        notes: imported.notes || '',
+        prepTime: parseInt(imported.prepTime, 10) > 0 ? String(parseInt(imported.prepTime, 10)) : '',
+        cookTime: parseInt(imported.cookTime, 10) > 0 ? String(parseInt(imported.cookTime, 10)) : '',
+        servings: parseInt(imported.servings, 10) > 0 ? String(parseInt(imported.servings, 10)) : '',
+        ingredients: ingredients.length ? ingredients : [blankIngredient()],
+        steps: imported.steps?.length ? imported.steps : [''],
+        imageUrl: imported.localPhotoUri || imported.imageUrl || '',
+        sourceUrl: imported.source || null,
+        sourceType: imported.sourceType || (imported.source ? 'website' : 'manual'),
+      });
+      if (imported.localPhotoUri) setLocalPhotoUri(imported.localPhotoUri);
+      setImportedFrom(imported.sourceType === 'photo' ? 'your photo'
+        : imported.sourceType === 'ai' ? 'your pitch'
+        : imported.source ? hostOf(imported.source) : 'your text');
+      setDirty(true);
+    })();
   }, [params.importedData]);
-  const [unitModalVisible, setUnitModalVisible] = useState(false);
-  const [ingredientModalVisible, setIngredientModalVisible] = useState(false);
-  const [selectedIngredientIndex, setSelectedIngredientIndex] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-  // A locally-picked image (blob:/file: URI). Can't be saved as a cover URL
-  // directly — it's uploaded after the recipe row exists, then set as cover.
-  const [localPhotoUri, setLocalPhotoUri] = useState<string | null>(null);
 
-  const theme = useTheme();
-  const styles = makeStyles(theme);
-  const c = theme.colors;
+  // Focus a row that was just added (Enter in a field, or "Add").
+  useEffect(() => {
+    if (!focusNext) return;
+    const ref = focusNext.kind === 'ingredient' ? nameRefs.current[focusNext.index] : stepRefs.current[focusNext.index];
+    ref?.focus();
+    setFocusNext(null);
+  }, [focusNext, form]);
 
-  const stepTitles = ['Basic Info', 'Ingredients', 'Instructions', 'Details'];
+  // --- Editing ----------------------------------------------------------
 
-  // --- Inline validation state -----------------------------------------
-  // Field IDs used: 'title', 'ingredient-{i}-quantity',
-  // 'ingredient-{i}-name', 'step-{i}'.
-  const [errors, setErrors] = useState<Set<string>>(new Set());
-
-  const clearError = (id: string) => {
-    setErrors(prev => {
-      if (!prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
+  const edit = (patch: Partial<RecipeFormData>) => {
+    setForm((prev) => ({ ...prev, ...patch }));
+    setDirty(true);
   };
 
-  const errorsForStep = (step: number, data = formData): string[] => {
-    const out: string[] = [];
-    if (step === 0) {
-      if (!data.title.trim()) out.push('title');
-    }
-    if (step === 1) {
-      // Ingredient names are enough for things like salt to taste. Quantity
-      // and unit are optional; a number without a name is not useful.
-      let anyComplete = false;
-      data.ingredients.forEach((ing, i) => {
-        const hasQty = ing.quantity.trim();
-        const hasName = !!ing.ingredientName.trim();
-        if (hasName) anyComplete = true;
-        if (hasQty && !hasName) out.push(`ingredient-${i}-name`);
-      });
-      if (!anyComplete) {
-        out.push('ingredient-0-name');
-      }
-    }
-    if (step === 2) {
-      const anyFilled = data.steps.some(s => s.trim());
-      if (!anyFilled) out.push('step-0');
-    }
-    return out;
+  const clearError = (e: FieldError) =>
+    setErrors((prev) => (prev.has(e) ? new Set([...prev].filter((x) => x !== e)) : prev));
+
+  const setIngredient = (index: number, patch: Partial<FormIngredient>) => {
+    setForm((prev) => ({
+      ...prev,
+      ingredients: prev.ingredients.map((ing, i) => (i === index ? { ...ing, ...patch } : ing)),
+    }));
+    setDirty(true);
+    if (patch.name) clearError('ingredients');
   };
 
-
-  const updateFormData = (field: keyof RecipeFormData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (field === 'title') clearError('title');
-  };
-
-  const handlePickPhoto = async () => {
-    try {
-      const uri = await pickImage();
-      if (uri) {
-        setLocalPhotoUri(uri);
-        updateFormData('imageUrl', uri); // drives the preview
-      }
-    } catch (error: any) {
-      console.error('Failed to pick photo:', error);
-      notify('Error', error.message || 'Failed to pick photo');
-    }
-  };
-
-  const blankIngredient = (section: string | null): RecipeIngredient => (
-    { ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false, section }
-  );
-
-  // Add an ingredient at the end of the group that ends at `afterIndex`.
-  const addIngredient = (afterIndex: number) => {
-    setFormData(prev => {
+  const insertIngredient = (afterIndex: number) => {
+    setForm((prev) => {
       const ingredients = [...prev.ingredients];
       ingredients.splice(afterIndex + 1, 0, blankIngredient(prev.ingredients[afterIndex]?.section ?? null));
       return { ...prev, ingredients };
     });
+    setFocusNext({ kind: 'ingredient', index: afterIndex + 1 });
   };
 
-  // Start a new ingredient group (e.g. "Marinade") with one empty row.
+  const removeIngredient = (index: number) => {
+    setForm((prev) => {
+      const ingredients = prev.ingredients.filter((_, i) => i !== index);
+      return { ...prev, ingredients: ingredients.length ? ingredients : [blankIngredient()] };
+    });
+    setDirty(true);
+  };
+
   const addSection = () => {
-    setFormData(prev => ({ ...prev, ingredients: [...prev.ingredients, blankIngredient('')] }));
+    setForm((prev) => ({ ...prev, ingredients: [...prev.ingredients, blankIngredient('')] }));
+    setDirty(true);
   };
 
   const renameSection = (indices: number[], name: string) => {
-    setFormData(prev => ({
+    setForm((prev) => ({
       ...prev,
-      ingredients: prev.ingredients.map((ing, i) => indices.includes(i) ? { ...ing, section: name } : ing),
+      ingredients: prev.ingredients.map((ing, i) => (indices.includes(i) ? { ...ing, section: name } : ing)),
     }));
+    setDirty(true);
   };
 
   // Drop a heading; its ingredients join the group above it.
   const removeSection = (indices: number[]) => {
-    setFormData(prev => {
+    setForm((prev) => {
       const above = indices[0] > 0 ? prev.ingredients[indices[0] - 1].section : null;
       return {
         ...prev,
-        ingredients: prev.ingredients.map((ing, i) => indices.includes(i) ? { ...ing, section: above } : ing),
+        ingredients: prev.ingredients.map((ing, i) => (indices.includes(i) ? { ...ing, section: above } : ing)),
       };
     });
+    setDirty(true);
   };
 
-  const updateIngredient = (index: number, field: keyof RecipeIngredient, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      ingredients: prev.ingredients.map((ing, i) => {
-        if (i === index) {
-          return { ...ing, [field]: value };
-        }
-        return ing;
-      })
-    }));
-    if (field === 'quantity' && value.trim()) clearError(`ingredient-${index}-quantity`);
-    if (field === 'ingredientName' && value) clearError(`ingredient-${index}-name`);
-  };
-
-  const handleUnitSelect = (unit: Unit) => {
-    if (selectedIngredientIndex !== null) {
-      setFormData(prev => ({
-        ...prev,
-        ingredients: prev.ingredients.map((ing, i) =>
-          i === selectedIngredientIndex
-            ? { ...ing, unitId: unit.id, unitAbbreviation: unit.abbreviation }
-            : ing
-        )
-      }));
+  /** Turn a pasted list into rows, honouring "For the sauce:" headings. */
+  const addPastedList = () => {
+    const parsed: FormIngredient[] = [];
+    let section: string | null = form.ingredients[form.ingredients.length - 1]?.section ?? null;
+    for (const raw of pasteText.split('\n')) {
+      if (!raw.trim()) continue;
+      const heading = sectionHeading(raw);
+      if (heading) { section = heading; continue; }
+      const p = parseIngredientLine(raw);
+      if (!p.name) continue;
+      parsed.push({ quantity: amountText(p.quantity), unit: p.unit, name: p.name, optional: p.optional, section });
     }
+    if (!parsed.length) return;
+    setForm((prev) => {
+      const kept = prev.ingredients.filter((ing) => ing.name.trim() || ing.quantity.trim());
+      return { ...prev, ingredients: [...kept, ...parsed] };
+    });
+    setDirty(true);
+    clearError('ingredients');
+    setPasteText('');
+    setPasteOpen(false);
   };
 
-  const handleIngredientSelect = (ingredient: Ingredient) => {
-    if (selectedIngredientIndex !== null) {
-      setFormData(prev => ({
-        ...prev,
-        ingredients: prev.ingredients.map((ing, i) =>
-          i === selectedIngredientIndex
-            ? { ...ing, ingredientId: ingredient.id, ingredientName: ingredient.name }
-            : ing
-        )
-      }));
-      if (ingredient.name) clearError(`ingredient-${selectedIngredientIndex}-name`);
+  const setStep = (index: number, value: string) => {
+    // Enter (or pasting several paragraphs) splits into separate steps.
+    if (value.includes('\n')) {
+      const parts = value.split(/\n+/).map((s) => s.replace(/^\s*(?:\d+[.)]|step \d+:?)\s*/i, '').trim());
+      const [first, ...rest] = parts;
+      const extra = rest.filter(Boolean);
+      setForm((prev) => {
+        const steps = [...prev.steps];
+        steps.splice(index, 1, first, ...(extra.length ? extra : ['']));
+        return { ...prev, steps };
+      });
+      setFocusNext({ kind: 'step', index: index + Math.max(extra.length, 1) });
+    } else {
+      setForm((prev) => ({ ...prev, steps: prev.steps.map((s, i) => (i === index ? value : s)) }));
     }
-  };
-
-  const openUnitPicker = (index: number) => {
-    setSelectedIngredientIndex(index);
-    setUnitModalVisible(true);
-  };
-
-  const openIngredientPicker = (index: number) => {
-    setSelectedIngredientIndex(index);
-    setIngredientModalVisible(true);
-  };
-
-  const removeIngredient = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      ingredients: prev.ingredients.filter((_, i) => i !== index)
-    }));
+    setDirty(true);
+    if (value.trim()) clearError('steps');
   };
 
   const addStep = () => {
-    setFormData(prev => ({
-      ...prev,
-      steps: [...prev.steps, '']
-    }));
-  };
-
-  const updateStep = (index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      steps: prev.steps.map((step, i) => i === index ? value : step)
-    }));
-    if (value.trim()) clearError(`step-${index}`);
+    setForm((prev) => ({ ...prev, steps: [...prev.steps, ''] }));
+    setFocusNext({ kind: 'step', index: form.steps.length });
   };
 
   const removeStep = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      steps: prev.steps.filter((_, i) => i !== index)
-    }));
+    setForm((prev) => {
+      const steps = prev.steps.filter((_, i) => i !== index);
+      return { ...prev, steps: steps.length ? steps : [''] };
+    });
+    setDirty(true);
   };
 
-  const handleNext = () => {
-    const errs = errorsForStep(currentStep);
-    if (errs.length) {
-      setErrors(new Set(errs));
+  const pickPhoto = async () => {
+    try {
+      const uri = await pickImage();
+      if (uri) {
+        setLocalPhotoUri(uri);
+        edit({ imageUrl: uri });
+      }
+    } catch (error: any) {
+      notify('Photo', error?.message || 'Could not open that photo.');
+    }
+  };
+
+  const close = () => {
+    const leave = () => (router.canGoBack() ? router.back() : router.replace('/(drawer)/(tabs)' as any));
+    if (dirty && !saving) confirmDiscard(leave);
+    else leave();
+  };
+
+  // --- Saving -----------------------------------------------------------
+
+  const validate = (): FieldError[] => {
+    const out: FieldError[] = [];
+    if (!form.title.trim()) out.push('title');
+    if (!form.ingredients.some((i) => i.name.trim())) out.push('ingredients');
+    if (!form.steps.some((s) => s.trim())) out.push('steps');
+    return out;
+  };
+
+  const save = async () => {
+    const problems = validate();
+    if (problems.length) {
+      setErrors(new Set(problems));
+      const y = sectionY.current[problems[0]];
+      if (y != null) scrollRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: true });
       return;
     }
     setErrors(new Set());
-    if (currentStep < stepTitles.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const validateRecipe = (): string | null => {
-    if (!formData.title.trim()) {
-      return 'Please enter a recipe title';
-    }
-
-    const validIngredients = formData.ingredients.filter(
-      (ing) => ing.ingredientName.trim()
-    );
-    if (validIngredients.length === 0) {
-      return 'Please add at least one ingredient';
-    }
-
-    const validSteps = formData.steps.filter((step) => step.trim());
-    if (validSteps.length === 0) {
-      return 'Please add at least one instruction step';
-    }
-
-    return null;
-  };
-
-  const handleSave = async () => {
-    // Run per-step validation; jump to the first bad step so the user sees
-    // exactly which fields are red instead of an alert box.
-    for (let s = 0; s <= 2; s++) {
-      const errs = errorsForStep(s);
-      if (errs.length) {
-        setCurrentStep(s);
-        setErrors(new Set(errs));
-        return;
-      }
-    }
-    setErrors(new Set());
-
     setSaving(true);
     try {
-      // Transform ingredients to match the database schema
-      const ingredients = formData.ingredients
-        .filter((ing) => ing.ingredientName.trim())
-        .map((ing) => ({
-          // The amount and unit are stored separately; text is just the name.
-          text: ing.ingredientName.trim(),
-          id: ing.ingredientId && ing.ingredientId.trim() !== '' ? ing.ingredientId : undefined,
-          quantity: ing.quantity,
-          unit: ing.unitId || undefined,
-          unitAbbreviation: ing.unitAbbreviation,
-          ingredientName: ing.ingredientName,
-          optional: ing.optional,
-          section: ing.section?.trim() || null,
-        }));
-
-      // Filter out empty steps
-      const steps = formData.steps.filter((step) => step.trim());
-
-      // Prepare metadata with additional info
-      const metadata: Record<string, any> = {};
-      if (formData.prepTime) {
-        metadata.prepTime = formData.prepTime;
-      }
-      if (formData.cookTime) {
-        metadata.cookTime = formData.cookTime;
-      }
-      if (formData.servings) {
-        metadata.servings = formData.servings;
-      }
-
-      // A locally-picked image is a blob:/file: URI — not a savable cover
-      // URL. Omit it here and upload it after the recipe row exists.
-      const isLocalPhoto = !!localPhotoUri && formData.imageUrl === localPhotoUri;
-
-      const recipeData = {
-        title: formData.title,
-        ingredients,
-        steps,
-        image_url: isLocalPhoto ? undefined : (formData.imageUrl || undefined),
-        notes: formData.description || undefined,
-        source_url: formData.sourceUrl ?? null,
-        source_type: formData.sourceType ?? 'manual',
-        source_recipe_id: formData.sourceRecipeId ?? null,
-        metadata,
+      const isLocalPhoto = !!localPhotoUri && form.imageUrl === localPhotoUri;
+      const data = {
+        title: form.title.trim(),
+        ingredients: form.ingredients
+          .filter((ing) => ing.name.trim())
+          .map((ing) => ({
+            // The amount and unit are stored separately; text is just the name.
+            text: ing.name.trim(),
+            quantity: ing.quantity.trim(),
+            unitAbbreviation: ing.unit.trim(),
+            optional: ing.optional,
+            section: ing.section?.trim() || null,
+          })),
+        steps: form.steps.map((s) => s.trim()).filter(Boolean),
+        image_url: isLocalPhoto ? undefined : (form.imageUrl.trim() || undefined),
+        notes: form.notes.trim() || null,
+        source_url: form.sourceUrl,
+        source_type: form.sourceType ?? 'manual',
+        source_recipe_id: form.sourceRecipeId,
+        metadata: { prepTime: form.prepTime, cookTime: form.cookTime, servings: form.servings },
       };
-
-      const saved = isEditing && recipeId
-        ? await updateRecipe(recipeId, recipeData)
-        : await createRecipe(recipeData);
-      const savedId = isEditing && recipeId ? recipeId : saved.id;
-
-      // Upload the picked photo and set it as the cover. Use setRecipeCover
-      // (a cover-only PATCH) — updateRecipe would re-send empty ingredients/
-      // steps and wipe the recipe we just created.
-      if (isLocalPhoto && savedId) {
+      const saved = isEditing ? await updateRecipe(recipeId!, data) : await createRecipe(data);
+      const savedId = isEditing ? recipeId! : saved.id;
+      // setRecipeCover is a cover-only PATCH, so it can't clobber the rest.
+      if (isLocalPhoto) {
         const photo = await uploadRecipePhoto(savedId, localPhotoUri!);
         await setRecipeCover(savedId, photo.key);
       }
-
-      if (isEditing && recipeId) {
-        router.push(`/recipe/${recipeId}` as any);
-      } else {
-        router.push('/(drawer)/(tabs)' as any);
-      }
+      setDirty(false);
+      router.replace(`/recipe/${savedId}` as any);
     } catch (error) {
-      console.error(`Failed to ${isEditing ? 'update' : 'create'} recipe:`, error);
-      notify('Error', `Failed to ${isEditing ? 'update' : 'create'} recipe. Please try again.`);
+      console.error('Save failed:', error);
+      notify('Not saved', 'Something went wrong saving this recipe. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
-        return renderBasicInfo();
-      case 1:
-        return renderIngredients();
-      case 2:
-        return renderInstructions();
-      case 3:
-        return renderDetails();
-      default:
-        return null;
-    }
-  };
+  // --- Rendering --------------------------------------------------------
 
-  const renderBasicInfo = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.fieldGroup}>
-        <ThemedText style={styles.label}>Recipe Title *</ThemedText>
-        <TextInput
-          style={[styles.textInput, errors.has('title') && styles.errorField]}
-          value={formData.title}
-          onChangeText={(value) => updateFormData('title', value)}
-          placeholder="Enter recipe name..."
-          placeholderTextColor={c.fgSubtle}
-        />
-      </View>
-
-      <View style={styles.fieldGroup}>
-        <ThemedText style={styles.label}>Recipe Photo</ThemedText>
-
-        {/* Photo Upload Button */}
-        <Pressable style={styles.photoButton} onPress={handlePickPhoto}>
-          <ThemedText style={styles.photoButtonText}>📷 Upload Photo</ThemedText>
-        </Pressable>
-
-        <ThemedText style={styles.orText}>or</ThemedText>
-
-        {/* Photo URL Input */}
-        <TextInput
-          style={styles.textInput}
-          value={formData.imageUrl}
-          onChangeText={(value) => updateFormData('imageUrl', value)}
-          placeholder="Enter photo URL..."
-          placeholderTextColor={c.fgSubtle}
-        />
-        
-        {/* Image Preview */}
-        {formData.imageUrl && (
-          <View style={styles.imagePreviewContainer}>
-            <Image
-              source={{ uri: formData.imageUrl }}
-              style={styles.imagePreview}
-              contentFit="cover"
-            />
-          </View>
-        )}
-      </View>
-    </View>
-  );
-
-  // Consecutive ingredients with the same section form one group. Unlike the
-  // recipe view, '' is kept apart from null so a heading being retyped stays.
-  const ingredientGroups = () => {
-    const groups: { section: string | null; indices: number[] }[] = [];
-    formData.ingredients.forEach((ing, index) => {
-      const last = groups[groups.length - 1];
+  const groups = (() => {
+    const out: { section: string | null; indices: number[] }[] = [];
+    form.ingredients.forEach((ing, index) => {
+      const last = out[out.length - 1];
+      // '' stays apart from null so a heading being retyped doesn't vanish.
       if (last && last.section === ing.section) last.indices.push(index);
-      else groups.push({ section: ing.section, indices: [index] });
+      else out.push({ section: ing.section, indices: [index] });
     });
-    return groups;
-  };
+    return out;
+  })();
+  const filledIngredients = form.ingredients.filter((i) => i.name.trim()).length;
 
-  const renderIngredients = () => (
-    <View style={styles.stepContent}>
-      <ThemedText style={styles.sectionTitle}>Ingredients</ThemedText>
-      <ThemedText style={[styles.label, { marginBottom: 12 }]}>
-        Type ingredients directly. Amounts are optional. Use sections for parts like a marinade or sauce.
-      </ThemedText>
-      {ingredientGroups().map((group) => (
-        <View key={group.indices[0]}>
-          {group.section !== null && (
-            <View style={styles.sectionHeaderRow}>
-              <TextInput
-                style={[styles.textInput, styles.sectionNameInput]}
-                value={group.section}
-                onChangeText={(value) => renameSection(group.indices, value)}
-                placeholder="Section name, e.g. Marinade"
-                placeholderTextColor={c.fgSubtle}
-                autoFocus={group.section === ''}
-              />
-              <Pressable onPress={() => removeSection(group.indices)} accessibilityLabel="Remove section heading" style={styles.removeButton}>
-                <ThemedText style={{ color: c.danger }}>Remove heading</ThemedText>
-              </Pressable>
-            </View>
-          )}
-          {group.indices.map((index) => renderIngredientCard(formData.ingredients[index], index))}
-          <Pressable style={styles.addButton} onPress={() => addIngredient(group.indices[group.indices.length - 1])}>
-            <ThemedText style={styles.addButtonText}>
-              {group.section ? `+ Add to ${group.section}` : '+ Add Ingredient'}
-            </ThemedText>
-          </Pressable>
-        </View>
-      ))}
-      <Pressable style={[styles.addButton, { marginTop: 20 }]} onPress={addSection}>
-        <ThemedText style={styles.addButtonText}>+ Add Section</ThemedText>
-      </Pressable>
-    </View>
-  );
+  const markSection = (key: FieldError) => (e: LayoutChangeEvent) => { sectionY.current[key] = e.nativeEvent.layout.y; };
 
-  const renderIngredientCard = (ingredient: RecipeIngredient, index: number) => (
-    <View key={index} style={[styles.ingredientCard, { backgroundColor: c.bgElevated, borderColor: c.border }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <TextInput
-          style={[styles.textInput, { flex: 1 }, errors.has(`ingredient-${index}-name`) && styles.errorField]}
-          value={ingredient.ingredientName}
-          onChangeText={(value) => updateIngredient(index, 'ingredientName', value)}
-          placeholder="Ingredient, e.g. cherry tomatoes"
-          placeholderTextColor={c.fgSubtle}
-        />
-        <Pressable onPress={() => openIngredientPicker(index)} accessibilityLabel="Browse ingredients" style={styles.removeButton}>
-          <ThemedText style={{ color: c.accent, fontSize: 17 }}>⌕</ThemedText>
-        </Pressable>
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
-        <TextInput
-          style={[styles.textInput, { width: 75 }]}
-          value={ingredient.quantity}
-          onChangeText={(value) => updateIngredient(index, 'quantity', value)}
-          placeholder="Amount"
-          placeholderTextColor={c.fgSubtle}
-          keyboardType="decimal-pad"
-        />
-        <TextInput
-          style={[styles.textInput, { flex: 1, minWidth: 70 }]}
-          value={ingredient.unitAbbreviation}
-          onChangeText={(value) => updateIngredient(index, 'unitAbbreviation', value)}
-          placeholder="Unit (optional)"
-          placeholderTextColor={c.fgSubtle}
-        />
-        <Pressable onPress={() => openUnitPicker(index)} accessibilityLabel="Browse units" style={styles.removeButton}>
-          <ThemedText style={{ color: c.accent, fontSize: 17 }}>⌕</ThemedText>
-        </Pressable>
-      </View>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-        <Pressable
-          onPress={() => setFormData(prev => ({
-            ...prev,
-            ingredients: prev.ingredients.map((ing, i) => i === index ? { ...ing, optional: !ing.optional } : ing),
-          }))}
-          style={[styles.optionalToggle, ingredient.optional && styles.optionalToggleActive]}
-        >
-          <ThemedText style={[styles.optionalToggleText, ingredient.optional && styles.optionalToggleTextActive]}>
-            {ingredient.optional ? 'Optional ✓' : 'Mark optional'}
-          </ThemedText>
-        </Pressable>
-        {formData.ingredients.length > 1 && (
-          <Pressable onPress={() => removeIngredient(index)} accessibilityLabel="Remove ingredient" style={styles.removeButton}>
-            <ThemedText style={{ color: c.danger }}>Remove</ThemedText>
-          </Pressable>
-        )}
-      </View>
-    </View>
-  );
-
-  const renderInstructions = () => (
-    <View style={styles.stepContent}>
-      <ThemedText style={styles.sectionTitle}>Instructions</ThemedText>
-      {formData.steps.map((step, index) => (
-        <View key={index} style={styles.stepContainer}>
-          <ThemedText style={styles.stepNumber}>{index + 1}</ThemedText>
-          <TextInput
-            style={[styles.stepInput, errors.has(`step-${index}`) && styles.errorField]}
-            value={step}
-            onChangeText={(value) => updateStep(index, value)}
-            placeholder={`Step ${index + 1}...`}
-            placeholderTextColor={c.fgSubtle}
-            multiline
-          />
-          <Pressable
-            style={styles.removeButton}
-            onPress={() => removeStep(index)}
-          >
-            {formData.steps.length > 1 ? <ThemedText style={styles.removeButtonText}>✕</ThemedText>: null}
-          </Pressable>
-        </View>
-      ))}
-      <Pressable style={styles.addButton} onPress={addStep}>
-        <ThemedText style={styles.addButtonText}>+ Add Step</ThemedText>
-      </Pressable>
-    </View>
-  );
-
-  const renderDetails = () => (
-    <View style={styles.stepContent}>
-      <View style={styles.fieldGroup}>
-        <ThemedText style={styles.label}>Description</ThemedText>
-        <TextInput
-          style={[styles.textInput, styles.textArea]}
-          value={formData.description}
-          onChangeText={(value) => updateFormData('description', value)}
-          placeholder="Brief description..."
-          placeholderTextColor={c.fgSubtle}
-          multiline
-          numberOfLines={3}
-        />
-      </View>
-
-      <View style={styles.quickInfoRow}>
-        <View style={styles.quickInfoField}>
-          <ThemedText style={styles.label}>Prep Time</ThemedText>
-          <TextInput
-            style={styles.quickInput}
-            value={formData.prepTime}
-            onChangeText={(value) => updateFormData('prepTime', value)}
-            placeholder="30 min"
-            placeholderTextColor={c.fgSubtle}
-          />
-        </View>
-        <View style={styles.quickInfoField}>
-          <ThemedText style={styles.label}>Cook Time</ThemedText>
-          <TextInput
-            style={styles.quickInput}
-            value={formData.cookTime}
-            onChangeText={(value) => updateFormData('cookTime', value)}
-            placeholder="45 min"
-            placeholderTextColor={c.fgSubtle}
-          />
-        </View>
-        <View style={styles.quickInfoField}>
-          <ThemedText style={styles.label}>Servings</ThemedText>
-          <TextInput
-            style={styles.quickInput}
-            value={formData.servings}
-            onChangeText={(value) => updateFormData('servings', value)}
-            placeholder="4"
-            placeholderTextColor={c.fgSubtle}
-            keyboardType="numeric"
-          />
-        </View>
-      </View>
-    </View>
-  );
-
-  // Show loading screen while loading recipe data for editing or importing
-  if (loading || loadingImport) {
+  if (loading) {
     return (
-      <ThemedView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" />
-          <ThemedText style={styles.loadingText}>
-            {loading ? 'Loading recipe...' : 'Processing imported recipe...'}
-          </ThemedText>
-        </View>
-      </ThemedView>
+      <SafeAreaView style={[styles.screen, styles.center]}>
+        <Bob><Mascot size={96} /></Bob>
+        <ActivityIndicator color={c.accent} style={{ marginTop: 16 }} />
+      </SafeAreaView>
     );
   }
 
+  const field = (focusKey?: boolean) => [inputStyle(theme), styles.field, focusKey && null];
+
+  const renderIngredientRow = (ing: FormIngredient, index: number) => (
+    <IngredientRow
+      key={index}
+      ing={ing}
+      index={index}
+      wide={isWide}
+      nameRef={(r) => { nameRefs.current[index] = r; }}
+      onChange={(patch) => setIngredient(index, patch)}
+      onSubmit={() => insertIngredient(index)}
+      onRemove={() => removeIngredient(index)}
+    />
+  );
+
   return (
-    <ThemedView style={styles.container}>
-      {/* Loading Overlay */}
-      {saving && (
-        <View style={styles.loadingOverlay}>
-          <ThemedView lightColor={c.bgElevated} darkColor={c.bgElevated} style={styles.loadingCard}>
-            <ActivityIndicator size="large" color={c.accent} />
-            <ThemedText style={styles.loadingText}>Saving recipe...</ThemedText>
-          </ThemedView>
-        </View>
-      )}
-
-      {/* Modals */}
-      <UnitPickerModal
-        visible={unitModalVisible}
-        onClose={() => setUnitModalVisible(false)}
-        onSelectUnit={handleUnitSelect}
-        selectedUnitId={selectedIngredientIndex !== null ? formData.ingredients[selectedIngredientIndex]?.unitId : undefined}
-      />
-      <IngredientPickerModal
-        visible={ingredientModalVisible}
-        onClose={() => setIngredientModalVisible(false)}
-        onSelectIngredient={handleIngredientSelect}
-        selectedIngredientId={selectedIngredientIndex !== null ? formData.ingredients[selectedIngredientIndex]?.ingredientId : undefined}
-      />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <ThemedText style={styles.backButtonText}>✕</ThemedText>
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      <Tablecloth />
+      {/* Top bar */}
+      <View style={[styles.topBar, { borderBottomColor: c.outline }]}>
+        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Close" hitSlop={8}
+          style={[styles.closeBtn, { borderColor: c.outline, backgroundColor: c.bgElevated, ...theme.shadow.sm }]}>
+          <Ionicons name="close" size={20} color={c.fg} />
         </Pressable>
-        <ThemedText style={styles.headerTitle}>{isEditing ? 'Edit recipe' : 'New recipe'}</ThemedText>
-        <View style={styles.backButton} />
+        <Text variant="h3" numberOfLines={1} style={{ flex: 1, textAlign: 'center' }}>
+          {isEditing ? 'Edit recipe' : 'New recipe'}
+        </Text>
+        <Button size="sm" onPress={save} loading={saving} disabled={saving}>Save</Button>
       </View>
 
-      {/* Progress Timeline */}
-      <View style={styles.timeline}>
-        {stepTitles.map((title, index) => (
-          <Pressable
-            key={index}
-            style={styles.timelineItem}
-            onPress={() => setCurrentStep(index)}
-          >
-            <View style={[
-              styles.timelineCircle,
-              index === currentStep && styles.timelineCircleActive,
-              index < currentStep && styles.timelineCircleCompleted
-            ]}>
-              <ThemedText style={[
-                styles.timelineNumber,
-                (index === currentStep || index < currentStep) && styles.timelineNumberActive
-              ]}>
-                {index + 1}
-              </ThemedText>
+      <ScrollView ref={scrollRef} contentContainerStyle={[styles.content, isWide && styles.contentWide]} keyboardShouldPersistTaps="handled">
+        {importedFrom && (
+          <View style={[styles.importNote, { backgroundColor: c.butterMuted, borderColor: c.outline }]}>
+            <Mascot size={44} />
+            <View style={{ flex: 1 }}>
+              <Text variant="bodyMedium">Read from {importedFrom}.</Text>
+              <Text variant="small" color="fgMuted">Check the amounts and steps, then save.</Text>
             </View>
-            <ThemedText style={[
-              styles.timelineLabel,
-              index === currentStep && styles.timelineLabelActive
-            ]}>
-              {title}
-            </ThemedText>
-            {index < stepTitles.length - 1 && (
-              <View style={[
-                styles.timelineLine,
-                index < currentStep && styles.timelineLineCompleted
-              ]} />
-            )}
-          </Pressable>
-        ))}
-      </View>
+          </View>
+        )}
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>{renderStepContent()}</View>
+        {/* The dish */}
+        <Rise index={0}>
+        <View style={styles.panel} onLayout={markSection('title')}>
+          <PanelTab label="The dish" art={<Skillet size={40} rotate={-30} />} />
+          <TextInput
+            value={form.title}
+            onChangeText={(v) => { edit({ title: v }); if (v.trim()) clearError('title'); }}
+            placeholder="Name this dish"
+            placeholderTextColor={c.fgSubtle}
+            accessibilityLabel="Recipe name"
+            style={[styles.titleInput, { color: c.fg, borderBottomColor: errors.has('title') ? c.danger : c.outline }]}
+          />
+          {errors.has('title') && <Text variant="small" color="danger" style={{ marginTop: 6 }}>Give it a name.</Text>}
+
+          <View style={[styles.dishRow, !isWide && { flexDirection: 'column', alignItems: 'stretch' }]}>
+            <Pressable
+              onPress={pickPhoto}
+              accessibilityRole="button"
+              accessibilityLabel={form.imageUrl ? 'Change photo' : 'Add a photo'}
+              style={[styles.photo, !isWide && { width: '100%', height: 120 }, { borderColor: form.imageUrl ? c.outline : c.borderStrong, backgroundColor: c.bgMuted }]}
+            >
+              {form.imageUrl ? (
+                <>
+                  <Image source={{ uri: form.imageUrl }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                  <Pressable
+                    onPress={() => { setLocalPhotoUri(null); edit({ imageUrl: '' }); }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Remove photo"
+                    style={[styles.photoRemove, { backgroundColor: c.bgElevated, borderColor: c.outline }]}
+                  >
+                    <Ionicons name="close" size={16} color={c.fg} />
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="camera-outline" size={26} color={c.fgMuted} />
+                  <Text variant="label" color="fgMuted" style={{ marginTop: 4 }}>Add a photo</Text>
+                </>
+              )}
+            </Pressable>
+
+            <View style={{ flex: 1, gap: 12 }}>
+              <View style={styles.facts}>
+                <Fact label="Prep" suffix="min" value={form.prepTime} onChange={(v) => edit({ prepTime: v.replace(/[^\d]/g, '') })} />
+                <Fact label="Cook" suffix="min" value={form.cookTime} onChange={(v) => edit({ cookTime: v.replace(/[^\d]/g, '') })} />
+                <Fact label="Serves" value={form.servings} onChange={(v) => edit({ servings: v.replace(/[^\d]/g, '') })} />
+              </View>
+              <View>
+                <Text variant="label" color="fgMuted" style={{ marginBottom: 6 }}>Where&apos;s it from?</Text>
+                <View style={styles.origins} accessibilityRole="radiogroup">
+                  {ORIGINS.map((o) => {
+                    const on = originOf(form.sourceType, form.sourceRecipeId, form.sourceUrl) === o.key;
+                    return (
+                      <Chip
+                        key={o.key}
+                        size="sm"
+                        variant={on ? 'accent' : 'outline'}
+                        onPress={() => edit({ sourceType: on ? form.sourceType : o.sourceType(form.sourceType, form.sourceUrl) })}
+                        icon={<Ionicons name={o.icon} size={13} color={on ? c.accent : c.fgMuted} />}
+                      >
+                        {o.label}
+                      </Chip>
+                    );
+                  })}
+                </View>
+              </View>
+              {showPhotoLink || (form.imageUrl && !localPhotoUri) ? (
+                <TextInput
+                  value={localPhotoUri ? '' : form.imageUrl}
+                  onChangeText={(v) => { setLocalPhotoUri(null); edit({ imageUrl: v }); }}
+                  placeholder="Image link (https://…)"
+                  placeholderTextColor={c.fgSubtle}
+                  autoCapitalize="none"
+                  keyboardType="url"
+                  accessibilityLabel="Image link"
+                  style={[...field()]}
+                />
+              ) : (
+                <Pressable onPress={() => setShowPhotoLink(true)} hitSlop={6} accessibilityRole="button">
+                  <Text variant="small" color="fgMuted" style={{ textDecorationLine: 'underline' }}>Use an image link instead</Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
+        </View>
+
+        </Rise>
+
+        {/* Mise en place */}
+        <Rise index={1}>
+        <View style={[styles.panel, errors.has('ingredients') && { borderColor: c.danger }]} onLayout={markSection('ingredients')}>
+          <PanelTab
+            label="Ingredients"
+            count={filledIngredients || undefined}
+            art={<Board size={42} rotate={-10} />}
+            action={!pasteOpen ? (
+              <Button size="sm" variant="secondary" onPress={() => setPasteOpen(true)} icon={<Ionicons name="clipboard-outline" size={15} color={c.fg} />}>
+                Paste a list
+              </Button>
+            ) : undefined}
+          />
+          {errors.has('ingredients') && <Text variant="small" color="danger" style={{ marginBottom: 10 }}>Add at least one ingredient.</Text>}
+
+          {pasteOpen && (
+            <View style={[styles.pasteBox, { borderColor: c.outline, backgroundColor: c.butterMuted }]}>
+              <Text variant="small" color="fgMuted">
+                One ingredient per line, like “1/2 cup orange juice”. A line like “For the marinade:” starts a section.
+              </Text>
+              <TextInput
+                value={pasteText}
+                onChangeText={setPasteText}
+                multiline
+                autoFocus
+                placeholder={'2 cloves garlic, minced\n1/4 cup lime juice\nsalt (optional)'}
+                placeholderTextColor={c.fgSubtle}
+                textAlignVertical="top"
+                accessibilityLabel="Ingredient list"
+                style={[...field(), { minHeight: 130, marginTop: 10, lineHeight: 22 }]}
+              />
+              <View style={styles.pasteActions}>
+                <Button size="sm" variant="ghost" onPress={() => { setPasteOpen(false); setPasteText(''); }}>Cancel</Button>
+                <Button size="sm" onPress={addPastedList} disabled={!pasteText.trim()}>Add these</Button>
+              </View>
+            </View>
+          )}
+
+          {groups.map((group) => (
+            <View key={group.indices[0]} style={{ marginTop: group.section !== null ? 14 : 0 }}>
+              {group.section !== null && (
+                <View style={styles.sectionRow}>
+                  <TextInput
+                    value={group.section}
+                    onChangeText={(v) => renameSection(group.indices, v)}
+                    placeholder="Section, e.g. Marinade"
+                    placeholderTextColor={c.fgSubtle}
+                    autoFocus={group.section === ''}
+                    accessibilityLabel="Section name"
+                    style={[styles.sectionInput, { color: c.accent, borderBottomColor: c.borderStrong }]}
+                  />
+                  <Pressable onPress={() => removeSection(group.indices)} accessibilityRole="button" accessibilityLabel="Remove section heading" hitSlop={6} style={styles.iconBtn}>
+                    <Ionicons name="close" size={18} color={c.fgSubtle} />
+                  </Pressable>
+                </View>
+              )}
+              {group.indices.map((index) => renderIngredientRow(form.ingredients[index], index))}
+              <Pressable
+                onPress={() => insertIngredient(group.indices[group.indices.length - 1])}
+                accessibilityRole="button"
+                style={styles.addLink}
+                hitSlop={4}
+              >
+                <Ionicons name="add" size={18} color={c.accent} />
+                <Text variant="smallMedium" color="accent">
+                  {group.section ? `Add to ${group.section}` : 'Add ingredient'}
+                </Text>
+              </Pressable>
+            </View>
+          ))}
+          <View style={[styles.divider, { backgroundColor: c.border }]} />
+          <Pressable onPress={addSection} accessibilityRole="button" style={styles.addLink} hitSlop={4}>
+            <Ionicons name="albums-outline" size={17} color={c.fgMuted} />
+            <Text variant="smallMedium" color="fgMuted">Add a section, like a marinade or sauce</Text>
+          </Pressable>
+        </View>
+
+        </Rise>
+
+        {/* Method */}
+        <Rise index={2}>
+        <View style={[styles.panel, errors.has('steps') && { borderColor: c.danger }]} onLayout={markSection('steps')}>
+          <PanelTab label="Method" count={form.steps.filter((s) => s.trim()).length || undefined} art={<Pot size={42} />} />
+          {errors.has('steps') && <Text variant="small" color="danger" style={{ marginBottom: 10 }}>Add at least one step.</Text>}
+          {form.steps.map((step, index) => (
+            <View key={index} style={styles.stepRow}>
+              <Burner n={index + 1} lit={!!step.trim()} />
+              <TextInput
+                ref={(r) => { stepRefs.current[index] = r; }}
+                value={step}
+                onChangeText={(v) => setStep(index, v)}
+                onContentSizeChange={(e) => {
+                  // Web reports scrollHeight (text + padding); native reports
+                  // the text alone. Either way, settle on the box height.
+                  const content = e.nativeEvent.contentSize.height;
+                  const h = Platform.OS === 'web' ? content + 4 : content + 26;
+                  setStepHeights((prev) => (Math.abs((prev[index] ?? 0) - h) < 2 ? prev : { ...prev, [index]: h }));
+                }}
+                multiline
+                placeholder={index === 0 ? 'What happens first? Press Enter for the next step.' : `Step ${index + 1}`}
+                placeholderTextColor={c.fgSubtle}
+                textAlignVertical="top"
+                accessibilityLabel={`Step ${index + 1}`}
+                style={[...field(), { flex: 1, lineHeight: 22, height: Math.max(46, stepHeights[index] ?? 46) }]}
+              />
+              <Pressable onPress={() => removeStep(index)} accessibilityRole="button" accessibilityLabel={`Remove step ${index + 1}`} hitSlop={6} style={[styles.iconBtn, { marginTop: 8 }]}>
+                <Ionicons name="close" size={18} color={c.fgSubtle} />
+              </Pressable>
+            </View>
+          ))}
+          <Pressable onPress={addStep} accessibilityRole="button" style={styles.addLink} hitSlop={4}>
+            <Ionicons name="add" size={18} color={c.accent} />
+            <Text variant="smallMedium" color="accent">Add step</Text>
+          </Pressable>
+        </View>
+
+        </Rise>
+
+        {/* Notes */}
+        <Rise index={3}>
+        <View style={styles.panel}>
+          <PanelTab label="Notes" />
+          <TextInput
+            value={form.notes}
+            onChangeText={(v) => edit({ notes: v })}
+            multiline
+            placeholder="Tips, swaps, where it came from"
+            placeholderTextColor={c.fgSubtle}
+            textAlignVertical="top"
+            accessibilityLabel="Notes"
+            style={[...field(), { minHeight: 96, lineHeight: 22 }]}
+          />
+        </View>
+
+        </Rise>
+
+        <Button size="lg" fullWidth onPress={save} loading={saving} disabled={saving} style={{ marginTop: 8 }}>
+          {isEditing ? 'Save changes' : 'Save recipe'}
+        </Button>
       </ScrollView>
-
-      {/* Navigation Buttons */}
-      <View style={styles.navigationContainer}>
-        {currentStep > 0 && (
-          <Pressable style={styles.navButton} onPress={handlePrevious}>
-            <ThemedText style={styles.navButtonText}>← Previous</ThemedText>
-          </Pressable>
-        )}
-        <View style={{ flex: 1 }} />
-        {currentStep === 2 && (
-          <Pressable style={styles.navButton} onPress={handleSave} disabled={saving}>
-            <ThemedText style={styles.navButtonText}>Save now</ThemedText>
-          </Pressable>
-        )}
-        {currentStep < stepTitles.length - 1 ? (
-          <Pressable style={[styles.navButton, styles.navButtonPrimary]} onPress={handleNext}>
-            <ThemedText style={styles.navButtonTextPrimary}>Next →</ThemedText>
-          </Pressable>
-        ) : (
-          <Pressable 
-            style={[styles.navButton, styles.navButtonPrimary, saving && styles.navButtonDisabled]} 
-            onPress={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <ActivityIndicator size="small" color={c.accentFg} />
-            ) : (
-              <ThemedText style={styles.navButtonTextPrimary}>Save Recipe</ThemedText>
-
-            )}
-          </Pressable>
-        )}
-      </View>
-    </ThemedView>
+    </SafeAreaView>
   );
 }
+
+const ORIGINS: {
+  key: Origin;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  sourceType: (current: string | null, url: string | null) => string;
+}[] = [
+  { key: 'made', label: 'Made by me', icon: 'bookmark-outline', sourceType: () => 'manual' },
+  { key: 'adapted', label: 'Adapted', icon: 'git-branch-outline', sourceType: () => 'adapted' },
+  // Keep the specific import kind when there is one.
+  { key: 'imported', label: 'Imported', icon: 'download-outline', sourceType: (cur, url) => (cur && IMPORT_TYPES.includes(cur) ? cur : url ? 'website' : 'text') },
+  { key: 'ai', label: 'AI idea', icon: 'sparkles-outline', sourceType: () => 'ai' },
+];
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'the link';
+  }
+}
+
+/** A panel's heading: a little label tab, an optional kitchen piece and action. */
+function PanelTab({ label, count, art, action }: { label: string; count?: number; art?: React.ReactNode; action?: React.ReactNode }) {
+  const theme = useTheme();
+  const c = theme.colors;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14, minHeight: 36 }}>
+      {art}
+      <Text variant="h2" accessibilityRole="header">{label}</Text>
+      {count ? (
+        <View style={{ minWidth: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: c.outline, backgroundColor: c.butter, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 }}>
+          <Text variant="label" style={{ fontSize: 12 }}>{count}</Text>
+        </View>
+      ) : null}
+      <View style={{ flex: 1 }} />
+      {action}
+    </View>
+  );
+}
+
+/** A stove burner holding the step number; lights up once the step has text. */
+function Burner({ n, lit }: { n: number; lit: boolean }) {
+  const theme = useTheme();
+  const c = theme.colors;
+  return (
+    <Pop
+      trigger={lit}
+      style={{
+        width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: c.outline,
+        backgroundColor: lit ? c.tomato : c.bgElevated, alignItems: 'center', justifyContent: 'center', marginTop: 4,
+      }}
+    >
+      <View style={{ position: 'absolute', width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: lit ? c.accentFg : c.borderStrong, opacity: 0.8 }} />
+      <Text variant="label" style={{ color: lit ? c.accentFg : c.fg, fontSize: 13 }}>{n}</Text>
+    </Pop>
+  );
+}
+
+/** A small labelled number field for times and servings. */
+function Fact({ label, suffix, value, onChange }: { label: string; suffix?: string; value: string; onChange: (v: string) => void }) {
+  const theme = useTheme();
+  const c = theme.colors;
+  return (
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <Text variant="label" color="fgMuted" style={{ marginBottom: 6 }}>{label}</Text>
+      <View style={{ justifyContent: 'center' }}>
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          keyboardType="number-pad"
+          placeholder="–"
+          placeholderTextColor={c.fgSubtle}
+          accessibilityLabel={suffix ? `${label} time in minutes` : label}
+          style={[inputStyle(theme), { paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, paddingRight: suffix ? 40 : 12 }]}
+        />
+        {suffix && <Text variant="small" color="fgSubtle" style={{ position: 'absolute', right: 12 }}>{suffix}</Text>}
+      </View>
+    </View>
+  );
+}
+
+function makeStyles(theme: Theme) {
+  const c = theme.colors;
+  return StyleSheet.create({
+    screen: { flex: 1, backgroundColor: c.bg },
+    center: { alignItems: 'center', justifyContent: 'center' },
+    topBar: {
+      flexDirection: 'row', alignItems: 'center', gap: 12,
+      paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: theme.outlineWidth, backgroundColor: c.bg,
+    },
+    closeBtn: { width: 38, height: 38, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+    content: { padding: 16, paddingBottom: 64, gap: 22 },
+    contentWide: { width: '100%', maxWidth: 780, alignSelf: 'center', paddingTop: 28 },
+    importNote: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: theme.radius.lg, borderWidth: 2 },
+    panel: {
+      backgroundColor: c.bgElevated,
+      borderRadius: theme.radius.xl,
+      borderWidth: theme.outlineWidth,
+      borderColor: c.outline,
+      padding: 18,
+      ...theme.shadow.md,
+    },
+    titleInput: {
+      ...theme.type.h1,
+      fontSize: 30,
+      lineHeight: 36,
+      paddingVertical: 6,
+      borderBottomWidth: 2,
+      outlineStyle: 'none',
+    } as any,
+    dishRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginTop: 18 },
+    photo: {
+      width: 132, height: 132, borderRadius: theme.radius.lg, borderWidth: 2, borderStyle: 'dashed',
+      alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+    },
+    photoRemove: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+    facts: { flexDirection: 'row', gap: 10 },
+    origins: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    field: { paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+    iconBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+    addLink: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 6, marginLeft: 26 },
+    sectionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+    sectionInput: {
+      ...theme.type.label, fontSize: 14, letterSpacing: 0.8, textTransform: 'uppercase',
+      flex: 1, paddingVertical: 6, borderBottomWidth: 2, outlineStyle: 'none',
+    } as any,
+    divider: { height: 2, borderRadius: 1, marginVertical: 8 },
+    pasteBox: { borderWidth: 2, borderRadius: theme.radius.lg, padding: 14, marginBottom: 14 },
+    pasteActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 10 },
+    stepRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  });
+}
+
+/**
+ * One line of the mise en place: a prep bowl that fills once the ingredient
+ * is named, then amount, unit and name in a single outlined strip. On phones
+ * the name gets its own line above the amount and unit.
+ */
+function IngredientRow({ ing, index, wide, nameRef, onChange, onSubmit, onRemove }: {
+  ing: FormIngredient;
+  index: number;
+  wide: boolean;
+  nameRef: (r: TextInput | null) => void;
+  onChange: (patch: Partial<FormIngredient>) => void;
+  onSubmit: () => void;
+  onRemove: () => void;
+}) {
+  const theme = useTheme();
+  const c = theme.colors;
+  const [focused, setFocused] = useState(false);
+  const focus = { onFocus: () => setFocused(true), onBlur: () => setFocused(false) };
+  const cell = [styles.cell, { color: c.fg, fontFamily: theme.type.body.fontFamily }];
+  const rule = { borderColor: c.border };
+
+  const amount = (
+    <TextInput {...focus} value={ing.quantity} onChangeText={(v) => onChange({ quantity: v })}
+      placeholder="Amt" placeholderTextColor={c.fgSubtle} keyboardType="numbers-and-punctuation"
+      accessibilityLabel={`Amount for ingredient ${index + 1}`} style={[...cell, styles.amountCell]} />
+  );
+  const unit = (
+    <TextInput {...focus} value={ing.unit} onChangeText={(v) => onChange({ unit: v })}
+      placeholder="unit" placeholderTextColor={c.fgSubtle} autoCapitalize="none"
+      accessibilityLabel={`Unit for ingredient ${index + 1}`} style={[...cell, styles.unitCell, { borderLeftWidth: 2 }, rule]} />
+  );
+  const name = (
+    <TextInput {...focus} ref={nameRef} value={ing.name} onChangeText={(v) => onChange({ name: v })}
+      onSubmitEditing={onSubmit} blurOnSubmit={false} returnKeyType="next"
+      placeholder={index === 0 ? 'Ingredient, e.g. olive oil' : 'Ingredient'} placeholderTextColor={c.fgSubtle}
+      accessibilityLabel={`Ingredient ${index + 1}`}
+      style={[...cell, { flex: 1, minWidth: 0, fontFamily: theme.type.bodyMedium.fontFamily, fontWeight: '500' }, wide && { borderLeftWidth: 2 }, rule]} />
+  );
+  const optional = (
+    <Pressable onPress={() => onChange({ optional: !ing.optional })} accessibilityRole="switch"
+      accessibilityState={{ checked: ing.optional }} accessibilityLabel="Optional"
+      style={[styles.optToggle, ing.optional && { backgroundColor: c.butterMuted, borderColor: c.outline }]}>
+      <Text variant="label" style={{ fontSize: 12, color: ing.optional ? c.fg : c.fgSubtle }}>optional</Text>
+    </Pressable>
+  );
+
+  return (
+    <Rise style={styles.ingredientRow}>
+      <Pop trigger={!!ing.name.trim()} style={[styles.bowl, easeColors, { borderColor: c.outline, backgroundColor: ing.name.trim() ? (ing.optional ? c.butterMuted : c.butter) : c.bgElevated }]} />
+      <View style={[
+        styles.strip,
+        { borderColor: focused ? c.outline : c.borderStrong, backgroundColor: c.bgElevated },
+        focused && { shadowColor: c.accent, shadowOffset: { width: 3, height: 3 }, shadowOpacity: 1, shadowRadius: 0 },
+      ]}>
+        {wide ? (
+          <View style={styles.stripLine}>{amount}{unit}{name}{optional}</View>
+        ) : (
+          <>
+            <View style={styles.stripLine}>{name}</View>
+            <View style={[styles.stripLine, { borderTopWidth: 2 }, rule]}>{amount}{unit}<View style={{ flex: 1 }} />{optional}</View>
+          </>
+        )}
+      </View>
+      <Pressable onPress={onRemove} accessibilityRole="button" accessibilityLabel={`Remove ${ing.name || 'ingredient'}`}
+        hitSlop={6} style={[styles.iconBtn, { marginTop: 8 }]}>
+        <Ionicons name="close" size={18} color={c.fgSubtle} />
+      </Pressable>
+    </Rise>
+  );
+}
+
+const styles = StyleSheet.create({
+  ingredientRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 8 },
+  bowl: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, marginTop: 15 },
+  strip: { flex: 1, borderWidth: 2, borderRadius: 12, overflow: 'hidden' },
+  stripLine: { flexDirection: 'row', alignItems: 'center' },
+  cell: { paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, outlineStyle: 'none' } as any,
+  amountCell: { width: 64, textAlign: 'center' },
+  unitCell: { width: 74 },
+  optToggle: { borderWidth: 2, borderColor: 'transparent', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3, marginHorizontal: 6 },
+  iconBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+});

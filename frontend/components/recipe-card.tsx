@@ -10,6 +10,9 @@ import { Sheet } from '@/components/ui/Sheet';
 import { Button } from '@/components/ui/Button';
 import { StarRating } from '@/components/ui/StarRating';
 import { EditRecipeTagsModal } from './edit-recipe-tags-modal';
+import { RecipeCover } from './kitchen/recipe-cover';
+import { DishSticker } from './kitchen/dish-sticker';
+import { ORIGIN_ICON, ORIGIN_LABEL, originOf } from '@/utils/recipe-origin';
 import { updateRecipeTags } from '@/services/recipe-service';
 import { RecipeTag } from '@/services/profile-service';
 import { useTheme } from '@/hooks/use-theme';
@@ -62,14 +65,23 @@ export function RecipeCard(props: RecipeCardProps) {
   const cook = Number(metadata?.cookTime) || 0;
   const totalTime = prep + cook;
   const numIngredients = ingredients?.length ?? 0;
-  const sourceLabel = source_recipe_id || source_type === 'adapted' ? 'Adapted recipe'
-    : source_type === 'ai' ? 'Created with AI'
-    : source_type === 'manual' || !source_type ? 'Made by me'
-    : 'Imported recipe';
+  const origin = originOf(source_type, source_recipe_id);
+  const sourceLabel = ORIGIN_LABEL[origin];
   const edited = !!created_at && !!updated_at &&
     new Date(updated_at).getTime() - new Date(created_at).getTime() > 60_000;
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+  const [hopping, setHopping] = useState(false);
+  // Touch screens have no hover, so a tap gives the dish a quick hop and the
+  // card opens a beat later, once it has landed.
+  const hop = () => {
+    if (hopping) return;
+    setHopping(true);
+    setTimeout(() => { onPress?.(); setHopping(false); }, 190);
+  };
+  const lively = hovered || pressed || hopping;
   const [showEditTags, setShowEditTags] = useState(false);
 
   const tagDetails = tags
@@ -79,22 +91,33 @@ export function RecipeCard(props: RecipeCardProps) {
 
   return (
     <>
-      <Card onPress={onPress} style={styles.card}>
-        {image ? (
-          <Image source={{ uri: image }} style={styles.image} />
-        ) : (
-          <View style={[styles.imagePlaceholder, { backgroundColor: c.secondaryMuted }]}>
-            <Ionicons name="restaurant-outline" size={40} color={c.secondary} />
-          </View>
-        )}
-        <View style={[styles.originBadge, { backgroundColor: c.bgElevated }]}>
-          <Ionicons name={source_recipe_id || source_type === 'adapted' ? 'git-branch-outline' : 'bookmark-outline'} size={12} color={c.accent} />
-          <Text variant="caption" style={{ color: c.fg }}>{sourceLabel}</Text>
+      <Card onPress={onPress && hop} style={styles.card} onHover={setHovered} onPressIn={() => setPressed(true)} onPressOut={() => setPressed(false)}>
+        <View style={{ borderBottomWidth: theme.outlineWidth, borderBottomColor: c.outline }}>
+          {image ? (
+            <>
+              <Image source={{ uri: image }} style={styles.image} accessibilityIgnoresInvertColors />
+              <DishSticker
+                title={title}
+                tags={tags}
+                ingredients={(ingredients ?? []).map((i: any) => i.text ?? '')}
+                id={id}
+                size={70}
+                wiggle={lively}
+                style={{ right: 6, bottom: -4 }}
+              />
+            </>
+          ) : (
+            <RecipeCover title={title} tags={tags} ingredients={(ingredients ?? []).map((i: any) => i.text ?? '')} id={id} height={150} wiggle={lively} />
+          )}
+        </View>
+        <View style={[styles.originBadge, { backgroundColor: c.bgElevated, borderColor: c.outline, ...theme.shadow.sm }]}>
+          <Ionicons name={ORIGIN_ICON[origin]} size={12} color={c.accent} />
+          <Text variant="label" style={{ color: c.fg, fontSize: 12 }}>{sourceLabel}</Text>
         </View>
 
         <View style={[styles.info, { padding: theme.spacing.md }]}>
           <View style={styles.titleRow}>
-            <Text variant="h3" numberOfLines={2} style={styles.title}>
+            <Text variant="h2" numberOfLines={2} style={styles.title}>
               {title}
             </Text>
             <Menu>
@@ -105,6 +128,8 @@ export function RecipeCard(props: RecipeCardProps) {
                 customStyles={{
                   optionsContainer: {
                     borderRadius: theme.radius.md,
+                    borderWidth: theme.outlineWidth,
+                    borderColor: c.outline,
                     padding: 4,
                     minWidth: 160,
                     backgroundColor: c.bgElevated,
@@ -218,24 +243,18 @@ export function RecipeCard(props: RecipeCardProps) {
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    margin: 6,
+    margin: 8,
     overflow: 'hidden',
   },
   image: {
     width: '100%',
-    height: 160,
+    height: 150,
     resizeMode: 'cover',
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: 160,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   originBadge: {
     position: 'absolute', top: 12, left: 12,
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 9, paddingVertical: 6, borderRadius: 99,
+    paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, borderWidth: 2,
   },
   info: { flex: 1 },
   footer: { marginTop: 'auto', paddingTop: 8 },
@@ -245,7 +264,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 8,
   },
-  title: { flex: 1, lineHeight: 22 },
+  title: { flex: 1, fontSize: 19, lineHeight: 23 },
   menuButton: {
     paddingHorizontal: 4,
     paddingVertical: 2,

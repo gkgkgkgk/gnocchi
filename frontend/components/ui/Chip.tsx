@@ -1,18 +1,23 @@
 import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
+import { blockPress, focusRing, type PressState } from './press';
+import { easeColors } from '@/components/kitchen/motion';
 
 interface ChipProps {
   children: ReactNode;
   onPress?: () => void;
+  /** default: quiet fill; accent: selected; outline: outlined, unselected. */
   variant?: 'default' | 'accent' | 'outline';
-  tone?: string; // custom tint color (e.g. tag colors)
+  /** A tag's own colour, shown as a dot so chips stay in the app palette. */
+  tone?: string;
   icon?: ReactNode;
   style?: ViewStyle;
   active?: boolean;
   size?: 'sm' | 'md';
 }
 
+/** Small outlined pill for filters, tags and facts. */
 export function Chip({
   children,
   onPress,
@@ -25,31 +30,20 @@ export function Chip({
 }: ChipProps) {
   const theme = useTheme();
   const c = theme.colors;
+  const selected = variant === 'accent';
 
-  const paletteBg =
-    tone ? `${tone}22` :
-    variant === 'accent' ? c.accent :
-    variant === 'outline' ? 'transparent' :
-    c.bgMuted;
-
-  const paletteFg =
-    tone ??
-    (variant === 'accent' ? c.accentFg : c.fg);
-
-  const paletteBorder =
-    tone ?? (variant === 'outline' ? c.borderStrong : 'transparent');
+  const bg = selected ? c.accentMuted : variant === 'outline' ? c.bgElevated : c.bgMuted;
+  const border = selected ? c.outline : variant === 'outline' || tone ? c.borderStrong : 'transparent';
 
   const pad = size === 'sm'
-    ? { paddingHorizontal: theme.spacing.sm, paddingVertical: 4 }
-    : { paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm - 2 };
+    ? { paddingHorizontal: 10, paddingVertical: 4 }
+    : { paddingHorizontal: theme.spacing.md, paddingVertical: 6 };
 
   const inner = (
-    <View style={[styles.row, { gap: theme.spacing.xs }]}>
+    <View style={[styles.row, { gap: 6 }]}>
+      {tone && !icon && <View style={[styles.dot, { backgroundColor: tone, borderColor: c.outline }]} />}
       {icon}
-      <Text style={[
-        size === 'sm' ? theme.type.caption : theme.type.smallMedium,
-        { color: paletteFg },
-      ]}>
+      <Text style={[size === 'sm' ? theme.type.label : theme.type.smallMedium, { color: c.fg }]}>
         {children}
       </Text>
     </View>
@@ -57,16 +51,22 @@ export function Chip({
 
   const base: ViewStyle = {
     borderRadius: theme.radius.pill,
-    borderWidth: variant === 'outline' || tone ? 1.5 : 0,
-    borderColor: paletteBorder,
-    backgroundColor: paletteBg,
+    borderWidth: theme.outlineWidth,
+    borderColor: border,
+    backgroundColor: bg,
     opacity: active === false ? 0.5 : 1,
     ...pad,
+    ...easeColors,
   };
 
   if (onPress) {
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => [base, pressed && { opacity: 0.85 }, style]}>
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        style={(state) => [base, selected ? blockPress(theme, state as PressState, 2, 2) : focusRing(theme, state as PressState), style]}
+      >
         {inner}
       </Pressable>
     );
@@ -76,4 +76,5 @@ export function Chip({
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
+  dot: { width: 9, height: 9, borderRadius: 5, borderWidth: 1.5 },
 });

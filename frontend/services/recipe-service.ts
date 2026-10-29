@@ -362,6 +362,13 @@ export async function addCookNote(id: string, note: CookHistoryEntry): Promise<R
   return adaptForUI(row);
 }
 
+/** Replace the whole cook log (to remove a mistaken entry or add a past one). */
+export async function setCookHistory(id: string, entries: CookHistoryEntry[]): Promise<Recipe> {
+  const sorted = [...entries].sort((a, b) => a.date.localeCompare(b.date));
+  const row = await api.patch<any>(`/recipes/${id}`, { cook_history: sorted });
+  return adaptForUI(row);
+}
+
 export async function uploadRecipePhoto(id: string, uri: string): Promise<RecipePhoto> {
   const fd = new FormData();
   await appendImage(fd, uri, 'photo.jpg');

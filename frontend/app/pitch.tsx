@@ -4,10 +4,8 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Alert,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -21,6 +19,11 @@ import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { AiRecipePreviewCard } from '@/components/ai-recipe-preview-card';
 import { generateRecipeFromPitch, type PitchChatTurn } from '@/services/recipe-service';
 import { useTheme } from '@/hooks/use-theme';
+import { inputStyle } from '@/components/ui/Input';
+import { Mascot } from '@/components/kitchen/mascot';
+import { Tablecloth } from '@/components/kitchen/tablecloth';
+import { Pot } from '@/components/kitchen/shapes';
+import { Bob, easeColors, Rise, Sizzle } from '@/components/kitchen/motion';
 
 const EXAMPLES = [
   'A cozy one-pot autumn dinner with squash',
@@ -114,6 +117,7 @@ export default function PitchScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top }}>
+      <Tablecloth />
       <ScreenHeader title="Pitch me a recipe" onBack={() => router.back()} />
 
       <KeyboardAvoidingView
@@ -127,10 +131,11 @@ export default function PitchScreen() {
           onContentSizeChange={scrollToEnd}>
           {!started && (
             <View style={styles.intro}>
-              <View style={[styles.introIcon, { backgroundColor: c.accentMuted }]}>
-                <Ionicons name="sparkles" size={26} color={c.accent} />
+              <View style={styles.introArt} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                <Bob><Mascot size={104} /></Bob>
+                <Sizzle active={loading} style={{ marginLeft: -14, marginBottom: -4 }}><Pot size={78} /></Sizzle>
               </View>
-              <Text variant="h2" style={{ textAlign: 'center', marginTop: theme.spacing.md }}>
+              <Text variant="h1" style={{ textAlign: 'center', marginTop: theme.spacing.lg }}>
                 What are you in the mood for?
               </Text>
               <Text variant="body" color="fgMuted" style={{ textAlign: 'center', marginTop: theme.spacing.sm }}>
@@ -139,9 +144,7 @@ export default function PitchScreen() {
               </Text>
               <View style={styles.exampleRow}>
                 {EXAMPLES.map((ex) => (
-                  <Pressable key={ex} onPress={() => send(ex)}>
-                    <Chip size="sm" tone={c.secondary}>{ex}</Chip>
-                  </Pressable>
+                  <Chip key={ex} variant="outline" onPress={() => send(ex)}>{ex}</Chip>
                 ))}
               </View>
             </View>
@@ -152,13 +155,13 @@ export default function PitchScreen() {
             return (
               <View key={m.id}>
                 {m.role === 'user' ? (
-                  <View style={[styles.bubble, styles.userBubble, { backgroundColor: c.accent }]}>
+                  <Rise style={[styles.bubble, styles.userBubble, { backgroundColor: c.accent, borderColor: c.outline }]}>
                     <Text variant="body" style={{ color: c.accentFg }}>{m.text}</Text>
-                  </View>
+                  </Rise>
                 ) : (
-                  <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: c.bgMuted }]}>
+                  <Rise style={[styles.bubble, styles.assistantBubble, { backgroundColor: c.bgElevated, borderColor: c.outline }]}>
                     <Text variant="body" style={{ color: c.fg }}>{m.text}</Text>
-                  </View>
+                  </Rise>
                 )}
 
                 {/* Recipe card attached to an assistant turn */}
@@ -184,8 +187,8 @@ export default function PitchScreen() {
           })}
 
           {loading && (
-            <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: c.bgMuted, flexDirection: 'row', gap: 8 }]}>
-              <ActivityIndicator size="small" color={c.accent} />
+            <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: c.bgElevated, borderColor: c.outline, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+              <Sizzle><Pot size={30} /></Sizzle>
               <Text variant="body" color="fgMuted">
                 {started ? 'Reworking it…' : 'Dreaming up a recipe…'}
               </Text>
@@ -194,13 +197,13 @@ export default function PitchScreen() {
         </ScrollView>
 
         {/* Bottom-pinned composer */}
-        <View style={[styles.composer, { backgroundColor: c.bgElevated, borderTopColor: c.border, paddingBottom: Math.max(insets.bottom, 10) }]}>
+        <View style={[styles.composer, { backgroundColor: c.bg, borderTopColor: c.outline, paddingBottom: Math.max(insets.bottom, 10) }]}>
           <TextInput
             value={input}
             onChangeText={setInput}
             placeholder={started ? 'Ask for a change…' : 'Pitch a dish…'}
             placeholderTextColor={c.fgSubtle}
-            style={[styles.composerInput, { backgroundColor: c.bgMuted, color: c.fg }]}
+            style={[inputStyle(theme), styles.composerInput]}
             multiline
             editable={!loading}
             onSubmitEditing={() => send(input)}
@@ -210,7 +213,9 @@ export default function PitchScreen() {
           <Pressable
             onPress={() => send(input)}
             disabled={loading || !input.trim()}
-            style={[styles.sendButton, { backgroundColor: input.trim() && !loading ? c.accent : c.border }]}>
+            accessibilityRole="button"
+            accessibilityLabel="Send"
+            style={[styles.sendButton, easeColors, { borderColor: c.outline, backgroundColor: input.trim() && !loading ? c.accent : c.bgMuted }, !!input.trim() && !loading && theme.shadow.sm]}>
             <Ionicons name="sparkles" size={20} color={input.trim() && !loading ? c.accentFg : c.fgSubtle} />
           </Pressable>
         </View>
@@ -222,9 +227,9 @@ export default function PitchScreen() {
 const styles = StyleSheet.create({
   thread: { padding: 16, gap: 12, flexGrow: 1 },
   intro: { alignItems: 'center', paddingTop: 32, paddingHorizontal: 12 },
-  introIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  introArt: { flexDirection: 'row', alignItems: 'flex-end' },
   exampleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 20, justifyContent: 'center' },
-  bubble: { maxWidth: '88%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
+  bubble: { maxWidth: '88%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, borderWidth: 2 },
   userBubble: { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
   assistantBubble: { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
   composer: {
@@ -233,22 +238,23 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 12,
     paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 2,
   },
   composerInput: {
     flex: 1,
     maxHeight: 120,
     minHeight: 44,
-    borderRadius: 22,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
     fontSize: 16,
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
+import { blockPress, type PressState } from './press';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
@@ -16,8 +17,10 @@ interface ButtonProps {
   children?: ReactNode;
   style?: ViewStyle;
   fullWidth?: boolean;
+  accessibilityLabel?: string;
 }
 
+/** Outlined block button with a hard offset shadow; ghost is flat text. */
 export function Button({
   onPress,
   disabled,
@@ -29,13 +32,14 @@ export function Button({
   children,
   style,
   fullWidth,
+  accessibilityLabel,
 }: ButtonProps) {
   const theme = useTheme();
   const c = theme.colors;
 
   const bg = {
     primary:   c.accent,
-    secondary: c.bgMuted,
+    secondary: c.bgElevated,
     ghost:     'transparent',
     danger:    c.danger,
   }[variant];
@@ -48,27 +52,33 @@ export function Button({
   }[variant];
 
   const pad = {
-    sm: { paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm },
-    md: { paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.md },
-    lg: { paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing.lg },
+    sm: { paddingHorizontal: theme.spacing.md, paddingVertical: 7 },
+    md: { paddingHorizontal: theme.spacing.lg + 2, paddingVertical: 11 },
+    lg: { paddingHorizontal: theme.spacing.xl, paddingVertical: 15 },
   }[size];
 
-  const fontSize = { sm: 13, md: 15, lg: 17 }[size];
+  const fontSize = { sm: 14, md: 15, lg: 17 }[size];
+  const blocky = variant !== 'ghost' && !disabled;
 
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      style={({ pressed }) => [
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      style={(state) => [
         styles.base,
         pad,
         {
           backgroundColor: bg,
           borderRadius: theme.radius.md,
-          opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
+          borderWidth: variant === 'ghost' ? 0 : theme.outlineWidth,
+          borderColor: c.outline,
+          opacity: disabled ? 0.45 : 1,
           alignSelf: fullWidth ? 'stretch' : 'flex-start',
         },
-        variant === 'ghost' && { borderWidth: 1, borderColor: c.border },
+        blocky && blockPress(theme, state as PressState, size === 'sm' ? 2 : 3),
+        variant === 'ghost' && (state as PressState).pressed && { backgroundColor: c.bgMuted },
         style,
       ]}
     >
@@ -78,13 +88,7 @@ export function Button({
         <View style={styles.row}>
           {icon}
           {children != null && (
-            <Text
-              style={[
-                theme.type.button,
-                { color: fg, fontSize },
-                !!(icon || iconRight) && { marginHorizontal: theme.spacing.xs },
-              ]}
-            >
+            <Text style={[theme.type.button, { color: fg, fontSize }]}>
               {children}
             </Text>
           )}

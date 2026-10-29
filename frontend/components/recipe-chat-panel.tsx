@@ -7,7 +7,6 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +18,12 @@ import { Chip } from './ui/Chip';
 import { AiRecipePreviewCard } from './ai-recipe-preview-card';
 import { chatAboutRecipe, applyRecipeEdit, type Recipe } from '@/services/recipe-service';
 import { useTheme } from '@/hooks/use-theme';
+import { inputStyle } from './ui/Input';
+import { blockPress, type PressState } from './ui/press';
+import { Mascot } from './kitchen/mascot';
+import { Pot } from './kitchen/shapes';
+import { Tablecloth } from './kitchen/tablecloth';
+import { easeColors, Rise, Sizzle } from './kitchen/motion';
 
 interface RecipeChatPanelProps {
   visible: boolean;
@@ -104,14 +109,17 @@ export function RecipeChatPanel({ visible, recipe, onClose, onApplied }: RecipeC
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="fullScreen">
       <View style={{ flex: 1, backgroundColor: c.bg, paddingTop: insets.top }}>
+        <Tablecloth />
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: c.border }]}>
+        <View style={[styles.header, { borderBottomColor: c.outline, backgroundColor: c.bg }]}>
+          <Mascot size={44} />
           <View style={{ flex: 1 }}>
             <Text variant="h3" numberOfLines={1}>Ask about this recipe</Text>
             <Text variant="small" color="fgSubtle" numberOfLines={1}>{recipe.title}</Text>
           </View>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.closeBtn}>
-            <Ionicons name="close" size={24} color={c.fgMuted} />
+          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close"
+            style={(state) => [styles.closeBtn, { borderColor: c.outline, backgroundColor: c.bgElevated }, blockPress(theme, state as PressState, 2, 2)]}>
+            <Ionicons name="close" size={20} color={c.fg} />
           </Pressable>
         </View>
 
@@ -126,17 +134,13 @@ export function RecipeChatPanel({ visible, recipe, onClose, onApplied }: RecipeC
             onContentSizeChange={scrollToEnd}>
             {!started && (
               <View style={styles.intro}>
-                <View style={[styles.introIcon, { backgroundColor: c.accentMuted }]}>
-                  <Ionicons name="chatbubbles-outline" size={24} color={c.accent} />
-                </View>
-                <Text variant="body" color="fgMuted" style={{ textAlign: 'center', marginTop: theme.spacing.md }}>
+                <Text variant="h2" style={{ textAlign: 'center' }}>What would you like to know?</Text>
+                <Text variant="body" color="fgMuted" style={{ textAlign: 'center', marginTop: theme.spacing.sm }}>
                   Ask anything about this recipe — subs, timing, technique — or ask me to tweak it.
                 </Text>
                 <View style={styles.suggestRow}>
                   {SUGGESTIONS.map((s) => (
-                    <Pressable key={s} onPress={() => send(s)}>
-                      <Chip size="sm" tone={c.secondary}>{s}</Chip>
-                    </Pressable>
+                    <Chip key={s} variant="outline" onPress={() => send(s)}>{s}</Chip>
                   ))}
                 </View>
               </View>
@@ -144,17 +148,18 @@ export function RecipeChatPanel({ visible, recipe, onClose, onApplied }: RecipeC
 
             {messages.map((m) => (
               <View key={m.id}>
-                <View
+                <Rise
                   style={[
                     styles.bubble,
+                    { borderColor: c.outline },
                     m.role === 'user'
                       ? [styles.userBubble, { backgroundColor: c.accent }]
-                      : [styles.assistantBubble, { backgroundColor: c.bgMuted }],
+                      : [styles.assistantBubble, { backgroundColor: c.bgElevated }],
                   ]}>
                   <Text variant="body" style={{ color: m.role === 'user' ? c.accentFg : c.fg }}>
                     {m.text}
                   </Text>
-                </View>
+                </Rise>
 
                 {/* Inline preview of the revised recipe, with an apply action. */}
                 {m.proposal && (
@@ -184,20 +189,20 @@ export function RecipeChatPanel({ visible, recipe, onClose, onApplied }: RecipeC
             ))}
 
             {loading && (
-              <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: c.bgMuted, flexDirection: 'row', gap: 8 }]}>
-                <ActivityIndicator size="small" color={c.accent} />
+              <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: c.bgElevated, borderColor: c.outline, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                <Sizzle><Pot size={30} /></Sizzle>
                 <Text variant="body" color="fgMuted">Thinking…</Text>
               </View>
             )}
           </ScrollView>
 
-          <View style={[styles.composer, { backgroundColor: c.bgElevated, borderTopColor: c.border, paddingBottom: Math.max(insets.bottom, 10) }]}>
+          <View style={[styles.composer, { backgroundColor: c.bg, borderTopColor: c.outline, paddingBottom: Math.max(insets.bottom, 10) }]}>
             <TextInput
               value={input}
               onChangeText={setInput}
               placeholder="Ask or request a change…"
               placeholderTextColor={c.fgSubtle}
-              style={[styles.composerInput, { backgroundColor: c.bgMuted, color: c.fg }]}
+              style={[inputStyle(theme), styles.composerInput]}
               multiline
               editable={!loading}
               onSubmitEditing={() => send(input)}
@@ -207,7 +212,9 @@ export function RecipeChatPanel({ visible, recipe, onClose, onApplied }: RecipeC
             <Pressable
               onPress={() => send(input)}
               disabled={loading || !input.trim()}
-              style={[styles.sendButton, { backgroundColor: input.trim() && !loading ? c.accent : c.border }]}>
+              accessibilityRole="button"
+              accessibilityLabel="Send"
+              style={[styles.sendButton, easeColors, { borderColor: c.outline, backgroundColor: input.trim() && !loading ? c.accent : c.bgMuted }, !!input.trim() && !loading && theme.shadow.sm]}>
               <Ionicons name="arrow-up" size={20} color={input.trim() && !loading ? c.accentFg : c.fgSubtle} />
             </Pressable>
           </View>
@@ -223,15 +230,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 2,
     gap: 12,
   },
-  closeBtn: { padding: 4 },
+  closeBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   thread: { padding: 16, gap: 12, flexGrow: 1 },
   intro: { alignItems: 'center', paddingTop: 24, paddingHorizontal: 12 },
-  introIcon: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   suggestRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 18, justifyContent: 'center' },
-  bubble: { maxWidth: '88%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
+  bubble: { maxWidth: '88%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18, borderWidth: 2 },
   userBubble: { alignSelf: 'flex-end', borderBottomRightRadius: 4 },
   assistantBubble: { alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
   appliedPill: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -241,17 +247,17 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 12,
     paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopWidth: 2,
   },
   composerInput: {
     flex: 1,
     maxHeight: 120,
     minHeight: 44,
-    borderRadius: 22,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingTop: 12,
     paddingBottom: 12,
     fontSize: 16,
   },
-  sendButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  sendButton: { width: 46, height: 46, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
 });

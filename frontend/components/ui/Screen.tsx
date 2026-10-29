@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import { StyleSheet, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FadeIn } from '@/components/kitchen/motion';
+import { Tablecloth } from '@/components/kitchen/tablecloth';
 import { useTheme } from '@/hooks/use-theme';
 
 interface ScreenProps {
@@ -10,19 +12,19 @@ interface ScreenProps {
   edges?: ('top' | 'bottom' | 'left' | 'right')[];
 }
 
-/** Full-screen page container. Handles safe-area + theme background. */
+/** Full-screen page container. Handles safe-area + theme background, and eases in. */
 export function Screen({ children, padded, style, edges = ['top', 'left', 'right'] }: ScreenProps) {
   const theme = useTheme();
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: theme.colors.bg }, style]} edges={edges}>
-      <View style={[styles.inner, padded && { padding: theme.spacing.lg }]}>
+      <Tablecloth />
+      <FadeIn style={padded ? { padding: theme.spacing.lg } : undefined}>
         {children}
-      </View>
+      </FadeIn>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  inner: { flex: 1 },
 });

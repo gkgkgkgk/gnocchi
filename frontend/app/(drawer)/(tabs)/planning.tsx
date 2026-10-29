@@ -5,8 +5,9 @@ import Reanimated, { useSharedValue, useAnimatedStyle, runOnJS, type SharedValue
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Screen } from '@/components/ui/Screen';
-import { Text } from '@/components/ui/Text';
-import { WavyDecoration } from '@/components/wavy-decoration';
+import { PageHeader } from '@/components/kitchen/page-header';
+import { Plate, Pot } from '@/components/kitchen/shapes';
+import { easeColors } from '@/components/kitchen/motion';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/use-theme';
 import { type Theme } from '@/constants/theme';
@@ -634,22 +635,17 @@ export default function PlanningScreen() {
 
   return (
     <Screen>
-      {/* Header — matches Recipes / Cookbooks (display title + wavy underline) */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text variant="display">Meal Planning</Text>
-            <WavyDecoration variant="line" width={140} height={16} style={{ marginTop: 4 }} />
-          </View>
-          <Pressable style={styles.resetButton} onPress={() => setShowDeleteConfirm(true)}>
-            <Ionicons name="refresh-outline" size={20} color={c.danger} />
+      <PageHeader
+        title="This week"
+        subtitle={weekPlan[0] ? `${formatDate(weekPlan[0].date)} – ${formatDate(weekPlan[6].date)}` : undefined}
+        art={<><Plate size={58} /><Pot size={62} /></>}
+        right={(
+          <Pressable style={styles.resetButton} onPress={() => setShowDeleteConfirm(true)} accessibilityRole="button">
+            <Ionicons name="refresh-outline" size={18} color={c.danger} />
             <ThemedText style={styles.resetButtonText}>Reset</ThemedText>
           </Pressable>
-        </View>
-        <ThemedText style={styles.subtitle}>
-          Week of {weekPlan[0] && formatDate(weekPlan[0].date)} - {weekPlan[6] && formatDate(weekPlan[6].date)}
-        </ThemedText>
-      </View>
+        )}
+      />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Horizontal Scrollable Calendar */}
@@ -690,13 +686,14 @@ export default function PlanningScreen() {
               <View
                 key={dayIndex}
                 ref={(el) => { dayRefs.current[dayIndex] = el; }}
-                style={{
-                  borderWidth: isHovered ? 3 : 2,
-                  borderColor: isHovered ? c.accent : isToday ? c.accent : c.border,
-                  borderRadius: 16,
-                  backgroundColor: isHovered ? c.secondaryMuted : undefined,
+                style={[{
+                  borderWidth: 2,
+                  borderColor: c.outline,
+                  borderRadius: 20,
+                  overflow: 'hidden',
                   width: calculatedWidth,
-                }}
+                  ...theme.shadow.md,
+                }, easeColors, isHovered && { borderColor: c.accent, shadowColor: c.accent }]}
               >
                 <View
                   style={[
@@ -777,16 +774,17 @@ export default function PlanningScreen() {
         {/* Recipe Ideas (short list) — also a drop zone */}
         <View
           ref={(el) => { ideasRef.current = el; }}
-          style={{
-            borderWidth: hoveredKey === 'ideas' ? 3 : 2,
-            borderColor: hoveredKey === 'ideas' ? c.accent : c.borderStrong,
+          style={[{
+            borderWidth: 2,
+            borderColor: c.outline,
             margin: 20,
             marginTop: 0,
-            padding: 16,
-            backgroundColor: hoveredKey === 'ideas' ? c.accentMuted : c.bgMuted,
-            borderRadius: 12,
+            padding: 18,
+            backgroundColor: c.bgElevated,
+            borderRadius: 24,
             minHeight: 180,
-          }}
+            ...theme.shadow.md,
+          }, easeColors, hoveredKey === 'ideas' && { backgroundColor: c.accentMuted, shadowColor: c.accent }]}
         >
           <View style={styles.shortListHeader}>
             <Ionicons name="list-outline" size={24} color={tintColor} />
@@ -1255,14 +1253,15 @@ function makeStyles(theme: Theme) {
     gap: 6,
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: c.dangerMuted,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: c.danger,
+    backgroundColor: c.bgElevated,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: c.outline,
+    ...theme.shadow.sm,
   },
   resetButtonText: {
+    ...theme.type.button,
     fontSize: 14,
-    fontWeight: '600',
     color: c.danger,
   },
   calendarContainer: {
@@ -1275,51 +1274,46 @@ function makeStyles(theme: Theme) {
   },
   dayCard: {
     flex: 1,
-    height: 420, // Increased height: header (~60px) + 2.5 rows of recipes (~280px) + button (~50px) + padding
-    backgroundColor: c.bgMuted,
-    borderRadius: 16,
+    height: 420,
+    backgroundColor: c.bgElevated,
+    borderRadius: 18,
     padding: 16,
     position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
     flexDirection: 'column',
   },
   dayCardToday: {
-    backgroundColor: c.accent,
-    transform: [{ scale: 1.05 }],
+    backgroundColor: c.butterMuted,
   },
   dayCardWithRecipes: {
-    backgroundColor: c.secondaryMuted,
+    backgroundColor: c.bgElevated,
   },
   dayCardHeader: {
     marginBottom: 16,
     alignItems: 'center',
   },
   dayCardDay: {
-    fontSize: 11,
-    fontWeight: '700',
+    ...theme.type.label,
     color: c.fgMuted,
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
   dayCardDate: {
-    fontSize: 36,
-    fontWeight: 'bold',
+    ...theme.type.display,
+    fontSize: 40,
+    lineHeight: 44,
     color: c.fg,
-    marginTop: 4,
-    lineHeight: 40,
+    marginTop: 2,
   },
   todayText: {
-    color: c.accent,
+    color: c.fg,
   },
   todayDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: c.accent,
-    marginTop: 8,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: c.outline,
+    backgroundColor: c.tomato,
+    marginTop: 6,
   },
   dayCardContent: {
     flex: 1,
@@ -1333,15 +1327,14 @@ function makeStyles(theme: Theme) {
     gap: 6,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: c.bgHover,
-    borderRadius: 8,
-    borderWidth: 1,
+    backgroundColor: c.bgElevated,
+    borderRadius: 12,
+    borderWidth: 2,
     borderColor: c.borderStrong,
     borderStyle: 'dashed',
   },
   addRecipeButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
+    ...theme.type.label,
     color: c.fgMuted,
   },
   addRecipeButtonTextToday: {
@@ -1359,8 +1352,7 @@ function makeStyles(theme: Theme) {
     textAlign: 'center',
   },
   emptyDayTextToday: {
-    color: c.accent,
-    fontWeight: '600',
+    color: c.fgMuted,
   },
   recipesContainer: {
     flexDirection: 'row',
@@ -1370,19 +1362,20 @@ function makeStyles(theme: Theme) {
   },
   recipeChip: {
     width: 148,
-    height: 130, // Increased height for larger content
+    height: 130,
     flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'space-between', // Space between top and bottom
+    justifyContent: 'space-between',
     backgroundColor: c.bgElevated,
-    borderRadius: 8,
+    borderRadius: 14,
     padding: 10,
-    borderWidth: 1,
-    borderColor: c.border,
+    borderWidth: 2,
+    borderColor: c.outline,
+    ...theme.shadow.sm,
   },
   recipeChipDragging: {
-    backgroundColor: c.secondaryMuted,
-    borderColor: c.accent,
+    backgroundColor: c.accentMuted,
+    borderColor: c.outline,
     borderWidth: 2,
   },
   dragPreview: {
@@ -1393,16 +1386,12 @@ function makeStyles(theme: Theme) {
     width: 148,
     minHeight: 90,
     backgroundColor: c.bgElevated,
-    borderRadius: 8,
+    borderRadius: 14,
     padding: 10,
     borderWidth: 2,
-    borderColor: c.accent,
+    borderColor: c.outline,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 12,
+    ...theme.shadow.lg,
   },
   recipeChipTop: {
     flexDirection: 'column',
@@ -1420,16 +1409,17 @@ function makeStyles(theme: Theme) {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: c.secondaryMuted,
+    borderWidth: 2,
+    borderColor: c.outline,
+    backgroundColor: c.butterMuted,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   recipeChipText: {
-    fontSize: 14,
-    fontWeight: '500',
+    ...theme.type.smallMedium,
     color: c.fg,
-    lineHeight: 16,
+    lineHeight: 17,
     textAlign: 'center',
   },
   chipRemove: {
@@ -1447,10 +1437,11 @@ function makeStyles(theme: Theme) {
     margin: 20,
     marginTop: 0,
     padding: 20,
-    backgroundColor: c.secondaryMuted,
-    borderRadius: 12,
+    backgroundColor: c.bgElevated,
+    borderRadius: 24,
     borderWidth: 2,
-    borderColor: c.secondary,
+    borderColor: c.outline,
+    ...theme.shadow.md,
   },
   shoppingListHeader: {
     flexDirection: 'row',
@@ -1459,8 +1450,7 @@ function makeStyles(theme: Theme) {
     marginBottom: 16,
   },
   shoppingListTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
+    ...theme.type.h2,
     flex: 1,
   },
   generateButton: {
@@ -1468,15 +1458,15 @@ function makeStyles(theme: Theme) {
     alignItems: 'center',
     gap: 6,
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     backgroundColor: c.accent,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: c.accent,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: c.outline,
+    ...theme.shadow.sm,
   },
   generateButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
+    ...theme.type.button,
     color: c.accentFg,
   },
   shoppingListContent: {
@@ -1658,11 +1648,12 @@ function makeStyles(theme: Theme) {
   shortListSection: {
     margin: 20,
     marginTop: 0,
-    padding: 16,
-    backgroundColor: c.bgMuted,
-    borderRadius: 12,
+    padding: 18,
+    backgroundColor: c.bgElevated,
+    borderRadius: 24,
     borderWidth: 2,
-    borderColor: c.borderStrong,
+    borderColor: c.outline,
+    ...theme.shadow.md,
   },
   shortListHeader: {
     flexDirection: 'row',
@@ -1671,9 +1662,7 @@ function makeStyles(theme: Theme) {
     marginBottom: 12,
   },
   shortListTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    flex: 1,
+    ...theme.type.h2,
   },
   addToShortListButton: {
     padding: 4,
