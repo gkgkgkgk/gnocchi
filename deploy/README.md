@@ -26,4 +26,4 @@ restrict,command="/mnt/nvme_cache/appdata/gnocchi/deploy/ssh-entry.sh",from="192
 
 Because `compose.yaml` and `host-deploy.sh` still come from the repo and run as root, the main protection is the GitHub `production` environment: it requires the owner's approval before the deploy job runs, and only `main` may deploy. Third-party actions are pinned to commit SHAs.
 
-The runner starts at boot from `/boot/config/go` and logs to `/var/log/gnocchi-runner.log` (RAM-backed, so it resets on reboot). `start-runner.sh` waits up to 10 minutes for the NVMe pool to mount.
+The runner starts at boot from `/boot/config/go` and logs to `/var/log/gnocchi-runner.log` (RAM-backed, so it resets on reboot). The boot line waits up to an hour for the NVMe pool to mount, because `start-runner.sh` itself lives on that pool; `enable-runner-on-unraid.sh` writes or replaces it.
