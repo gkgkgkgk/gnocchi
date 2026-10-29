@@ -18,6 +18,9 @@ class RecipeIngredient(BaseModel):
     quantity: float = 0
     unit: str = ""
     optional: bool = False
+    # Sub-heading the ingredient is listed under, e.g. "Marinade". Consecutive
+    # ingredients with the same section display as one group.
+    section: str | None = None
 
 
 class RecipePhotoOut(BaseModel):

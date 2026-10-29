@@ -20,12 +20,16 @@ class RecipeFlowTest(unittest.IsolatedAsyncioTestCase):
 
         created = await self.client.post("/recipes", json={
             "title": "Roasted carrots",
-            "ingredients": [{"text": "carrots", "quantity": 0, "unit": ""}],
+            "ingredients": [
+                {"text": "carrots", "quantity": 0, "unit": ""},
+                {"text": "olive oil", "quantity": 2, "unit": "tbsp", "section": "Dressing"},
+            ],
             "steps": ["Roast until tender"],
             "source_type": "manual",
         })
         self.assertEqual(created.status_code, 201, created.text)
         original = created.json()
+        self.assertEqual([i["section"] for i in original["ingredients"]], [None, "Dressing"])
         original_id = original["id"]
 
         try:

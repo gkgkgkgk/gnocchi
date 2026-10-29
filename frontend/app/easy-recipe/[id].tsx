@@ -10,10 +10,9 @@ import { fetchRecipeById, Recipe } from '@/services/recipe-service';
 import { fetchUnits, Unit } from '@/services/unit-service';
 import { getUnitPreference, type UnitPreference } from '@/services/profile-service';
 import { scaleForDisplay } from '@/utils/unit-conversion';
-import { convertDecimalsToFractions } from '@/utils/fraction-formatter';
-import { formatIngredientLine } from '@/utils/ingredient-formatter';
+import { formatAmount, groupBySection } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
-import { type Theme } from '@/constants/theme';
+import { fonts, type Theme } from '@/constants/theme';
 
 const VERB_RE = /\b(bake|roast|simmer|boil|cook|fry|sauté|saute|steam|chill|rest|marinate|proof|rise|grill|braise|poach|refrigerate|freeze|knead|whisk|reduce|toast|broil|steep|soak)\b/i;
 const TIME_RE = /(\d+)\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)/gi;
@@ -181,23 +180,32 @@ export default function EasyRecipeViewer() {
               </View>
               <View style={styles.ingredientsList}>
                 {recipe.ingredients && recipe.ingredients.length > 0 ? (
-                  recipe.ingredients.map((item, index) => {
-                    const ingredientName = item.ingredient?.name || item.text || 'Unknown';
-                    const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units, unitPref);
-                    let displayText = formatIngredientLine(scaled.quantity, scaled.unit, ingredientName);
-                    displayText = convertDecimalsToFractions(displayText);
-                    const isOptional = (item as any).optional;
-                    if (isOptional) displayText = `${displayText} (optional)`;
-                    
-                    return (
-                      <View key={item.id || index} style={[styles.ingredientItem, isOptional && { opacity: 0.55 }]}>
-                        <ThemedText style={styles.ingredientBullet}>•</ThemedText>
-                        <ThemedText style={styles.ingredientText}>
-                          {displayText}
+                  groupBySection(recipe.ingredients).map((group, groupIndex) => (
+                    <View key={`${groupIndex}-${group.section ?? ''}`}>
+                      {group.section && (
+                        <ThemedText style={[styles.ingredientSection, groupIndex === 0 && { marginTop: 0 }]}>
+                          {group.section}
                         </ThemedText>
-                      </View>
-                    );
-                  })
+                      )}
+                      {group.items.map(({ item, index }) => {
+                        const ingredientName = item.ingredient?.name || item.text || 'Unknown';
+                        const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units, unitPref);
+                        const amount = formatAmount(scaled.quantity, scaled.unit);
+                        const isOptional = item.optional;
+
+                        return (
+                          <View key={index} style={[styles.ingredientItem, isOptional && { opacity: 0.55 }]}>
+                            <ThemedText style={styles.ingredientBullet}>•</ThemedText>
+                            <ThemedText style={[styles.ingredientText, { color: c.fgMuted }]}>
+                              <ThemedText style={styles.ingredientName}>{ingredientName}</ThemedText>
+                              {amount ? `, ${amount}` : ''}
+                              {isOptional ? ' (optional)' : ''}
+                            </ThemedText>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))
                 ) : (
                   <ThemedText style={styles.placeholderText}>
                     No ingredients listed
@@ -378,6 +386,23 @@ function makeStyles(theme: Theme) {
     fontSize: 18,
     lineHeight: 26,
     flex: 1,
+  },
+  ingredientName: {
+    fontSize: 18,
+    lineHeight: 26,
+    fontFamily: fonts.sansSb,
+    fontWeight: '600',
+    color: c.fg,
+  },
+  ingredientSection: {
+    fontFamily: fonts.sansSb,
+    fontWeight: '600',
+    fontSize: 14,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: c.accent,
+    marginTop: 16,
+    marginBottom: 8,
   },
   instructionsList: {
     gap: 20,

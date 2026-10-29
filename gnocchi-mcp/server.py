@@ -16,10 +16,14 @@ from pydantic import BaseModel, Field
 
 
 class Ingredient(BaseModel):
-    text: str = Field(description="Ingredient name or description")
-    quantity: float = 0
-    unit: str = ""
+    text: str = Field(description='Ingredient name and prep only, e.g. "Garlic, minced"; never the amount or unit')
+    quantity: float = Field(0, description="Numeric amount; 0.5 for 1/2. 0 when unspecified, like salt to taste")
+    unit: str = Field("", description='Singular unit such as "cup", "tbsp", "clove"; empty for counted items')
     optional: bool = False
+    section: str | None = Field(
+        None,
+        description='Ingredient group, e.g. "Marinade" or "Pico de gallo". Keep a group\'s rows together; omit when the recipe has no groups',
+    )
 
 
 class RecipeDraft(BaseModel):

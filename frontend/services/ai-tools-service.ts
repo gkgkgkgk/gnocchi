@@ -39,6 +39,8 @@ export async function executeAITool(
         text: i.text,
         quantity: i.quantity,
         unit: unitToString(i.unit),
+        optional: !!i.optional,
+        section: i.section ?? null,
       })),
       instructions: recipe.steps,
       notes: recipe.notes ?? '',

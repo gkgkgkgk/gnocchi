@@ -23,6 +23,7 @@ import { createRecipe, updateRecipe, fetchRecipeById, uploadRecipePhoto, setReci
 import { pickImage } from '@/services/image-service';
 import { useTheme } from '@/hooks/use-theme';
 import { type Theme } from '@/constants/theme';
+import { stripLeadingAmount } from '@/utils/ingredient-formatter';
 
 function makeStyles(theme: Theme) {
   const c = theme.colors;
@@ -184,6 +185,17 @@ function makeStyles(theme: Theme) {
     backgroundColor: c.bgMuted,
     borderRadius: 10,
     marginTop: 8,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  sectionNameInput: {
+    flex: 1,
+    fontWeight: '600',
   },
   addButtonText: {
     ...theme.type.smallMedium,
@@ -386,6 +398,8 @@ interface RecipeIngredient {
   unitAbbreviation: string;
   text: string;  // Raw ingredient text
   optional: boolean;
+  // Group heading, e.g. "Marinade". null = ungrouped; '' = a heading being typed.
+  section: string | null;
 }
 
 interface RecipeFormData {
@@ -417,7 +431,7 @@ export default function NewRecipeScreen() {
     prepTime: '',
     cookTime: '',
     servings: '',
-    ingredients: [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false }],
+    ingredients: [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false, section: null }],
     steps: [''],
     imageUrl: '',
     sourceType: 'manual',
@@ -456,26 +470,21 @@ export default function NewRecipeScreen() {
           );
         }
 
-        let ingredientName = ing.text || '';
-        if (ing.quantity && ing.unit) {
-          const quantityStr = ing.quantity.toString();
-          const unitStr = unitToString(ing.unit);
-          ingredientName = ing.text
-            .replace(new RegExp(`^${quantityStr}\\s*${unitStr}\\s*`, 'i'), '')
-            .replace(/^of\s+/i, '')
-            .trim();
-        }
+        const ingredientName = ing.quantity > 0
+          ? stripLeadingAmount(ing.text || '', unitToString(ing.unit))
+          : (ing.text || '');
 
         return {
           ingredientId: ing.id || ing.ingredient_id || '',
           ingredientName: ingredientName || ing.ingredient?.name || '',
-          quantity: ing.quantity?.toString() || '',
+          quantity: ing.quantity ? ing.quantity.toString() : '',
           unitId: matchedUnit?.id || ing.unit_id || '',
           unitAbbreviation: matchedUnit?.abbreviation || unitToString(ing.unit) || '',
           text: ing.text || '',
           optional: !!ing.optional,
+          section: ing.section || null,
         };
-      }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false }];
+      }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false, section: null }];
 
       setFormData({
         title: recipe.title || '',
@@ -560,33 +569,21 @@ export default function NewRecipeScreen() {
             
             // Extract ingredient name from the full text
             // The text is like "2 cups flour" - we need to extract just "flour"
-            let ingredientName = ing.text || '';
-            if (ing.quantity && ing.unit) {
-              // Remove quantity and unit from the beginning
-              const quantityStr = ing.quantity.toString();
-              const unitStr = ing.unit;
-              ingredientName = ing.text
-                .replace(new RegExp(`^${quantityStr}\\s*${unitStr}\\s*`, 'i'), '')
-                .replace(/^of\s+/i, '') // Remove "of" if present
-                .trim();
-            } else if (ing.quantity) {
-              // Just remove quantity
-              const quantityStr = ing.quantity.toString();
-              ingredientName = ing.text
-                .replace(new RegExp(`^${quantityStr}\\s*`, 'i'), '')
-                .trim();
-            }
+            const ingredientName = parseFloat(ing.quantity) > 0
+              ? stripLeadingAmount(ing.text || '', ing.unit)
+              : (ing.text || '');
             
             return {
               ingredientId: ing.id || '',
               ingredientName: ingredientName,
-              quantity: ing.quantity || '',
+              quantity: parseFloat(ing.quantity) > 0 ? String(ing.quantity) : '',
               unitId: matchedUnit?.id || '',
               unitAbbreviation: matchedUnit?.abbreviation || ing.unit || '',
               text: ing.text || '',
               optional: !!ing.optional,
+              section: ing.section || null,
             };
-          }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false }];
+          }) || [{ ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false, section: null }];
           
           setFormData({
             title: imported.title || '',
@@ -669,14 +666,6 @@ export default function NewRecipeScreen() {
     return out;
   };
 
-  // Helper function to build ingredient text from components
-  const buildIngredientText = (quantity: string, unit: string, name: string): string => {
-    const parts = [];
-    if (quantity) parts.push(quantity);
-    if (unit) parts.push(unit);
-    if (name) parts.push(name);
-    return parts.join(' ');
-  };
 
   const updateFormData = (field: keyof RecipeFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -696,11 +685,40 @@ export default function NewRecipeScreen() {
     }
   };
 
-  const addIngredient = () => {
+  const blankIngredient = (section: string | null): RecipeIngredient => (
+    { ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false, section }
+  );
+
+  // Add an ingredient at the end of the group that ends at `afterIndex`.
+  const addIngredient = (afterIndex: number) => {
+    setFormData(prev => {
+      const ingredients = [...prev.ingredients];
+      ingredients.splice(afterIndex + 1, 0, blankIngredient(prev.ingredients[afterIndex]?.section ?? null));
+      return { ...prev, ingredients };
+    });
+  };
+
+  // Start a new ingredient group (e.g. "Marinade") with one empty row.
+  const addSection = () => {
+    setFormData(prev => ({ ...prev, ingredients: [...prev.ingredients, blankIngredient('')] }));
+  };
+
+  const renameSection = (indices: number[], name: string) => {
     setFormData(prev => ({
       ...prev,
-      ingredients: [...prev.ingredients, { ingredientId: '', ingredientName: '', quantity: '', unitId: '', unitAbbreviation: '', text: '', optional: false }]
+      ingredients: prev.ingredients.map((ing, i) => indices.includes(i) ? { ...ing, section: name } : ing),
     }));
+  };
+
+  // Drop a heading; its ingredients join the group above it.
+  const removeSection = (indices: number[]) => {
+    setFormData(prev => {
+      const above = indices[0] > 0 ? prev.ingredients[indices[0] - 1].section : null;
+      return {
+        ...prev,
+        ingredients: prev.ingredients.map((ing, i) => indices.includes(i) ? { ...ing, section: above } : ing),
+      };
+    });
   };
 
   const updateIngredient = (index: number, field: keyof RecipeIngredient, value: string) => {
@@ -708,12 +726,7 @@ export default function NewRecipeScreen() {
       ...prev,
       ingredients: prev.ingredients.map((ing, i) => {
         if (i === index) {
-          const updated = { ...ing, [field]: value };
-          // Update text whenever quantity, unit, or name changes
-          if (field === 'quantity' || field === 'unitAbbreviation' || field === 'ingredientName') {
-            updated.text = buildIngredientText(updated.quantity, updated.unitAbbreviation, updated.ingredientName);
-          }
-          return updated;
+          return { ...ing, [field]: value };
         }
         return ing;
       })
@@ -728,7 +741,7 @@ export default function NewRecipeScreen() {
         ...prev,
         ingredients: prev.ingredients.map((ing, i) =>
           i === selectedIngredientIndex
-            ? { ...ing, unitId: unit.id, unitAbbreviation: unit.abbreviation, text: buildIngredientText(ing.quantity, unit.abbreviation, ing.ingredientName) }
+            ? { ...ing, unitId: unit.id, unitAbbreviation: unit.abbreviation }
             : ing
         )
       }));
@@ -741,7 +754,7 @@ export default function NewRecipeScreen() {
         ...prev,
         ingredients: prev.ingredients.map((ing, i) =>
           i === selectedIngredientIndex
-            ? { ...ing, ingredientId: ingredient.id, ingredientName: ingredient.name, text: buildIngredientText(ing.quantity, ing.unitAbbreviation, ingredient.name) }
+            ? { ...ing, ingredientId: ingredient.id, ingredientName: ingredient.name }
             : ing
         )
       }));
@@ -845,13 +858,15 @@ export default function NewRecipeScreen() {
       const ingredients = formData.ingredients
         .filter((ing) => ing.ingredientName.trim())
         .map((ing) => ({
-          text: ing.text || buildIngredientText(ing.quantity, ing.unitAbbreviation, ing.ingredientName),
+          // The amount and unit are stored separately; text is just the name.
+          text: ing.ingredientName.trim(),
           id: ing.ingredientId && ing.ingredientId.trim() !== '' ? ing.ingredientId : undefined,
           quantity: ing.quantity,
           unit: ing.unitId || undefined,
           unitAbbreviation: ing.unitAbbreviation,
           ingredientName: ing.ingredientName,
           optional: ing.optional,
+          section: ing.section?.trim() || null,
         }));
 
       // Filter out empty steps
@@ -972,67 +987,107 @@ export default function NewRecipeScreen() {
     </View>
   );
 
+  // Consecutive ingredients with the same section form one group. Unlike the
+  // recipe view, '' is kept apart from null so a heading being retyped stays.
+  const ingredientGroups = () => {
+    const groups: { section: string | null; indices: number[] }[] = [];
+    formData.ingredients.forEach((ing, index) => {
+      const last = groups[groups.length - 1];
+      if (last && last.section === ing.section) last.indices.push(index);
+      else groups.push({ section: ing.section, indices: [index] });
+    });
+    return groups;
+  };
+
   const renderIngredients = () => (
     <View style={styles.stepContent}>
       <ThemedText style={styles.sectionTitle}>Ingredients</ThemedText>
-      <ThemedText style={[styles.label, { marginBottom: 12 }]}>Type ingredients directly. Amounts are optional.</ThemedText>
-      {formData.ingredients.map((ingredient, index) => (
-        <View key={index} style={[styles.ingredientCard, { backgroundColor: c.bgElevated, borderColor: c.border }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <TextInput
-              style={[styles.textInput, { flex: 1 }, errors.has(`ingredient-${index}-name`) && styles.errorField]}
-              value={ingredient.ingredientName}
-              onChangeText={(value) => updateIngredient(index, 'ingredientName', value)}
-              placeholder="Ingredient, e.g. cherry tomatoes"
-              placeholderTextColor={c.fgSubtle}
-            />
-            <Pressable onPress={() => openIngredientPicker(index)} accessibilityLabel="Browse ingredients" style={styles.removeButton}>
-              <ThemedText style={{ color: c.accent, fontSize: 17 }}>⌕</ThemedText>
-            </Pressable>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
-            <TextInput
-              style={[styles.textInput, { width: 75 }]}
-              value={ingredient.quantity}
-              onChangeText={(value) => updateIngredient(index, 'quantity', value)}
-              placeholder="Amount"
-              placeholderTextColor={c.fgSubtle}
-              keyboardType="decimal-pad"
-            />
-            <TextInput
-              style={[styles.textInput, { flex: 1, minWidth: 70 }]}
-              value={ingredient.unitAbbreviation}
-              onChangeText={(value) => updateIngredient(index, 'unitAbbreviation', value)}
-              placeholder="Unit (optional)"
-              placeholderTextColor={c.fgSubtle}
-            />
-            <Pressable onPress={() => openUnitPicker(index)} accessibilityLabel="Browse units" style={styles.removeButton}>
-              <ThemedText style={{ color: c.accent, fontSize: 17 }}>⌕</ThemedText>
-            </Pressable>
-          </View>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            <Pressable
-              onPress={() => setFormData(prev => ({
-                ...prev,
-                ingredients: prev.ingredients.map((ing, i) => i === index ? { ...ing, optional: !ing.optional } : ing),
-              }))}
-              style={[styles.optionalToggle, ingredient.optional && styles.optionalToggleActive]}
-            >
-              <ThemedText style={[styles.optionalToggleText, ingredient.optional && styles.optionalToggleTextActive]}>
-                {ingredient.optional ? 'Optional ✓' : 'Mark optional'}
-              </ThemedText>
-            </Pressable>
-            {formData.ingredients.length > 1 && (
-              <Pressable onPress={() => removeIngredient(index)} accessibilityLabel="Remove ingredient" style={styles.removeButton}>
-                <ThemedText style={{ color: c.danger }}>Remove</ThemedText>
+      <ThemedText style={[styles.label, { marginBottom: 12 }]}>
+        Type ingredients directly. Amounts are optional. Use sections for parts like a marinade or sauce.
+      </ThemedText>
+      {ingredientGroups().map((group) => (
+        <View key={group.indices[0]}>
+          {group.section !== null && (
+            <View style={styles.sectionHeaderRow}>
+              <TextInput
+                style={[styles.textInput, styles.sectionNameInput]}
+                value={group.section}
+                onChangeText={(value) => renameSection(group.indices, value)}
+                placeholder="Section name, e.g. Marinade"
+                placeholderTextColor={c.fgSubtle}
+                autoFocus={group.section === ''}
+              />
+              <Pressable onPress={() => removeSection(group.indices)} accessibilityLabel="Remove section heading" style={styles.removeButton}>
+                <ThemedText style={{ color: c.danger }}>Remove heading</ThemedText>
               </Pressable>
-            )}
-          </View>
+            </View>
+          )}
+          {group.indices.map((index) => renderIngredientCard(formData.ingredients[index], index))}
+          <Pressable style={styles.addButton} onPress={() => addIngredient(group.indices[group.indices.length - 1])}>
+            <ThemedText style={styles.addButtonText}>
+              {group.section ? `+ Add to ${group.section}` : '+ Add Ingredient'}
+            </ThemedText>
+          </Pressable>
         </View>
       ))}
-      <Pressable style={styles.addButton} onPress={addIngredient}>
-        <ThemedText style={styles.addButtonText}>+ Add Ingredient</ThemedText>
+      <Pressable style={[styles.addButton, { marginTop: 20 }]} onPress={addSection}>
+        <ThemedText style={styles.addButtonText}>+ Add Section</ThemedText>
       </Pressable>
+    </View>
+  );
+
+  const renderIngredientCard = (ingredient: RecipeIngredient, index: number) => (
+    <View key={index} style={[styles.ingredientCard, { backgroundColor: c.bgElevated, borderColor: c.border }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <TextInput
+          style={[styles.textInput, { flex: 1 }, errors.has(`ingredient-${index}-name`) && styles.errorField]}
+          value={ingredient.ingredientName}
+          onChangeText={(value) => updateIngredient(index, 'ingredientName', value)}
+          placeholder="Ingredient, e.g. cherry tomatoes"
+          placeholderTextColor={c.fgSubtle}
+        />
+        <Pressable onPress={() => openIngredientPicker(index)} accessibilityLabel="Browse ingredients" style={styles.removeButton}>
+          <ThemedText style={{ color: c.accent, fontSize: 17 }}>⌕</ThemedText>
+        </Pressable>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+        <TextInput
+          style={[styles.textInput, { width: 75 }]}
+          value={ingredient.quantity}
+          onChangeText={(value) => updateIngredient(index, 'quantity', value)}
+          placeholder="Amount"
+          placeholderTextColor={c.fgSubtle}
+          keyboardType="decimal-pad"
+        />
+        <TextInput
+          style={[styles.textInput, { flex: 1, minWidth: 70 }]}
+          value={ingredient.unitAbbreviation}
+          onChangeText={(value) => updateIngredient(index, 'unitAbbreviation', value)}
+          placeholder="Unit (optional)"
+          placeholderTextColor={c.fgSubtle}
+        />
+        <Pressable onPress={() => openUnitPicker(index)} accessibilityLabel="Browse units" style={styles.removeButton}>
+          <ThemedText style={{ color: c.accent, fontSize: 17 }}>⌕</ThemedText>
+        </Pressable>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+        <Pressable
+          onPress={() => setFormData(prev => ({
+            ...prev,
+            ingredients: prev.ingredients.map((ing, i) => i === index ? { ...ing, optional: !ing.optional } : ing),
+          }))}
+          style={[styles.optionalToggle, ingredient.optional && styles.optionalToggleActive]}
+        >
+          <ThemedText style={[styles.optionalToggleText, ingredient.optional && styles.optionalToggleTextActive]}>
+            {ingredient.optional ? 'Optional ✓' : 'Mark optional'}
+          </ThemedText>
+        </Pressable>
+        {formData.ingredients.length > 1 && (
+          <Pressable onPress={() => removeIngredient(index)} accessibilityLabel="Remove ingredient" style={styles.removeButton}>
+            <ThemedText style={{ color: c.danger }}>Remove</ThemedText>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 

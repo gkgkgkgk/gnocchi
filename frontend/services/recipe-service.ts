@@ -1,5 +1,6 @@
 import { api } from '@/lib/api';
 import { appendImage } from '@/utils/form-upload';
+import { stripLeadingAmount } from '@/utils/ingredient-formatter';
 
 // --- Types --------------------------------------------------------------
 
@@ -11,6 +12,8 @@ export interface RecipeIngredient {
   // bugs (an object where a string was expected), so it's normalized here.
   unit: string;
   optional?: boolean;
+  /** Group heading such as "Marinade"; consecutive rows share a group. */
+  section?: string | null;
   ingredient?: { id?: string; name: string };
   unit_id?: string;
   ingredient_id?: string;
@@ -134,23 +137,14 @@ function parseQuantity(q: string | number | undefined | null): number {
 }
 
 /**
- * Strip a leading quantity + unit from an ingredient's raw text so
- * downstream formatters can prepend them without doubling up.
- * "1 pound salmon" + (qty=1, unit=pound) → "salmon"
- * "salmon" + (qty=1, unit=pound) → "salmon"
+ * The ingredient's name without the amount its stored text may repeat, so
+ * the display can show the amount once: imported lines keep the text as
+ * written ("1/2 cup Orange Juice") next to quantity 0.5 and unit "cup".
+ * Text with no stored quantity ("1–2 tsp oil, as needed") is left whole.
  */
 function cleanIngredientName(text: string, quantity: number, unit: string): string {
-  let name = (text ?? '').trim();
-  if (!name) return '';
-  const qStr = quantity ? String(quantity) : '';
-  if (qStr && name.startsWith(qStr)) name = name.slice(qStr.length).trimStart();
-  if (unit) {
-    // Match "unit" or "units" as a whole word.
-    const re = new RegExp(`^${unit.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b\\s*`, 'i');
-    name = name.replace(re, '');
-  }
-  name = name.replace(/^of\s+/i, '');
-  return name.trim() || (text ?? '').trim();
+  const name = (text ?? '').trim();
+  return quantity > 0 ? stripLeadingAmount(name, unit) : name;
 }
 
 function parseIntOrNull(v: any): number | null {
@@ -183,6 +177,7 @@ function adaptForUI(r: any): Recipe {
         text: i.text ?? '',
         quantity: qty,
         optional: !!i.optional,
+        section: i.section ?? null,
         // Plain string — see RecipeIngredient.unit. '' when absent.
         unit: unitStr,
         // Legacy shape read by the recipe view: it does
@@ -249,6 +244,7 @@ function adaptForBackend(input: any, partial = false): Record<string, any> {
           unitToString(i.unit) ||
           '',
         optional: !!i.optional,
+        section: (typeof i.section === 'string' && i.section.trim()) || null,
       })),
     steps: (input.steps ?? []).filter(Boolean),
     notes: input.notes ?? null,
@@ -405,6 +401,8 @@ export async function analyzeRecipeInsight(recipe: Recipe): Promise<AIInsight> {
           text: i.text,
           quantity: i.quantity,
           unit: unitToString(i.unit),
+          optional: !!i.optional,
+          section: i.section ?? null,
         })),
         instructions: recipe.steps,
         notes: recipe.notes ?? '',
@@ -492,6 +490,7 @@ export async function applyRecipeEdit(original: Recipe, aiRecipe: any): Promise<
       quantity: typeof i.quantity === 'number' ? i.quantity : parseQuantity(i.quantity),
       unit: unitToString(i.unit),
       optional: !!i.optional,
+      section: i.section ?? null,
     })),
     steps: (aiRecipe.instructions ?? aiRecipe.steps ?? []).filter(Boolean),
     notes: aiRecipe.notes ?? null,
@@ -523,6 +522,8 @@ export async function chatAboutRecipe(
       text: i.text,
       quantity: i.quantity,
       unit: unitToString(i.unit),
+      optional: !!i.optional,
+      section: i.section ?? null,
     })),
     instructions: recipe.steps,
     notes: recipe.notes ?? '',

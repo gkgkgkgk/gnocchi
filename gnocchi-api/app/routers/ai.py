@@ -22,6 +22,7 @@ class _LLMIngredient(BaseModel):
     quantity: float = 0
     unit: str = ""
     optional: bool = False
+    section: str = ""
 
 
 class _LLMMetadata(BaseModel):
@@ -113,7 +114,7 @@ Provide your analysis."""
 
 @router.post("/execute-tool", response_model=schemas.ExecuteToolResponse)
 async def execute_tool(body: schemas.ExecuteToolRequest):
-    ingredients_text = "\n".join(f"- {i.text}" for i in body.recipe.ingredients)
+    ingredients_text = _ingredient_lines(body.recipe.ingredients)
     instructions_text = "\n".join(f"{i+1}. {s}" for i, s in enumerate(body.recipe.instructions))
 
     reasoning_section = (
@@ -155,7 +156,9 @@ Return a complete modified recipe."""
         recipe=schemas.AIRecipePayload(
             title=parsed.title,
             ingredients=[
-                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional)
+                schemas.RecipeIngredient(
+                    text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional, section=i.section or None
+                )
                 for i in parsed.ingredients
             ],
             instructions=list(parsed.instructions),
@@ -204,11 +207,22 @@ async def suggest_tags(body: schemas.SuggestTagsRequest):
     )
 
 
+def _ingredient_lines(ingredients: list[schemas.RecipeIngredient]) -> str:
+    """One "- qty unit text" line per ingredient, with a [Section] line
+    starting each group so the model can keep the groups intact."""
+    lines: list[str] = []
+    section = None
+    for i in ingredients:
+        if i.section != section:
+            section = i.section
+            if section:
+                lines.append(f"[{section}]")
+        lines.append(f"- {' '.join(str(p) for p in [i.quantity or '', i.unit or '', i.text] if p)}")
+    return "\n".join(lines)
+
+
 def _format_recipe_for_prompt(r: schemas.AIRecipePayload) -> str:
-    ings = "\n".join(
-        f"- {' '.join(str(p) for p in [i.quantity or '', i.unit or '', i.text] if p)}"
-        for i in r.ingredients
-    )
+    ings = _ingredient_lines(r.ingredients)
     steps = "\n".join(f"{i+1}. {s}" for i, s in enumerate(r.instructions))
     md = r.metadata or {}
     return (
@@ -248,7 +262,9 @@ async def generate_recipe(body: schemas.GenerateRecipeRequest):
         recipe=schemas.AIRecipePayload(
             title=parsed.title,
             ingredients=[
-                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional)
+                schemas.RecipeIngredient(
+                    text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional, section=i.section or None
+                )
                 for i in parsed.ingredients
             ],
             instructions=list(parsed.instructions),
@@ -294,7 +310,9 @@ async def recipe_chat(body: schemas.RecipeChatRequest):
         recipe=schemas.AIRecipePayload(
             title=parsed.title,
             ingredients=[
-                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional)
+                schemas.RecipeIngredient(
+                    text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional, section=i.section or None
+                )
                 for i in parsed.ingredients
             ],
             instructions=list(parsed.instructions),

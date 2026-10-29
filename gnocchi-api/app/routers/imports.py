@@ -29,6 +29,7 @@ class _LLMIngredient(BaseModel):
     quantity: float = 0
     unit: str = ""
     optional: bool = False
+    section: str = ""
 
 
 class _LLMMetadata(BaseModel):
@@ -50,7 +51,9 @@ def _to_imported(parsed: _LLMRecipe, source_url: str | None, source_image: str |
         recipe=schemas.RecipeCreate(
             title=parsed.title,
             ingredients=[
-                schemas.RecipeIngredient(text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional)
+                schemas.RecipeIngredient(
+                    text=i.text, quantity=i.quantity, unit=i.unit, optional=i.optional, section=i.section or None
+                )
                 for i in parsed.ingredients
             ],
             steps=list(parsed.instructions),

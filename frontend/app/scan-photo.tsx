@@ -57,6 +57,8 @@ export default function ScanPhotoScreen() {
           id: '',
           quantity: (ing.quantity ?? 0).toString(),
           unit: ing.unit ?? '',
+          optional: !!ing.optional,
+          section: ing.section ?? null,
         })),
         steps: recipeData.steps ?? recipeData.instructions ?? [],
         notes: recipeData.notes ?? '',

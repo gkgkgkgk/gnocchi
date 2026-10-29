@@ -21,12 +21,16 @@ async def main() -> None:
         original = await save_recipe(
             RecipeDraft(
                 title="MCP smoke test",
-                ingredients=[Ingredient(text="Pasta", quantity=1, unit="cup")],
+                ingredients=[
+                    Ingredient(text="Pasta", quantity=1, unit="cup"),
+                    Ingredient(text="Lemon juice", quantity=1, unit="tbsp", section="Sauce"),
+                ],
                 steps=["Boil water."],
             )
         )
         created.append(original["id"])
         assert original["source_type"] == "manual"
+        assert [i["section"] for i in original["ingredients"]] == [None, "Sauce"]
 
         variation = await create_variation(
             original["id"], RecipeChanges(title="MCP smoke test variation", notes="Less salt")

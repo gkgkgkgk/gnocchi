@@ -96,6 +96,8 @@ export default function PitchScreen() {
         id: '',
         quantity: String(ing.quantity ?? ''),
         unit: ing.unit ?? '',
+        optional: !!ing.optional,
+        section: ing.section ?? null,
       })),
       steps: recipe.instructions ?? recipe.steps ?? [],
       notes: recipe.notes ?? '',

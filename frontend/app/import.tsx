@@ -94,6 +94,8 @@ export default function ImportScreen() {
         id: '',
         quantity: String(ing.quantity ?? ''),
         unit: ing.unit ?? '',
+        optional: !!ing.optional,
+        section: ing.section ?? null,
       })),
       steps: preview.recipe.steps ?? [],
       notes: preview.recipe.notes ?? '',

@@ -30,68 +30,98 @@ export function decimalToFraction(decimal: number): string {
   return String(Math.round(decimal * 100) / 100);
 }
 
-/**
- * Pluralizes a unit name based on quantity
- */
-export function pluralizeUnit(unit: string, quantity: number): string {
-  // Convert to number in case it's a string
-  const numQuantity = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
-  
-  if (numQuantity === 1) {
-    return unit;
-  }
+// Abbreviations and words that read the same at any amount ("2 tbsp", not "2 tbsps").
+const INVARIANT_UNITS = new Set([
+  'tsp', 'tbsp', 'tbs', 'oz', 'fl oz', 'lb', 'lbs', 'g', 'kg', 'mg', 'ml', 'l', 'dl', 'cl',
+  'pt', 'qt', 'gal', 'ea', 'dz', 'each', 'dozen', 'c', 't',
+]);
 
-  // Common irregular plurals
-  const irregulars: Record<string, string> = {
-    'leaf': 'leaves',
-    'half': 'halves',
-    'loaf': 'loaves',
-  };
+const IRREGULAR_PLURALS: Record<string, string> = { leaf: 'leaves', half: 'halves', loaf: 'loaves' };
 
-  const lowerUnit = unit.toLowerCase();
-  
-  if (irregulars[lowerUnit]) {
-    return irregulars[lowerUnit];
-  }
-
-  // Words ending in 'ch', 'sh', 's', 'x', 'z' add 'es'
-  if (/(ch|sh|s|x|z)$/i.test(unit)) {
-    return unit + 'es';
-  }
-
-  // Words ending in consonant + 'y' change 'y' to 'ies'
-  if (/[^aeiou]y$/i.test(unit)) {
-    return unit.slice(0, -1) + 'ies';
-  }
-
-  // Default: just add 's'
-  return unit + 's';
+function singularUnit(unit: string): string {
+  const lower = unit.toLowerCase();
+  const irregular = Object.keys(IRREGULAR_PLURALS).find((s) => IRREGULAR_PLURALS[s] === lower);
+  if (irregular) return irregular;
+  if (/(ch|sh|x|z|ss)es$/i.test(unit)) return unit.slice(0, -2);
+  if (/[^aeiou]ies$/i.test(unit)) return unit.slice(0, -3) + 'y';
+  if (/[^su]s$/i.test(unit)) return unit.slice(0, -1);
+  return unit;
 }
 
 /**
- * Formats an ingredient line for display
+ * The unit's form for an amount: singular up to 1 ("1/2 cup", "1 clove"),
+ * plural above it ("2 cloves"). Accepts either form as input.
  */
-export function formatIngredientLine(
-  quantity: number,
-  unitName: string | undefined,
-  ingredientName: string
-): string {
-  // No (or zero) quantity — the ingredient was entered without an amount
-  // (e.g. "brown sugar", "salt to taste"). Show just the name rather than a
-  // meaningless "0 brown sugar".
+export function pluralizeUnit(unit: string, quantity: number): string {
+  if (INVARIANT_UNITS.has(unit.toLowerCase())) return unit;
+  const singular = singularUnit(unit);
   const numQuantity = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
-  if (!numQuantity || Number.isNaN(numQuantity) || numQuantity <= 0) {
-    return ingredientName;
+  if (!(numQuantity > 1)) return singular;
+
+  const irregular = IRREGULAR_PLURALS[singular.toLowerCase()];
+  if (irregular) return irregular;
+  if (/(ch|sh|s|x|z)$/i.test(singular)) return singular + 'es';
+  if (/[^aeiou]y$/i.test(singular)) return singular.slice(0, -1) + 'ies';
+  return singular + 's';
+}
+
+/** Every spelling of a unit worth recognizing at the start of a line. */
+function unitForms(unit: string): string[] {
+  const singular = singularUnit(unit);
+  return [unit, singular, pluralizeUnit(singular, 2)];
+}
+
+const FRACTION_CHARS = '¼½¾⅓⅔⅛⅜⅝⅞';
+// Mixed numbers and fractions come first so "1/2" isn't read as "1".
+const AMOUNT = `(?:\\d+\\s+\\d+/\\d+|\\d+/\\d+|\\d+(?:[.,]\\d+)?(?:\\s*[${FRACTION_CHARS}])?|[${FRACTION_CHARS}])`;
+const LEADING_AMOUNT = new RegExp(`^${AMOUNT}(?:\\s*(?:-|–|—|to)\\s*${AMOUNT})?\\s*`, 'i');
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Strip a leading amount and unit from an ingredient's text, for recipes
+ * whose text is the whole line as written ("1/2 cup Orange Juice") while the
+ * amount and unit are also stored separately. Leaves text without one alone.
+ */
+export function stripLeadingAmount(text: string, unit?: string | null): string {
+  const original = (text ?? '').trim();
+  let name = original.replace(LEADING_AMOUNT, '');
+  if (unit) {
+    const forms = unitForms(unit).map(escapeRegExp).join('|');
+    name = name.replace(new RegExp(`^(?:${forms})\\.?(?=\\s|$)\\s*`, 'i'), '');
   }
+  name = name.replace(/^of\s+/i, '').trim();
+  return name || original;
+}
 
-  const formattedQuantity = decimalToFraction(quantity);
+/**
+ * The amount part of an ingredient line, like "1/3 cup" or "2 cloves".
+ * Empty when there's no amount (e.g. "salt to taste").
+ */
+export function formatAmount(quantity: number, unitName: string | undefined): string {
+  const numQuantity = typeof quantity === 'string' ? parseFloat(quantity) : quantity;
+  if (!numQuantity || Number.isNaN(numQuantity) || numQuantity <= 0) return '';
+  const formattedQuantity = decimalToFraction(numQuantity);
+  if (!unitName || unitName.trim() === '') return formattedQuantity;
+  return `${formattedQuantity} ${pluralizeUnit(unitName.trim(), numQuantity)}`;
+}
 
-  if (!unitName || unitName.trim() === '') {
-    // No unit, just quantity and ingredient
-    return `${formattedQuantity} ${ingredientName}`;
-  }
-
-  const pluralizedUnit = pluralizeUnit(unitName, quantity);
-  // Add "of" between unit and ingredient
-  return `${formattedQuantity} ${pluralizedUnit} of ${ingredientName}`;
+/**
+ * Split ingredients into display groups by their `section`. Consecutive
+ * ingredients sharing a section form one group; ungrouped ones get null.
+ * Each entry keeps its index in the original list.
+ */
+export function groupBySection<T extends { section?: string | null }>(
+  items: T[],
+): { section: string | null; items: { item: T; index: number }[] }[] {
+  const groups: { section: string | null; items: { item: T; index: number }[] }[] = [];
+  items.forEach((item, index) => {
+    const section = item.section?.trim() || null;
+    const last = groups[groups.length - 1];
+    if (last && last.section === section) last.items.push({ item, index });
+    else groups.push({ section, items: [{ item, index }] });
+  });
+  return groups;
 }

@@ -12,6 +12,7 @@ import { RecipePhotoGallery } from '@/components/recipe-photo-gallery';
 import { RecipeChatPanel } from '@/components/recipe-chat-panel';
 import { EditRecipeTagsModal } from '@/components/edit-recipe-tags-modal';
 import { Text } from '@/components/ui/Text';
+import { fonts } from '@/constants/theme';
 import { Button } from '@/components/ui/Button';
 import { Chip } from '@/components/ui/Chip';
 import { Sheet } from '@/components/ui/Sheet';
@@ -22,10 +23,9 @@ import { fetchUnits, Unit } from '@/services/unit-service';
 import { getUnitPreference, type UnitPreference } from '@/services/profile-service';
 import { scaleForDisplay, toggleMeasureType, findUnit } from '@/utils/unit-conversion';
 import { densityFor } from '@/utils/ingredient-density';
-import { formatIngredientLine } from '@/utils/ingredient-formatter';
+import { formatAmount, groupBySection } from '@/utils/ingredient-formatter';
 import { useTheme } from '@/hooks/use-theme';
 import { useResponsive } from '@/hooks/use-responsive';
-import { convertDecimalsToFractions } from '@/utils/fraction-formatter';
 
 function formatCookDate(iso: string): string {
   const d = new Date(iso);
@@ -389,10 +389,9 @@ export default function RecipeDetailScreen() {
         const unit = matchingIngredient.unit || '';
         const ingredientName = matchingIngredient.ingredient?.name || matchingIngredient.text || '';
         
-        // Format: "2 cups all-purpose flour" or "2 large eggs"
-        fullText = [quantity, unit, ingredientName].filter(Boolean).join(' ').trim();
-        // Convert decimals to fractions
-        fullText = convertDecimalsToFractions(fullText);
+        // Same order as the ingredient list: "all-purpose flour, 2 cups"
+        const amount = formatAmount(quantity, unit);
+        fullText = amount ? `${ingredientName}, ${amount}` : ingredientName;
       }
       
       ingredientRefs.push({ displayText, fullText });
@@ -410,74 +409,94 @@ export default function RecipeDetailScreen() {
     if (!recipe.ingredients || recipe.ingredients.length === 0) {
       return <Text variant="body" color="fgSubtle" style={{ fontStyle: 'italic' }}>No ingredients listed</Text>;
     }
-    return recipe.ingredients.map((item, index) => {
-      const ingredientName = item.ingredient?.name || item.text || 'Unknown ingredient';
-      const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units, unitPref);
+    return groupBySection(recipe.ingredients).map((group, groupIndex) => (
+      <View key={`${groupIndex}-${group.section ?? ''}`}>
+        {group.section && (
+          <Text
+            variant="label"
+            color="accent"
+            style={[styles.ingredientSection, groupIndex === 0 && { marginTop: 0 }]}
+          >
+            {group.section}
+          </Text>
+        )}
+        {group.items.map(({ item, index }) => renderIngredientRow(item, index))}
+      </View>
+    ));
+  };
 
-      // Weight↔volume flip: offer it only when we know this ingredient's
-      // density and its unit is a convertible weight/volume unit.
-      const density = densityFor(ingredientName);
-      const scaledUnit = findUnit(units, scaled.unit);
-      const flipped = flippedUnits.has(index);
-      let shownQty = scaled.quantity;
-      let shownUnit = scaled.unit;
-      let canFlip = false;
-      if (density && scaledUnit && (scaledUnit.type === 'weight' || scaledUnit.type === 'volume')) {
-        const alt = toggleMeasureType(scaled.quantity, scaledUnit, units, density);
-        if (alt) {
-          canFlip = true;
-          if (flipped) {
-            shownQty = alt.quantity;
-            shownUnit = alt.unit;
-          }
+  // One ingredient: the name in bold first so the list scans at a glance,
+  // then the scaled amount ("Vegetable Oil, 1/3 cup").
+  const renderIngredientRow = (item: Recipe['ingredients'][number], index: number) => {
+    const ingredientName = item.ingredient?.name || item.text || 'Unknown ingredient';
+    const scaled = scaleForDisplay(item.quantity, item.unit, multiplier, units, unitPref);
+
+    // Weight↔volume flip: offer it only when we know this ingredient's
+    // density and its unit is a convertible weight/volume unit.
+    const density = densityFor(ingredientName);
+    const scaledUnit = findUnit(units, scaled.unit);
+    const flipped = flippedUnits.has(index);
+    let shownQty = scaled.quantity;
+    let shownUnit = scaled.unit;
+    let canFlip = false;
+    if (density && scaledUnit && (scaledUnit.type === 'weight' || scaledUnit.type === 'volume')) {
+      const alt = toggleMeasureType(scaled.quantity, scaledUnit, units, density);
+      if (alt) {
+        canFlip = true;
+        if (flipped) {
+          shownQty = alt.quantity;
+          shownUnit = alt.unit;
         }
       }
+    }
 
-      let displayText = formatIngredientLine(shownQty, shownUnit, ingredientName);
-      const isOptional = (item as any).optional;
-      if (isOptional) displayText = `${displayText} (optional)`;
-      displayText = convertDecimalsToFractions(displayText);
-      const checked = checkedIngredients.has(index);
-      return (
-        <Pressable
-          key={item.id || index}
-          onPress={() => toggleIngredient(index)}
-          style={[styles.ingredientRow, isOptional && { opacity: 0.55 }]}
+    const amount = formatAmount(shownQty, shownUnit);
+    const isOptional = item.optional;
+    const checked = checkedIngredients.has(index);
+    return (
+      <Pressable
+        key={item.id || index}
+        onPress={() => toggleIngredient(index)}
+        style={[styles.ingredientRow, isOptional && { opacity: 0.55 }]}
+      >
+        <View
+          style={[
+            styles.checkbox,
+            { borderColor: checked ? c.accent : c.borderStrong, backgroundColor: checked ? c.accent : 'transparent' },
+          ]}
         >
-          <View
-            style={[
-              styles.checkbox,
-              { borderColor: checked ? c.accent : c.borderStrong, backgroundColor: checked ? c.accent : 'transparent' },
-            ]}
-          >
-            {checked && <Ionicons name="checkmark" size={14} color={c.accentFg} />}
-          </View>
-          <Text
-            variant="body"
-            style={[{ flex: 1, lineHeight: 24 }, checked && { textDecorationLine: 'line-through', color: c.fgSubtle }]}
-          >
-            {displayText}
+          {checked && <Ionicons name="checkmark" size={14} color={c.accentFg} />}
+        </View>
+        <Text
+          variant="body"
+          color="fgMuted"
+          style={[{ flex: 1, lineHeight: 24 }, checked && { textDecorationLine: 'line-through', color: c.fgSubtle }]}
+        >
+          <Text variant="bodyMedium" color={checked ? 'inherit' : 'fg'} style={styles.ingredientName}>
+            {ingredientName}
           </Text>
-          {canFlip && (() => {
-            const nativeType = scaledUnit!.type; // 'weight' | 'volume'
-            // Tapping switches TO: native when currently flipped, else the opposite.
-            const targetType = flipped ? nativeType : (nativeType === 'weight' ? 'volume' : 'weight');
-            return (
-              <Pressable
-                onPress={(e) => { e.stopPropagation(); toggleUnitFlip(index); }}
-                hitSlop={8}
-                style={[styles.flipButton, { borderColor: c.border }, flipped && { backgroundColor: c.accentMuted, borderColor: c.accent }]}
-              >
-                <Ionicons name="swap-horizontal" size={14} color={flipped ? c.accent : c.fgSubtle} />
-                <Text variant="caption" style={{ color: flipped ? c.accent : c.fgSubtle }}>
-                  {targetType === 'weight' ? 'wt' : 'vol'}
-                </Text>
-              </Pressable>
-            );
-          })()}
-        </Pressable>
-      );
-    });
+          {amount ? `, ${amount}` : ''}
+          {isOptional ? ' (optional)' : ''}
+        </Text>
+        {canFlip && (() => {
+          const nativeType = scaledUnit!.type; // 'weight' | 'volume'
+          // Tapping switches TO: native when currently flipped, else the opposite.
+          const targetType = flipped ? nativeType : (nativeType === 'weight' ? 'volume' : 'weight');
+          return (
+            <Pressable
+              onPress={(e) => { e.stopPropagation(); toggleUnitFlip(index); }}
+              hitSlop={8}
+              style={[styles.flipButton, { borderColor: c.border }, flipped && { backgroundColor: c.accentMuted, borderColor: c.accent }]}
+            >
+              <Ionicons name="swap-horizontal" size={14} color={flipped ? c.accent : c.fgSubtle} />
+              <Text variant="caption" style={{ color: flipped ? c.accent : c.fgSubtle }}>
+                {targetType === 'weight' ? 'wt' : 'vol'}
+              </Text>
+            </Pressable>
+          );
+        })()}
+      </Pressable>
+    );
   };
 
   const renderStepsList = () => {
@@ -1019,7 +1038,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
-    marginBottom: 14,
+    marginBottom: 10,
+  },
+  ingredientName: {
+    fontFamily: fonts.sansSb,
+    fontWeight: '600',
+  },
+  ingredientSection: {
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginTop: 18,
+    marginBottom: 10,
   },
   flipButton: {
     flexDirection: 'row',

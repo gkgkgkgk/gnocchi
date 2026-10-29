@@ -7,6 +7,7 @@ _INGREDIENT_RULES = """For each ingredient, output ONE row with:
 - quantity: numeric amount (0 if not specified). Convert fractions like 1/2 to 0.5.
 - unit: unit of measurement, lowercased, without a trailing period (e.g. "cup", "tbsp", "g"). Empty string if none.
 - optional: true if the source marks the ingredient as optional / "for garnish" / "to taste" / "if desired" / "to serve". false otherwise.
+- section: the sub-heading the ingredient is listed under, if the recipe groups its ingredients (e.g. "Marinade", "Pico de gallo", "For the sauce" → "Sauce"). Empty string when the recipe has no ingredient groups. Keep each group's rows together, in the source order.
 
 CRITICAL: Never merge multiple ingredients into one row, even if the source lists them together like "salt, pepper, and cayenne (optional)". Split them into separate rows — salt (optional=false), pepper (optional=false), cayenne (optional=true). Merging breaks quantity scaling."""
 
@@ -88,6 +89,8 @@ Guidelines:
 - Preserve the `optional` flag on each ingredient — if it was optional
   before, keep it optional (unless the tool specifically changes that).
 - One ingredient per row. Never merge multiple ingredients into one line.
+- Preserve each ingredient's `section` (its group, like "Marinade"). Keep rows of
+  a section together.
 - Return a complete, valid recipe.
 
 Tool context: {tool_prompt}"""
@@ -121,7 +124,8 @@ RECIPE_CHAT_SYSTEM = (
     "briefly say what you changed.\n"
     "- Keep quantities realistic with common units. Honor dietary "
     "restrictions. Don't invent a different dish — stay true to the original "
-    "unless they ask otherwise."
+    "unless they ask otherwise. Keep each ingredient's `section` "
+    "(its group, like \"Marinade\") unless the change calls for regrouping."
 )
 
 
@@ -159,6 +163,9 @@ GENERATE_RECIPE_SYSTEM = (
     "- A real, appealing title (no 'Recipe for…').\n"
     "- A tight ingredient list with realistic quantities and units. Use "
     "common units (g, ml, tsp, tbsp, cup, clove, etc.).\n"
+    "- When a dish has distinct components (a marinade, a salsa, a sauce), set "
+    "each ingredient's `section` to its component and keep each section's rows "
+    "together; otherwise leave `section` empty.\n"
     "- Clear, numbered-in-order instructions a competent cook can follow. "
     "Each step is one action; don't cram the whole method into one step.\n"
     "- Sensible prep/cook time and servings.\n"
