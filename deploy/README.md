@@ -8,7 +8,7 @@ Run `deploy/bootstrap-host.sh` once on Holocron. It creates `/mnt/nvme_cache/app
 
 The GitHub Actions `deploy` job uses the Linux x64 runner registered on Holocron with label `holocron-deploy`. `start-runner.sh` starts it as `nobody`; `enable-runner-on-unraid.sh` adds its start command to Unraid's `/boot/config/go` (after backing that file up). The repository's `DEPLOY_SSH_KEY` secret is a dedicated SSH key whose public half is authorized for deployment. The checked-in `known_hosts` pins the host key. The runner needs no Docker socket. Keep the runner on a trusted machine and restrict the `production` environment to the `main` branch.
 
-On every push to `main`, the workflow runs lint, TypeScript, migrations, and API tests; builds two commit-tagged images; and deploys that exact commit. `host-deploy.sh` backs up Postgres and images to `/mnt/ssd_cache/gnocchi_backups` before migration and release. It rolls image references back if a release fails. Database migrations may not be backward-compatible, so keep the backup when recovering an older release.
+On every push to `main`, the workflow runs lint, TypeScript, migrations, and API tests; builds two commit-tagged images; and deploys that exact commit. `host-deploy.sh` backs up Postgres and images to `/mnt/ssd_cache/gnocchi_backups` before migration and release. It rolls image references back if a release fails. After a healthy release it removes older Gnocchi images, keeping that release and the previous one for rollback. Database migrations may not be backward-compatible, so keep the backup when recovering an older release.
 
 ## Recovery
 

@@ -47,4 +47,14 @@ compose run --rm --no-deps api alembic upgrade head || rollback
 compose up -d --no-build --wait --wait-timeout 120 || rollback
 curl --fail --silent --show-error --max-time 10 "http://${GNOCCHI_BIND_IP:-192.168.1.7}:${GNOCCHI_WEB_PORT:-9085}/api/health" > /dev/null || rollback
 printf '%s\n' "$sha" > .current-release
+
+# Free docker.img: keep this release and the previous one (the rollback target), drop older Gnocchi images.
+previous_sha="$(sed -n "s/^GNOCCHI_API_IMAGE=.*://p" <<<"$previous")"
+for repo in gnocchi-api gnocchi-web; do
+  docker images --format "{{.Repository}}:{{.Tag}}" "ghcr.io/$owner/$repo" | while read -r ref; do
+    tag="${ref##*:}"
+    [[ "$tag" == "$sha" || "$tag" == "$previous_sha" ]] && continue
+    docker rmi "$ref" > /dev/null || true
+  done
+done
 echo "Gnocchi release $sha is healthy"
